@@ -1514,5 +1514,63 @@ TL_MSABI int tl_SetMenuInfo(void* const hmenu, const void* const lpcmi) noexcept
     return 1;
 }
 
+TL_MSABI int tl_EqualRect(const void* const rect1, const void* const rect2) noexcept {
+    if (rect1 == nullptr || rect2 == nullptr) {
+        return 0;
+    }
+    abi::GuestRect r1{}, r2{};
+    if (!read_guest_value(rect1, r1) || !read_guest_value(rect2, r2)) {
+        return 0;
+    }
+    return (r1.left == r2.left && r1.top == r2.top &&
+            r1.right == r2.right && r1.bottom == r2.bottom) ? 1 : 0;
+}
+
+TL_MSABI int tl_OpenIcon(const void* const hwnd) noexcept {
+    (void)hwnd;
+    return 1;
+}
+
+TL_MSABI int tl_AttachThreadInput(const std::uint32_t id_attach, const std::uint32_t id_attach_to, const int attach) noexcept {
+    (void)id_attach;
+    (void)id_attach_to;
+    (void)attach;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI void* tl_ActivateKeyboardLayout(void* const hkl, const std::uint32_t flags) noexcept {
+    (void)flags;
+    return hkl != nullptr ? hkl : reinterpret_cast<void*>(0x04090409ULL);
+}
+
+TL_MSABI int tl_GetKeyboardLayoutList(const int buff_count, void** const list) noexcept {
+    if (buff_count == 0 || list == nullptr) {
+        return 1;
+    }
+    void* default_hkl = reinterpret_cast<void*>(0x04090409ULL);
+    if (!write_guest_value(list, default_hkl)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    return 1;
+}
+
+TL_MSABI int tl_GetKeyNameTextW(const std::int32_t lparam, std::uint16_t* const string_buf, const int size) noexcept {
+    (void)lparam;
+    if (string_buf == nullptr || size <= 0) {
+        return 0;
+    }
+    std::uint16_t zero = 0;
+    write_guest_value(string_buf, zero);
+    return 0;
+}
+
+TL_MSABI std::uint32_t tl_MapVirtualKeyExW(const std::uint32_t code, const std::uint32_t map_type, void* const hkl) noexcept {
+    (void)map_type;
+    (void)hkl;
+    return code;
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux

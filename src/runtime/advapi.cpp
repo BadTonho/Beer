@@ -1516,6 +1516,150 @@ TL_ADVAPI_MSABI void tl_MapGenericMask(std::uint32_t* const access_mask,
     static_cast<void>(write_guest_value(access_mask, mask));
 }
 
+TL_ADVAPI_MSABI std::uint32_t tl_RegOpenKeyA(const void* const key, const char* const subkey, void** const result) noexcept {
+    return tl_RegOpenKeyExA(key, subkey, 0, 0x20019U, result);
+}
+
+TL_ADVAPI_MSABI std::uint32_t tl_RegQueryValueW(const void* const key, const std::uint16_t* const subkey,
+                                                std::uint16_t* const data, std::int32_t* const data_size) noexcept {
+    std::uint32_t size = data_size != nullptr ? static_cast<std::uint32_t>(*data_size) : 0;
+    const std::uint32_t st = tl_RegQueryValueExW(key, subkey, nullptr, nullptr,
+                                                 reinterpret_cast<unsigned char*>(data), &size);
+    if (data_size != nullptr) {
+        *data_size = static_cast<std::int32_t>(size);
+    }
+    return st;
+}
+
+TL_ADVAPI_MSABI std::int32_t tl_RegEnumKeyW(const void* const key, const std::uint32_t index,
+                                            std::uint16_t* const name, const std::uint32_t name_size) noexcept {
+    std::uint32_t size = name_size;
+    return tl_RegEnumKeyExW(const_cast<void*>(key), index, name, &size, nullptr, nullptr, nullptr, nullptr);
+}
+
+TL_ADVAPI_MSABI void* tl_OpenSCManagerW(const std::uint16_t* const machine_name,
+                                        const std::uint16_t* const database_name,
+                                        const std::uint32_t desired_access) noexcept {
+    (void)machine_name;
+    (void)database_name;
+    (void)desired_access;
+    set_last_error(abi::kErrorSuccess);
+    return reinterpret_cast<void*>(0x53434D31ULL); // 'SCM1'
+}
+
+TL_ADVAPI_MSABI int tl_CloseServiceHandle(void* const handle) noexcept {
+    (void)handle;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_ADVAPI_MSABI void* tl_OpenServiceW(void* const sc_manager,
+                                      const std::uint16_t* const service_name,
+                                      const std::uint32_t desired_access) noexcept {
+    (void)sc_manager;
+    (void)service_name;
+    (void)desired_access;
+    set_last_error(1060); // ERROR_SERVICE_DOES_NOT_EXIST
+    return nullptr;
+}
+
+TL_ADVAPI_MSABI void* tl_CreateServiceW(void* const sc_manager,
+                                        const std::uint16_t* const service_name,
+                                        const std::uint16_t* const display_name,
+                                        const std::uint32_t desired_access,
+                                        const std::uint32_t service_type,
+                                        const std::uint32_t start_type,
+                                        const std::uint32_t error_control,
+                                        const std::uint16_t* const binary_path,
+                                        const std::uint16_t* const load_order_group,
+                                        std::uint32_t* const tag_id,
+                                        const std::uint16_t* const dependencies,
+                                        const std::uint16_t* const service_start_name,
+                                        const std::uint16_t* const password) noexcept {
+    (void)sc_manager;
+    (void)service_name;
+    (void)display_name;
+    (void)desired_access;
+    (void)service_type;
+    (void)start_type;
+    (void)error_control;
+    (void)binary_path;
+    (void)load_order_group;
+    (void)tag_id;
+    (void)dependencies;
+    (void)service_start_name;
+    (void)password;
+    set_last_error(5); // ERROR_ACCESS_DENIED
+    return nullptr;
+}
+
+TL_ADVAPI_MSABI int tl_DeleteService(void* const service) noexcept {
+    (void)service;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_ADVAPI_MSABI int tl_StartServiceW(void* const service, const std::uint32_t num_service_args,
+                                     const std::uint16_t** const service_arg_vectors) noexcept {
+    (void)service;
+    (void)num_service_args;
+    (void)service_arg_vectors;
+    set_last_error(1062); // ERROR_SERVICE_NOT_ACTIVE
+    return 0;
+}
+
+TL_ADVAPI_MSABI int tl_ControlService(void* const service, const std::uint32_t control,
+                                      void* const service_status) noexcept {
+    (void)service;
+    (void)control;
+    (void)service_status;
+    set_last_error(1062); // ERROR_SERVICE_NOT_ACTIVE
+    return 0;
+}
+
+TL_ADVAPI_MSABI int tl_SetServiceStatus(void* const status_handle, const void* const service_status) noexcept {
+    (void)status_handle;
+    (void)service_status;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_ADVAPI_MSABI int tl_QueryServiceStatusEx(void* const service, const std::uint32_t info_level,
+                                            unsigned char* const buffer, const std::uint32_t buf_size,
+                                            std::uint32_t* const bytes_needed) noexcept {
+    (void)service;
+    (void)info_level;
+    (void)buffer;
+    (void)buf_size;
+    (void)bytes_needed;
+    set_last_error(1062); // ERROR_SERVICE_NOT_ACTIVE
+    return 0;
+}
+
+TL_ADVAPI_MSABI int tl_QueryServiceConfigW(void* const service, void* const service_config,
+                                           const std::uint32_t buf_size, std::uint32_t* const bytes_needed) noexcept {
+    (void)service;
+    (void)service_config;
+    (void)buf_size;
+    (void)bytes_needed;
+    set_last_error(2); // ERROR_FILE_NOT_FOUND
+    return 0;
+}
+
+TL_ADVAPI_MSABI void* tl_RegisterServiceCtrlHandlerW(const std::uint16_t* const service_name,
+                                                     void* const handler_proc) noexcept {
+    (void)service_name;
+    (void)handler_proc;
+    set_last_error(1063); // ERROR_FAILED_SERVICE_CONTROLLER_CONNECT
+    return nullptr;
+}
+
+TL_ADVAPI_MSABI int tl_StartServiceCtrlDispatcherW(const void* const service_table) noexcept {
+    (void)service_table;
+    set_last_error(1063); // ERROR_FAILED_SERVICE_CONTROLLER_CONNECT
+    return 0;
+}
+
 }  // namespace tradutorlinux
 
 namespace tradutorlinux::loader {
@@ -1604,6 +1748,21 @@ void register_advapi32_module() {
         {"AccessCheck", 80, reinterpret_cast<std::uintptr_t>(&tl_AccessCheck), ExportSupport::Full},
         {"DuplicateToken", 81, reinterpret_cast<std::uintptr_t>(&tl_DuplicateToken), ExportSupport::Full},
         {"MapGenericMask", 82, reinterpret_cast<std::uintptr_t>(&tl_MapGenericMask), ExportSupport::Full},
+        {"RegOpenKeyA", 83, reinterpret_cast<std::uintptr_t>(&tl_RegOpenKeyA), ExportSupport::Full},
+        {"RegQueryValueW", 84, reinterpret_cast<std::uintptr_t>(&tl_RegQueryValueW), ExportSupport::Full},
+        {"RegEnumKeyW", 85, reinterpret_cast<std::uintptr_t>(&tl_RegEnumKeyW), ExportSupport::Full},
+        {"OpenSCManagerW", 86, reinterpret_cast<std::uintptr_t>(&tl_OpenSCManagerW), ExportSupport::Full},
+        {"CloseServiceHandle", 87, reinterpret_cast<std::uintptr_t>(&tl_CloseServiceHandle), ExportSupport::Full},
+        {"OpenServiceW", 88, reinterpret_cast<std::uintptr_t>(&tl_OpenServiceW), ExportSupport::Full},
+        {"CreateServiceW", 89, reinterpret_cast<std::uintptr_t>(&tl_CreateServiceW), ExportSupport::Full},
+        {"DeleteService", 90, reinterpret_cast<std::uintptr_t>(&tl_DeleteService), ExportSupport::Full},
+        {"StartServiceW", 91, reinterpret_cast<std::uintptr_t>(&tl_StartServiceW), ExportSupport::Full},
+        {"ControlService", 92, reinterpret_cast<std::uintptr_t>(&tl_ControlService), ExportSupport::Full},
+        {"SetServiceStatus", 93, reinterpret_cast<std::uintptr_t>(&tl_SetServiceStatus), ExportSupport::Full},
+        {"QueryServiceStatusEx", 94, reinterpret_cast<std::uintptr_t>(&tl_QueryServiceStatusEx), ExportSupport::Full},
+        {"QueryServiceConfigW", 95, reinterpret_cast<std::uintptr_t>(&tl_QueryServiceConfigW), ExportSupport::Full},
+        {"RegisterServiceCtrlHandlerW", 96, reinterpret_cast<std::uintptr_t>(&tl_RegisterServiceCtrlHandlerW), ExportSupport::Full},
+        {"StartServiceCtrlDispatcherW", 97, reinterpret_cast<std::uintptr_t>(&tl_StartServiceCtrlDispatcherW), ExportSupport::Full},
     };
     static const InternalModule kAdvapi32Module{"ADVAPI32.dll", kAdvapi32Exports};
     register_module(kAdvapi32Module);

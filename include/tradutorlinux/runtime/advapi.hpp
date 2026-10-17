@@ -133,6 +133,27 @@ TL_ADVAPI_MSABI int tl_AccessCheck(const void* sec_desc, void* token, std::uint3
                                    std::uint32_t* granted_access, int* access_status) noexcept;
 TL_ADVAPI_MSABI int tl_DuplicateToken(void* existing_token, int impersonation_level, void** duplicate_token) noexcept;
 TL_ADVAPI_MSABI void tl_MapGenericMask(std::uint32_t* access_mask, const void* generic_mapping) noexcept;
+TL_ADVAPI_MSABI std::uint32_t tl_RegOpenKeyA(const void* key, const char* subkey, void** result) noexcept;
+TL_ADVAPI_MSABI std::uint32_t tl_RegQueryValueW(const void* key, const std::uint16_t* subkey, std::uint16_t* data, std::int32_t* data_size) noexcept;
+TL_ADVAPI_MSABI std::int32_t tl_RegEnumKeyW(const void* key, std::uint32_t index, std::uint16_t* name, std::uint32_t name_size) noexcept;
+
+TL_ADVAPI_MSABI void* tl_OpenSCManagerW(const std::uint16_t* machine_name, const std::uint16_t* database_name, std::uint32_t desired_access) noexcept;
+TL_ADVAPI_MSABI int tl_CloseServiceHandle(void* handle) noexcept;
+TL_ADVAPI_MSABI void* tl_OpenServiceW(void* sc_manager, const std::uint16_t* service_name, std::uint32_t desired_access) noexcept;
+TL_ADVAPI_MSABI void* tl_CreateServiceW(void* sc_manager, const std::uint16_t* service_name, const std::uint16_t* display_name,
+                                        std::uint32_t desired_access, std::uint32_t service_type, std::uint32_t start_type,
+                                        std::uint32_t error_control, const std::uint16_t* binary_path,
+                                        const std::uint16_t* load_order_group, std::uint32_t* tag_id,
+                                        const std::uint16_t* dependencies, const std::uint16_t* service_start_name,
+                                        const std::uint16_t* password) noexcept;
+TL_ADVAPI_MSABI int tl_DeleteService(void* service) noexcept;
+TL_ADVAPI_MSABI int tl_StartServiceW(void* service, std::uint32_t num_service_args, const std::uint16_t** service_arg_vectors) noexcept;
+TL_ADVAPI_MSABI int tl_ControlService(void* service, std::uint32_t control, void* service_status) noexcept;
+TL_ADVAPI_MSABI int tl_SetServiceStatus(void* status_handle, const void* service_status) noexcept;
+TL_ADVAPI_MSABI int tl_QueryServiceStatusEx(void* service, std::uint32_t info_level, unsigned char* buffer, std::uint32_t buf_size, std::uint32_t* bytes_needed) noexcept;
+TL_ADVAPI_MSABI int tl_QueryServiceConfigW(void* service, void* service_config, std::uint32_t buf_size, std::uint32_t* bytes_needed) noexcept;
+TL_ADVAPI_MSABI void* tl_RegisterServiceCtrlHandlerW(const std::uint16_t* service_name, void* handler_proc) noexcept;
+TL_ADVAPI_MSABI int tl_StartServiceCtrlDispatcherW(const void* service_table) noexcept;
 
 }  // extern "C"
 

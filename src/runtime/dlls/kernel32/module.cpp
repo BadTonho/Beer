@@ -472,6 +472,16 @@ void register_kernel32_module() {
         {"GetThreadPriority", 434, reinterpret_cast<std::uintptr_t>(&tl_GetThreadPriority), ExportSupport::Full},
         {"GetPriorityClass", 435, reinterpret_cast<std::uintptr_t>(&tl_GetPriorityClass), ExportSupport::Full},
         {"GetCPInfoExW", 436, reinterpret_cast<std::uintptr_t>(&tl_GetCPInfoExW), ExportSupport::Full},
+        {"FreeResource", 437, reinterpret_cast<std::uintptr_t>(&tl_FreeResource), ExportSupport::Full},
+        {"HeapSetInformation", 438, reinterpret_cast<std::uintptr_t>(&tl_HeapSetInformation), ExportSupport::Full},
+        {"SetHandleCount", 439, reinterpret_cast<std::uintptr_t>(&tl_SetHandleCount), ExportSupport::Full},
+        {"SetConsoleScreenBufferSize", 440, reinterpret_cast<std::uintptr_t>(&tl_SetConsoleScreenBufferSize), ExportSupport::Full},
+        {"GetEnvironmentStrings", 441, reinterpret_cast<std::uintptr_t>(&tl_GetEnvironmentStrings), ExportSupport::Full},
+        {"GetEnvironmentStringsA", 442, reinterpret_cast<std::uintptr_t>(&tl_GetEnvironmentStringsA), ExportSupport::Full},
+        {"FreeEnvironmentStringsA", 443, reinterpret_cast<std::uintptr_t>(&tl_FreeEnvironmentStringsA), ExportSupport::Full},
+        {"GetStringTypeA", 444, reinterpret_cast<std::uintptr_t>(&tl_GetStringTypeA), ExportSupport::Full},
+        {"GetCalendarInfoW", 445, reinterpret_cast<std::uintptr_t>(&tl_GetCalendarInfoW), ExportSupport::Full},
+        {"QueryDosDeviceW", 446, reinterpret_cast<std::uintptr_t>(&tl_QueryDosDeviceW), ExportSupport::Full},
     };
     static const InternalModule kKernel32Module{"KERNEL32.dll", kKernel32Exports};
     register_module(kKernel32Module);

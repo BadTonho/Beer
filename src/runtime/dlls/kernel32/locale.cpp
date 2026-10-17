@@ -1284,6 +1284,26 @@ TL_MSABI int tl_GetStringTypeExA(const std::uint32_t Locale, const std::uint32_t
     return 1;
 }
 
+TL_MSABI int tl_GetStringTypeA(const std::uint32_t Locale, const std::uint32_t dwInfoType, const char* const lpSrcStr, const int cchSrc, std::uint16_t* const lpCharType) noexcept {
+    return tl_GetStringTypeExA(Locale, dwInfoType, lpSrcStr, cchSrc, lpCharType);
+}
+
+TL_MSABI int tl_GetCalendarInfoW(const std::uint32_t Locale, const std::uint32_t Calendar, const std::uint32_t CalType,
+                                 std::uint16_t* const lpCalData, const int cchData, std::uint32_t* const lpValue) noexcept {
+    (void)Locale;
+    (void)Calendar;
+    if (lpValue != nullptr && (CalType & 0x20000000U) != 0U) { // CAL_RETURN_NUMBER
+        if (!write_guest_value(lpValue, 2029U)) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+        set_last_error(abi::kErrorSuccess);
+        return sizeof(std::uint32_t) / sizeof(std::uint16_t);
+    }
+    const std::u16string default_val = u"1";
+    return write_locale_value(default_val, lpCalData, cchData);
+}
+
 TL_MSABI std::uint16_t* tl_lstrcpyW(std::uint16_t* const lpString1,
                                     const std::uint16_t* const lpString2) noexcept {
     if (lpString1 == nullptr) return nullptr;

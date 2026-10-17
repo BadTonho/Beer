@@ -588,11 +588,12 @@ TL_MSABI abi::HWnd tl_CreateWindowExW(const std::uint32_t ex_style,
                                       const void* const instance,
                                       const void* const param) noexcept {
     const auto class_val = reinterpret_cast<std::uintptr_t>(class_name);
+    const auto window_val = reinterpret_cast<std::uintptr_t>(window_name);
     std::u16string class_name_copy;
     std::u16string window_name_copy;
     if (class_name == nullptr ||
         (class_val > 0xFFFFU && !runtime::copy_guest_wstring(class_name, 4096U, class_name_copy)) ||
-        (window_name != nullptr &&
+        (window_name != nullptr && window_val > 0xFFFFU &&
          !runtime::copy_guest_wstring(window_name, 4096U, window_name_copy))) {
         set_last_error(abi::kErrorInvalidParameter);
         trace_guest_failure("CreateWindowExW", "strings", "nome de classe ou janela inválido");
@@ -600,7 +601,7 @@ TL_MSABI abi::HWnd tl_CreateWindowExW(const std::uint32_t ex_style,
     }
     std::string utf8_window;
     const char* win_cstr = nullptr;
-    if (window_name != nullptr) {
+    if (window_name != nullptr && window_val > 0xFFFFU) {
         utf8_window = util::wide_to_utf8(
             reinterpret_cast<const std::uint16_t*>(window_name_copy.data()), window_name_copy.size());
         win_cstr = utf8_window.c_str();
@@ -1478,6 +1479,39 @@ TL_MSABI int tl_GetClassInfoW(void* const instance, const std::uint16_t* const c
     return 1;
 }
 
+TL_MSABI int tl_GetClassInfoExW(void* const instance, const std::uint16_t* const class_name,
+                                void* const wnd_class_ex) noexcept {
+    (void)instance;
+    std::lock_guard lock(g_gui_state_mutex);
+    std::u16string class_copy;
+    if (class_name == nullptr ||
+        !runtime::copy_guest_wstring(class_name, 4096U, class_copy)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    const std::string utf8_class = util::wide_to_utf8(
+        reinterpret_cast<const std::uint16_t*>(class_copy.data()), class_copy.size());
+    ClassSlot* const cls = find_class_slot(utf8_class.c_str());
+    if (cls == nullptr) {
+        set_last_error(abi::kErrorClassDoesNotExist);
+        return 0;
+    }
+    if (wnd_class_ex == nullptr) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    abi::GuestWndClassExW output{};
+    output.cb_size = sizeof(abi::GuestWndClassExW);
+    output.window_proc = cls->wndproc;
+    output.class_name = class_name;
+    if (!write_guest_value(wnd_class_ex, output)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 TL_MSABI int tl_FlashWindow(void* const hwnd, const int invert) noexcept {
     (void)hwnd;
     (void)invert;
@@ -1620,6 +1654,10 @@ TL_MSABI int tl_AdjustWindowRectEx(void* const lpRect, const std::uint32_t dwSty
     (void)bMenu;
     (void)dwExStyle;
     return 1;
+}
+
+TL_MSABI int tl_AdjustWindowRect(void* const lpRect, const std::uint32_t dwStyle, const int bMenu) noexcept {
+    return tl_AdjustWindowRectEx(lpRect, dwStyle, bMenu, 0);
 }
 
 TL_MSABI void* tl_BeginDeferWindowPos(const int nNumWindows) noexcept {

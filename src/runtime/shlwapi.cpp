@@ -512,6 +512,44 @@ TL_SHLWAPI_MSABI int tl_PathStripToRootW(std::uint16_t* const path) noexcept {
     return 0;
 }
 
+TL_SHLWAPI_MSABI int tl_PathIsRootW(const std::uint16_t* const path) noexcept {
+    std::u16string guest_path;
+    if (!copy_guest_string(path, guest_path)) {
+        return 0;
+    }
+    if (guest_path.size() == 3U &&
+        ((guest_path[0] >= u'A' && guest_path[0] <= u'Z') || (guest_path[0] >= u'a' && guest_path[0] <= u'z')) &&
+        guest_path[1] == u':' && (guest_path[2] == u'\\' || guest_path[2] == u'/')) {
+        return 1;
+    }
+    if (guest_path.size() == 1U && (guest_path[0] == u'\\' || guest_path[0] == u'/')) {
+        return 1;
+    }
+    return 0;
+}
+
+TL_SHLWAPI_MSABI std::int32_t tl_SHRegGetUSValueW(const std::uint16_t* const sub_key,
+                                                  const std::uint16_t* const value,
+                                                  std::uint32_t* const type,
+                                                  void* const data,
+                                                  std::uint32_t* const data_size,
+                                                  const int ignore_hkcu,
+                                                  void* const default_data,
+                                                  const std::uint32_t default_data_size) noexcept {
+    (void)sub_key;
+    (void)value;
+    (void)type;
+    (void)ignore_hkcu;
+    if (default_data != nullptr && data != nullptr && data_size != nullptr && *data_size > 0) {
+        const std::uint32_t copy_size = std::min(*data_size, default_data_size);
+        if (write_guest_bytes(data, default_data, copy_size)) {
+            *data_size = copy_size;
+            return 0; // ERROR_SUCCESS
+        }
+    }
+    return 2; // ERROR_FILE_NOT_FOUND
+}
+
 TL_SHLWAPI_MSABI int tl_AssocQueryStringW(const std::uint32_t flags, const std::uint32_t str, const wchar_t* const pszAssoc, const wchar_t* const pszExtra, wchar_t* const pszOut, std::uint32_t* const pcchOut) noexcept {
     (void)flags;
     (void)str;
@@ -918,7 +956,10 @@ void register_shlwapi_module() {
         {"PathStripPathA", 40, reinterpret_cast<std::uintptr_t>(&tl_PathStripPathA), ExportSupport::Full},
         {"PathMatchSpecA", 41, reinterpret_cast<std::uintptr_t>(&tl_PathMatchSpecA), ExportSupport::Full},
         {"StrCmpLogicalW", 42, reinterpret_cast<std::uintptr_t>(&tl_StrCmpLogicalW), ExportSupport::Full},
+        {"PathIsRootW", 43, reinterpret_cast<std::uintptr_t>(&tl_PathIsRootW), ExportSupport::Full},
+        {"SHRegGetUSValueW", 44, reinterpret_cast<std::uintptr_t>(&tl_SHRegGetUSValueW), ExportSupport::Full},
         {"QISearch", 219, reinterpret_cast<std::uintptr_t>(&tl_QISearch), ExportSupport::Full},
+        {"", 101, reinterpret_cast<std::uintptr_t>(&tl_PathStripToRootW), ExportSupport::Full},
         {"", 176, reinterpret_cast<std::uintptr_t>(&tl_PathStripToRootW), ExportSupport::Full},
         {"", 219, reinterpret_cast<std::uintptr_t>(&tl_QISearch), ExportSupport::Full},
         {"", 410, reinterpret_cast<std::uintptr_t>(&tl_PathStripToRootW), ExportSupport::Full},

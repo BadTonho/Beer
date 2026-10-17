@@ -885,5 +885,19 @@ TL_MSABI int tl_SetMenuItemBitmaps(void* const hMenu, const std::uint32_t uPosit
     return 1;
 }
 
+TL_MSABI std::uint32_t tl_GetMenuDefaultItem(const void* const menu, const std::uint32_t by_pos, const std::uint32_t flags) noexcept {
+    (void)menu;
+    (void)by_pos;
+    (void)flags;
+    return static_cast<std::uint32_t>(-1);
+}
+
+TL_MSABI int tl_SetMenuDefaultItem(const void* const menu, const std::uint32_t item, const std::uint32_t by_pos) noexcept {
+    (void)menu;
+    (void)item;
+    (void)by_pos;
+    return 1;
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux

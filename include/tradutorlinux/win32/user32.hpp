@@ -389,6 +389,22 @@ TL_MSABI int tl_EnumWindows(void* lpEnumFunc, std::intptr_t lParam) noexcept;
 TL_MSABI void* tl_SetWinEventHook(std::uint32_t eventMin, std::uint32_t eventMax, void* hmodWinEventProc, void* pfnWinEventProc, std::uint32_t idProcess, std::uint32_t idThread, std::uint32_t dwFlags) noexcept;
 TL_MSABI int tl_UnhookWinEvent(void* hWinEventHook) noexcept;
 TL_MSABI int tl_SetMenuInfo(void* hmenu, const void* lpcmi) noexcept;
+TL_MSABI int tl_GetClassInfoExW(void* instance, const std::uint16_t* class_name, void* wnd_class_ex) noexcept;
+TL_MSABI int tl_AdjustWindowRect(void* lpRect, std::uint32_t dwStyle, int bMenu) noexcept;
+TL_MSABI std::uint32_t tl_GetMenuDefaultItem(const void* menu, std::uint32_t by_pos, std::uint32_t flags) noexcept;
+TL_MSABI int tl_SetMenuDefaultItem(const void* menu, std::uint32_t item, std::uint32_t by_pos) noexcept;
+TL_MSABI std::intptr_t tl_SendMessageTimeoutW(void* hwnd, std::uint32_t msg, std::uintptr_t w_param, std::intptr_t l_param, std::uint32_t flags, std::uint32_t timeout, std::uintptr_t* result) noexcept;
+TL_MSABI int tl_WaitMessage(void) noexcept;
+TL_MSABI std::uint32_t tl_GetMessagePos(void) noexcept;
+TL_MSABI int tl_ReplyMessage(std::intptr_t result) noexcept;
+TL_MSABI int tl_PostThreadMessageW(std::uint32_t thread_id, std::uint32_t msg, std::uintptr_t w_param, std::intptr_t l_param) noexcept;
+TL_MSABI int tl_EqualRect(const void* rect1, const void* rect2) noexcept;
+TL_MSABI int tl_OpenIcon(const void* hwnd) noexcept;
+TL_MSABI int tl_AttachThreadInput(std::uint32_t id_attach, std::uint32_t id_attach_to, int attach) noexcept;
+TL_MSABI void* tl_ActivateKeyboardLayout(void* hkl, std::uint32_t flags) noexcept;
+TL_MSABI int tl_GetKeyboardLayoutList(int buff_count, void** list) noexcept;
+TL_MSABI int tl_GetKeyNameTextW(std::int32_t lparam, std::uint16_t* string_buf, int size) noexcept;
+TL_MSABI std::uint32_t tl_MapVirtualKeyExW(std::uint32_t code, std::uint32_t map_type, void* hkl) noexcept;
 
 }  // extern "C"
 }  // namespace tradutorlinux

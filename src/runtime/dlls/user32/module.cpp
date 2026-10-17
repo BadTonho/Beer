@@ -341,6 +341,22 @@ void register_user32_module() {
         {"SetWinEventHook", 331, reinterpret_cast<std::uintptr_t>(&tl_SetWinEventHook), ExportSupport::Full},
         {"UnhookWinEvent", 332, reinterpret_cast<std::uintptr_t>(&tl_UnhookWinEvent), ExportSupport::Full},
         {"SetMenuInfo", 333, reinterpret_cast<std::uintptr_t>(&tl_SetMenuInfo), ExportSupport::Full},
+        {"GetClassInfoExW", 334, reinterpret_cast<std::uintptr_t>(&tl_GetClassInfoExW), ExportSupport::Full},
+        {"AdjustWindowRect", 335, reinterpret_cast<std::uintptr_t>(&tl_AdjustWindowRect), ExportSupport::Full},
+        {"GetMenuDefaultItem", 336, reinterpret_cast<std::uintptr_t>(&tl_GetMenuDefaultItem), ExportSupport::Full},
+        {"SetMenuDefaultItem", 337, reinterpret_cast<std::uintptr_t>(&tl_SetMenuDefaultItem), ExportSupport::Full},
+        {"SendMessageTimeoutW", 338, reinterpret_cast<std::uintptr_t>(&tl_SendMessageTimeoutW), ExportSupport::Full},
+        {"WaitMessage", 339, reinterpret_cast<std::uintptr_t>(&tl_WaitMessage), ExportSupport::Full},
+        {"GetMessagePos", 340, reinterpret_cast<std::uintptr_t>(&tl_GetMessagePos), ExportSupport::Full},
+        {"ReplyMessage", 341, reinterpret_cast<std::uintptr_t>(&tl_ReplyMessage), ExportSupport::Full},
+        {"PostThreadMessageW", 342, reinterpret_cast<std::uintptr_t>(&tl_PostThreadMessageW), ExportSupport::Full},
+        {"EqualRect", 343, reinterpret_cast<std::uintptr_t>(&tl_EqualRect), ExportSupport::Full},
+        {"OpenIcon", 344, reinterpret_cast<std::uintptr_t>(&tl_OpenIcon), ExportSupport::Full},
+        {"AttachThreadInput", 345, reinterpret_cast<std::uintptr_t>(&tl_AttachThreadInput), ExportSupport::Full},
+        {"ActivateKeyboardLayout", 346, reinterpret_cast<std::uintptr_t>(&tl_ActivateKeyboardLayout), ExportSupport::Full},
+        {"GetKeyboardLayoutList", 347, reinterpret_cast<std::uintptr_t>(&tl_GetKeyboardLayoutList), ExportSupport::Full},
+        {"GetKeyNameTextW", 348, reinterpret_cast<std::uintptr_t>(&tl_GetKeyNameTextW), ExportSupport::Full},
+        {"MapVirtualKeyExW", 349, reinterpret_cast<std::uintptr_t>(&tl_MapVirtualKeyExW), ExportSupport::Full},
     };
     static const InternalModule kUser32Module{"USER32.dll", kUser32Exports};
     register_module(kUser32Module);

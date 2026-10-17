@@ -27,5 +27,7 @@ void clear_guest_environment() noexcept;
 // podem ser liberados por FreeEnvironmentStringsW.
 [[nodiscard]] std::uint16_t* allocate_environment_block_w() noexcept;
 [[nodiscard]] bool free_environment_block_w(std::uint16_t* block) noexcept;
+[[nodiscard]] char* allocate_environment_block_a() noexcept;
+[[nodiscard]] bool free_environment_block_a(char* block) noexcept;
 
 }  // namespace tradutorlinux::runtime

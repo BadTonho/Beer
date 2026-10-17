@@ -342,5 +342,10 @@ TL_MSABI int tl_EndUpdateResourceW(void* const update_handle, const int discard)
     return 1;
 }
 
+TL_MSABI int tl_FreeResource(void* const res_data) noexcept {
+    (void)res_data;
+    return 0; // Win32 FreeResource is obsolete and always returns 0
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux

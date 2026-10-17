@@ -622,6 +622,16 @@ TL_MSABI int tl_EndUpdateResourceW(void* update_handle, int discard) noexcept;
 TL_MSABI int tl_GetThreadPriority(void* thread) noexcept;
 TL_MSABI std::uint32_t tl_GetPriorityClass(void* process) noexcept;
 TL_MSABI int tl_GetCPInfoExW(std::uint32_t code_page, std::uint32_t flags, void* cp_info_ex) noexcept;
+TL_MSABI int tl_FreeResource(void* res_data) noexcept;
+TL_MSABI int tl_HeapSetInformation(void* heap_handle, std::uint32_t info_class, void* info, std::size_t info_length) noexcept;
+TL_MSABI std::uint32_t tl_SetHandleCount(std::uint32_t count) noexcept;
+TL_MSABI int tl_SetConsoleScreenBufferSize(void* console_output, std::uint32_t size) noexcept;
+TL_MSABI char* tl_GetEnvironmentStrings(void) noexcept;
+TL_MSABI char* tl_GetEnvironmentStringsA(void) noexcept;
+TL_MSABI int tl_FreeEnvironmentStringsA(char* block) noexcept;
+TL_MSABI int tl_GetStringTypeA(std::uint32_t Locale, std::uint32_t dwInfoType, const char* lpSrcStr, int cchSrc, std::uint16_t* lpCharType) noexcept;
+TL_MSABI int tl_GetCalendarInfoW(std::uint32_t Locale, std::uint32_t Calendar, std::uint32_t CalType, std::uint16_t* lpCalData, int cchData, std::uint32_t* lpValue) noexcept;
+TL_MSABI std::uint32_t tl_QueryDosDeviceW(const std::uint16_t* lpDeviceName, std::uint16_t* lpTargetPath, std::uint32_t ucchMax) noexcept;
 
 }  // extern "C"
 }  // namespace tradutorlinux

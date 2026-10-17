@@ -40,6 +40,11 @@ std::unordered_set<std::uint16_t*>& environment_blocks() {
     return blocks;
 }
 
+std::unordered_set<char*>& environment_blocks_a() {
+    static std::unordered_set<char*> blocks;
+    return blocks;
+}
+
 std::vector<std::string>& environment_entries_a() {
     static std::vector<std::string> entries;
     return entries;
@@ -157,6 +162,10 @@ void clear_guest_environment() noexcept {
         delete[] block;
     }
     environment_blocks().clear();
+    for (char* const block : environment_blocks_a()) {
+        delete[] block;
+    }
+    environment_blocks_a().clear();
     environment_entries().clear();
     environment_entries_a().clear();
     environment_pointers_a().clear();
@@ -277,6 +286,53 @@ bool free_environment_block_w(std::uint16_t* const block) noexcept {
         return false;
     }
     environment_blocks().erase(found);
+    delete[] block;
+    return true;
+}
+
+char* allocate_environment_block_a() noexcept {
+    char* block = nullptr;
+    try {
+        std::lock_guard lock(environment_mutex());
+        ensure_initialized_locked();
+        std::size_t total_len = 1; // Trailing extra null terminator
+        for (const auto& [key, entry] : environment_entries()) {
+            (void)key;
+            total_len += entry.name.size() + 1 + entry.value.size() + 1;
+        }
+        block = new (std::nothrow) char[total_len]{};
+        if (block == nullptr) {
+            return nullptr;
+        }
+        std::size_t offset = 0;
+        for (const auto& [key, entry] : environment_entries()) {
+            (void)key;
+            std::memcpy(block + offset, entry.name.data(), entry.name.size());
+            offset += entry.name.size();
+            block[offset++] = '=';
+            std::memcpy(block + offset, entry.value.data(), entry.value.size());
+            offset += entry.value.size();
+            block[offset++] = '\0';
+        }
+        block[offset] = '\0';
+        environment_blocks_a().insert(block);
+        return block;
+    } catch (...) {
+        delete[] block;
+        return nullptr;
+    }
+}
+
+bool free_environment_block_a(char* const block) noexcept {
+    if (block == nullptr) {
+        return false;
+    }
+    std::lock_guard lock(environment_mutex());
+    const auto found = environment_blocks_a().find(block);
+    if (found == environment_blocks_a().end()) {
+        return false;
+    }
+    environment_blocks_a().erase(found);
     delete[] block;
     return true;
 }

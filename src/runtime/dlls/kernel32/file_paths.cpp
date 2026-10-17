@@ -372,6 +372,36 @@ TL_MSABI std::uint32_t tl_GetLogicalDriveStringsW(const std::uint32_t buffer_len
 TL_MSABI std::uint32_t tl_GetLogicalDrives(void) noexcept {
     return (1U << 2); // Drive C:
 }
+TL_MSABI std::uint32_t tl_QueryDosDeviceW(const std::uint16_t* const lpDeviceName,
+                                          std::uint16_t* const lpTargetPath,
+                                          const std::uint32_t ucchMax) noexcept {
+    if (lpTargetPath == nullptr || ucchMax == 0) {
+        set_last_error(abi::kErrorInsufficientBuffer);
+        return 0;
+    }
+    std::u16string result;
+    if (lpDeviceName == nullptr) {
+        result = u"C:";
+    } else {
+        result = u"\\Device\\HarddiskVolume1";
+    }
+    // Result ends with double null in QueryDosDevice: string + '\0' + '\0'
+    const std::size_t total_units = result.size() + 2;
+    if (ucchMax < total_units) {
+        set_last_error(abi::kErrorInsufficientBuffer);
+        return 0;
+    }
+    std::vector<std::uint16_t> out(result.begin(), result.end());
+    out.push_back(0);
+    out.push_back(0);
+    if (runtime::write_guest_memory(lpTargetPath, out.data(), out.size() * sizeof(std::uint16_t)).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    set_last_error(abi::kErrorSuccess);
+    return static_cast<std::uint32_t>(out.size() - 1);
+}
 TL_MSABI int tl_GetVolumePathNameA(const char* const file_name, char* const volume_path_name,
                                    const std::uint32_t buffer_length) noexcept {
     (void)file_name;

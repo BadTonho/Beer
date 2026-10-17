@@ -123,6 +123,29 @@ TL_MSABI int tl_FreeEnvironmentStringsW(std::uint16_t* const block) noexcept {
     return 1;
 }
 
+TL_MSABI char* tl_GetEnvironmentStringsA() noexcept {
+    char* const block = runtime::allocate_environment_block_a();
+    if (block == nullptr) {
+        set_last_error(abi::kErrorNotEnoughMemory);
+        return nullptr;
+    }
+    set_last_error(abi::kErrorSuccess);
+    return block;
+}
+
+TL_MSABI char* tl_GetEnvironmentStrings() noexcept {
+    return tl_GetEnvironmentStringsA();
+}
+
+TL_MSABI int tl_FreeEnvironmentStringsA(char* const block) noexcept {
+    if (!runtime::free_environment_block_a(block)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 TL_MSABI std::uint32_t tl_ExpandEnvironmentStringsW(const std::uint16_t* const source,
                                                      std::uint16_t* const destination,
                                                      const std::uint32_t size) noexcept {

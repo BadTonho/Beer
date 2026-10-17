@@ -536,5 +536,16 @@ TL_MSABI int tl_SetConsoleMode(const void* handle, std::uint32_t /*mode*/) noexc
     return 1;
 }
 
+TL_MSABI std::uint32_t tl_SetHandleCount(const std::uint32_t count) noexcept {
+    return count;
+}
+
+TL_MSABI int tl_SetConsoleScreenBufferSize(void* const console_output, const std::uint32_t size) noexcept {
+    (void)console_output;
+    (void)size;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux

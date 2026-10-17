@@ -1610,6 +1610,113 @@ TL_MSABI int tl_GetMapMode(void* const hdc) noexcept {
     return 1; // MM_TEXT
 }
 
+TL_MSABI int tl_SetStretchBltMode(void* const hdc, const int mode) noexcept {
+    (void)hdc;
+    (void)mode;
+    return 1; // BLACKONWHITE
+}
+
+TL_MSABI int tl_OffsetClipRgn(void* const hdc, const int x, const int y) noexcept {
+    (void)hdc;
+    (void)x;
+    (void)y;
+    return 2; // SIMPLEREGION
+}
+
+TL_MSABI int tl_OffsetRgn(void* const hrgn, const int x, const int y) noexcept {
+    (void)hrgn;
+    (void)x;
+    (void)y;
+    return 2; // SIMPLEREGION
+}
+
+TL_MSABI int tl_GetDCOrgEx(void* const hdc, void* const point) noexcept {
+    (void)hdc;
+    if (point != nullptr) {
+        const std::array<std::int32_t, 2> pt{};
+        if (runtime::write_guest_memory(point, pt.data(), sizeof(pt)).status !=
+            runtime::GuestMemoryAccessStatus::Success) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+    }
+    return 1;
+}
+
+TL_MSABI int tl_GetRandomRgn(void* const hdc, void* const hrgn, const int i) noexcept {
+    (void)hdc;
+    (void)hrgn;
+    (void)i;
+    return 0; // No system clipping region
+}
+
+TL_MSABI int tl_StretchDIBits(void* const hdc, const int xDest, const int yDest, const int DestWidth, const int DestHeight,
+                              const int xSrc, const int ySrc, const int SrcWidth, const int SrcHeight,
+                              const void* const lpBits, const void* const lpbmi, const std::uint32_t iUsage, const std::uint32_t rop) noexcept {
+    (void)hdc;
+    (void)xDest;
+    (void)yDest;
+    (void)DestWidth;
+    (void)xSrc;
+    (void)ySrc;
+    (void)SrcWidth;
+    (void)SrcHeight;
+    (void)lpBits;
+    (void)lpbmi;
+    (void)iUsage;
+    (void)rop;
+    set_last_error(abi::kErrorSuccess);
+    return DestHeight > 0 ? DestHeight : 0;
+}
+
+TL_MSABI std::uint32_t tl_GetRegionData(void* const hrgn, const std::uint32_t count, void* const rgn_data) noexcept {
+    (void)hrgn;
+    constexpr std::uint32_t kSize = 48;
+    if (rgn_data == nullptr || count < kSize) {
+        return kSize;
+    }
+    struct RgnDataFormat {
+        std::uint32_t dwSize{32};
+        std::uint32_t iType{1}; // RDH_RECTANGLES
+        std::uint32_t nCount{1};
+        std::uint32_t nRgnSize{16};
+        abi::GuestRect rcBound{0, 0, 1024, 768};
+        abi::GuestRect rect{0, 0, 1024, 768};
+    } data{};
+    if (runtime::write_guest_memory(rgn_data, &data, sizeof(data)).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    return kSize;
+}
+
+TL_MSABI void* tl_ExtCreateRegion(const void* const xform, const std::uint32_t count, const void* const rgn_data) noexcept {
+    (void)xform;
+    (void)count;
+    (void)rgn_data;
+    set_last_error(abi::kErrorSuccess);
+    return reinterpret_cast<void*>(0x52454354ULL); // 'RECT'
+}
+
+TL_MSABI std::uint32_t tl_GetNearestColor(void* const hdc, const std::uint32_t color) noexcept {
+    (void)hdc;
+    return color;
+}
+
+TL_MSABI int tl_RectVisible(void* const hdc, const void* const lprect) noexcept {
+    (void)hdc;
+    (void)lprect;
+    return 1;
+}
+
+TL_MSABI void* tl_CreateBitmapIndirect(const void* const pbm) noexcept {
+    (void)pbm;
+    static char g_bitmap_token_indirect = 0;
+    set_last_error(abi::kErrorSuccess);
+    return &g_bitmap_token_indirect;
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux
 
@@ -1730,6 +1837,17 @@ void register_gdi32_module() {
         {"GetTextFaceW", 111, reinterpret_cast<std::uintptr_t>(&tl_GetTextFaceW), ExportSupport::Full},
         {"TextOutW", 112, reinterpret_cast<std::uintptr_t>(&tl_TextOutW), ExportSupport::Full},
         {"GetMapMode", 113, reinterpret_cast<std::uintptr_t>(&tl_GetMapMode), ExportSupport::Full},
+        {"SetStretchBltMode", 114, reinterpret_cast<std::uintptr_t>(&tl_SetStretchBltMode), ExportSupport::Full},
+        {"OffsetClipRgn", 115, reinterpret_cast<std::uintptr_t>(&tl_OffsetClipRgn), ExportSupport::Full},
+        {"OffsetRgn", 116, reinterpret_cast<std::uintptr_t>(&tl_OffsetRgn), ExportSupport::Full},
+        {"GetDCOrgEx", 117, reinterpret_cast<std::uintptr_t>(&tl_GetDCOrgEx), ExportSupport::Full},
+        {"GetRandomRgn", 118, reinterpret_cast<std::uintptr_t>(&tl_GetRandomRgn), ExportSupport::Full},
+        {"StretchDIBits", 119, reinterpret_cast<std::uintptr_t>(&tl_StretchDIBits), ExportSupport::Full},
+        {"GetRegionData", 120, reinterpret_cast<std::uintptr_t>(&tl_GetRegionData), ExportSupport::Full},
+        {"ExtCreateRegion", 121, reinterpret_cast<std::uintptr_t>(&tl_ExtCreateRegion), ExportSupport::Full},
+        {"GetNearestColor", 122, reinterpret_cast<std::uintptr_t>(&tl_GetNearestColor), ExportSupport::Full},
+        {"RectVisible", 123, reinterpret_cast<std::uintptr_t>(&tl_RectVisible), ExportSupport::Full},
+        {"CreateBitmapIndirect", 124, reinterpret_cast<std::uintptr_t>(&tl_CreateBitmapIndirect), ExportSupport::Full},
     };
     static const InternalModule kGdi32Module{"GDI32.dll", kGdi32Exports};
     register_module(kGdi32Module);

@@ -2066,5 +2066,33 @@ TL_MSABI std::intptr_t tl_SendMessageTimeoutA(void* const hwnd, const std::uint3
     return 0;
 }
 
+TL_MSABI std::intptr_t tl_SendMessageTimeoutW(void* const hwnd, const std::uint32_t msg, const std::uintptr_t w_param, const std::intptr_t l_param, const std::uint32_t flags, const std::uint32_t timeout, std::uintptr_t* const result) noexcept {
+    return tl_SendMessageTimeoutA(hwnd, msg, w_param, l_param, flags, timeout, result);
+}
+
+TL_MSABI int tl_WaitMessage() noexcept {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    return 1;
+}
+
+TL_MSABI std::uint32_t tl_GetMessagePos() noexcept {
+    return 0;
+}
+
+TL_MSABI int tl_ReplyMessage(const std::intptr_t result) noexcept {
+    (void)result;
+    return 1;
+}
+
+TL_MSABI int tl_PostThreadMessageW(const std::uint32_t thread_id, const std::uint32_t msg,
+                                   const std::uintptr_t w_param, const std::intptr_t l_param) noexcept {
+    (void)thread_id;
+    (void)msg;
+    (void)w_param;
+    (void)l_param;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux

@@ -832,5 +832,15 @@ TL_MSABI std::uintptr_t tl_VirtualQuery(const void* address, void* memory_inform
     return sizeof(out);
 }
 
+TL_MSABI int tl_HeapSetInformation(void* const heap_handle, const std::uint32_t info_class,
+                                   void* const info, const std::size_t info_length) noexcept {
+    (void)heap_handle;
+    (void)info_class;
+    (void)info;
+    (void)info_length;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux
