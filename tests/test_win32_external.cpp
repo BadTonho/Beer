@@ -884,6 +884,8 @@ TEST(ShlwapiTest, ProtectedPathInputsAndOutputsRejectUnmappedPointers) {
     EXPECT_EQ(tl_StrStrIW(invalid_u16, kPathW), nullptr);
     EXPECT_EQ(tl_StrCmpIA(invalid_bytes, "file"), 0);
     EXPECT_EQ(tl_StrCmpIW(invalid_u16, kPathW), 0);
+    EXPECT_EQ(tl_StrCmpLogicalW(invalid_u16, kPathW), 0);
+    EXPECT_EQ(tl_QISearch(invalid_bytes, invalid_bytes, invalid_bytes, reinterpret_cast<void**>(invalid_bytes)), static_cast<int>(0x80004003U));
 
     EXPECT_EQ(tl_PathIsRelativeA(invalid_bytes), 1);
     EXPECT_EQ(tl_PathIsRelativeW(invalid_u16), 1);
@@ -1000,6 +1002,48 @@ TEST(ShlwapiTest, PathSubsetPreservesValidBufferBehavior) {
     EXPECT_EQ(hue, 0);
     EXPECT_EQ(luminance, 120);
     EXPECT_EQ(saturation, 120);
+}
+
+TEST(ShlwapiTest, StrCmpLogicalAndQISearch) {
+    constexpr std::uint16_t kFile2[] = {u'f', u'i', u'l', u'e', u'2', 0};
+    constexpr std::uint16_t kFile10[] = {u'f', u'i', u'l', u'e', u'1', u'0', 0};
+    constexpr std::uint16_t kFile2Upper[] = {u'F', u'I', u'L', u'E', u'2', 0};
+    EXPECT_LT(tl_StrCmpLogicalW(kFile2, kFile10), 0);
+    EXPECT_GT(tl_StrCmpLogicalW(kFile10, kFile2), 0);
+    EXPECT_EQ(tl_StrCmpLogicalW(kFile2, kFile2Upper), 0);
+
+    struct MockObject {
+        void** vptr{nullptr};
+        std::uint32_t addref_count{0};
+
+        static std::uint32_t TL_SHLWAPI_MSABI addref(void* self) noexcept {
+            auto* obj = reinterpret_cast<MockObject*>(self);
+            return ++obj->addref_count;
+        }
+    };
+    void* vtable[3] = {nullptr, reinterpret_cast<void*>(&MockObject::addref), nullptr};
+    MockObject obj{};
+    obj.vptr = vtable;
+
+    const std::uint8_t iid1[16] = {1, 2, 3, 4};
+    const std::uint8_t iid2[16] = {5, 6, 7, 8};
+    struct QITABEntry {
+        const void* piid;
+        std::uint32_t offset;
+        std::uint32_t padding;
+    };
+    QITABEntry table[] = {
+        {iid1, 0, 0},
+        {nullptr, 0, 0}
+    };
+
+    void* result = nullptr;
+    EXPECT_EQ(tl_QISearch(&obj, table, iid1, &result), 0);
+    EXPECT_EQ(result, &obj);
+    EXPECT_EQ(obj.addref_count, 1);
+
+    EXPECT_EQ(tl_QISearch(&obj, table, iid2, &result), static_cast<int>(0x80004002U));
+    EXPECT_EQ(result, nullptr);
 }
 
 TEST(ShellAllocationTest, ReturnedBuffersUseTheDocumentedAllocators) {

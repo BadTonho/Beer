@@ -3,6 +3,7 @@
 #include "tradutorlinux/loader/builtin_modules.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cstring>
 #include <limits>
@@ -744,6 +745,130 @@ TL_MSABI int tl_PathMatchSpecA(const char* const file, const char* const spec) n
     return copy_guest_string(file, guest_file) && copy_guest_string(spec, guest_spec) ? 1 : 0;
 }
 
+TL_SHLWAPI_MSABI int tl_StrCmpLogicalW(const std::uint16_t* const string1,
+                                       const std::uint16_t* const string2) noexcept {
+    if (string1 == string2) {
+        return 0;
+    }
+    if (string1 == nullptr) {
+        return -1;
+    }
+    if (string2 == nullptr) {
+        return 1;
+    }
+    std::u16string s1;
+    std::u16string s2;
+    if (!copy_guest_string(string1, s1) || !copy_guest_string(string2, s2)) {
+        return 0;
+    }
+    std::size_t i = 0;
+    std::size_t j = 0;
+    while (i < s1.size() && j < s2.size()) {
+        const char16_t c1 = s1[i];
+        const char16_t c2 = s2[j];
+        if (c1 >= u'0' && c1 <= u'9' && c2 >= u'0' && c2 <= u'9') {
+            while (i < s1.size() && s1[i] == u'0') {
+                ++i;
+            }
+            const std::size_t start1 = i;
+            while (i < s1.size() && s1[i] >= u'0' && s1[i] <= u'9') {
+                ++i;
+            }
+            const std::size_t len1 = i - start1;
+
+            while (j < s2.size() && s2[j] == u'0') {
+                ++j;
+            }
+            const std::size_t start2 = j;
+            while (j < s2.size() && s2[j] >= u'0' && s2[j] <= u'9') {
+                ++j;
+            }
+            const std::size_t len2 = j - start2;
+
+            if (len1 != len2) {
+                return len1 < len2 ? -1 : 1;
+            }
+            for (std::size_t k = 0; k < len1; ++k) {
+                if (s1[start1 + k] != s2[start2 + k]) {
+                    return s1[start1 + k] < s2[start2 + k] ? -1 : 1;
+                }
+            }
+        } else {
+            const char16_t lc1 = (c1 >= u'A' && c1 <= u'Z') ? static_cast<char16_t>(c1 + 32) : c1;
+            const char16_t lc2 = (c2 >= u'A' && c2 <= u'Z') ? static_cast<char16_t>(c2 + 32) : c2;
+            if (lc1 != lc2) {
+                return lc1 < lc2 ? -1 : 1;
+            }
+            ++i;
+            ++j;
+        }
+    }
+    if (i < s1.size()) return 1;
+    if (j < s2.size()) return -1;
+    return 0;
+}
+
+TL_SHLWAPI_MSABI int tl_QISearch(void* const that, const void* const pqit,
+                                 const void* const riid, void** const ppv) noexcept {
+    if (ppv == nullptr || !write_guest_value(ppv, static_cast<void*>(nullptr))) {
+        return static_cast<int>(0x80004003U); // E_POINTER
+    }
+    if (that == nullptr) {
+        return static_cast<int>(0x80004003U); // E_POINTER
+    }
+    if (pqit == nullptr || riid == nullptr) {
+        return static_cast<int>(0x80070057U); // E_INVALIDARG
+    }
+    std::array<std::uint8_t, 16> target_iid{};
+    if (runtime::read_guest_memory(riid, target_iid.data(), 16U).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        return static_cast<int>(0x80070057U); // E_INVALIDARG
+    }
+
+    struct GuestQITABEntry {
+        void* piid;
+        std::uint32_t dw_offset;
+        std::uint32_t padding;
+    };
+
+    const auto* tab = reinterpret_cast<const GuestQITABEntry*>(pqit);
+    constexpr std::size_t kMaxQITableEntries = 256;
+    for (std::size_t index = 0; index < kMaxQITableEntries; ++index) {
+        GuestQITABEntry entry{};
+        if (runtime::read_guest_memory(&tab[index], &entry, sizeof(entry)).status !=
+            runtime::GuestMemoryAccessStatus::Success) {
+            break;
+        }
+        if (entry.piid == nullptr) {
+            break;
+        }
+        std::array<std::uint8_t, 16> entry_iid{};
+        if (runtime::read_guest_memory(entry.piid, entry_iid.data(), 16U).status !=
+            runtime::GuestMemoryAccessStatus::Success) {
+            continue;
+        }
+        if (entry_iid == target_iid) {
+            const auto punk = reinterpret_cast<std::uintptr_t>(that) + entry.dw_offset;
+            void* vtbl_ptr = nullptr;
+            if (read_guest_value(reinterpret_cast<void*>(punk), vtbl_ptr) &&
+                vtbl_ptr != nullptr) {
+                void* addref_fn = nullptr;
+                if (read_guest_value(reinterpret_cast<void**>(vtbl_ptr) + 1, addref_fn) &&
+                    addref_fn != nullptr) {
+                    using AddRefFn = std::uint32_t(TL_SHLWAPI_MSABI*)(void*);
+                    auto* fn = reinterpret_cast<AddRefFn>(addref_fn);
+                    fn(reinterpret_cast<void*>(punk));
+                }
+            }
+            if (!write_guest_value(ppv, reinterpret_cast<void*>(punk))) {
+                return static_cast<int>(0x80004003U);
+            }
+            return 0; // S_OK
+        }
+    }
+    return static_cast<int>(0x80004002U); // E_NOINTERFACE
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux
 
@@ -792,7 +917,10 @@ void register_shlwapi_module() {
         {"PathRenameExtensionA", 39, reinterpret_cast<std::uintptr_t>(&tl_PathRenameExtensionA), ExportSupport::Full},
         {"PathStripPathA", 40, reinterpret_cast<std::uintptr_t>(&tl_PathStripPathA), ExportSupport::Full},
         {"PathMatchSpecA", 41, reinterpret_cast<std::uintptr_t>(&tl_PathMatchSpecA), ExportSupport::Full},
+        {"StrCmpLogicalW", 42, reinterpret_cast<std::uintptr_t>(&tl_StrCmpLogicalW), ExportSupport::Full},
+        {"QISearch", 219, reinterpret_cast<std::uintptr_t>(&tl_QISearch), ExportSupport::Full},
         {"", 176, reinterpret_cast<std::uintptr_t>(&tl_PathStripToRootW), ExportSupport::Full},
+        {"", 219, reinterpret_cast<std::uintptr_t>(&tl_QISearch), ExportSupport::Full},
         {"", 410, reinterpret_cast<std::uintptr_t>(&tl_PathStripToRootW), ExportSupport::Full},
         {"", 413, reinterpret_cast<std::uintptr_t>(&tl_PathStripToRootW), ExportSupport::Full},
     };

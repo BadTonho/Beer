@@ -33,6 +33,8 @@ TL_SHLWAPI_MSABI char* tl_StrStrIA(const char* first, const char* srch) noexcept
 TL_SHLWAPI_MSABI std::uint16_t* tl_StrStrIW(const std::uint16_t* first, const std::uint16_t* srch) noexcept;
 TL_SHLWAPI_MSABI int tl_StrCmpIA(const char* string1, const char* string2) noexcept;
 TL_SHLWAPI_MSABI int tl_StrCmpIW(const std::uint16_t* string1, const std::uint16_t* string2) noexcept;
+TL_SHLWAPI_MSABI int tl_StrCmpLogicalW(const std::uint16_t* string1, const std::uint16_t* string2) noexcept;
+TL_SHLWAPI_MSABI int tl_QISearch(void* that, const void* pqit, const void* riid, void** ppv) noexcept;
 
 }  // extern "C"
 
