@@ -298,5 +298,49 @@ TL_MSABI void* tl_FindResourceA(void* const module, const char* const name, cons
     return tl_FindResourceW(module, reinterpret_cast<const std::uint16_t*>(name), reinterpret_cast<const std::uint16_t*>(type));
 }
 
+TL_MSABI int tl_EnumResourceNamesW(void* const module, const std::uint16_t* const type, void* const enum_func, const std::intptr_t param) noexcept {
+    (void)module;
+    (void)type;
+    (void)enum_func;
+    (void)param;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI int tl_EnumResourceLanguagesW(void* const module, const std::uint16_t* const type, const std::uint16_t* const name, void* const enum_func, const std::intptr_t param) noexcept {
+    (void)module;
+    (void)type;
+    (void)name;
+    (void)enum_func;
+    (void)param;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI void* tl_BeginUpdateResourceW(const std::uint16_t* const file_name, const int delete_existing_resources) noexcept {
+    (void)file_name;
+    (void)delete_existing_resources;
+    set_last_error(abi::kErrorSuccess);
+    return reinterpret_cast<void*>(0x52455355ULL); // 'RESU'
+}
+
+TL_MSABI int tl_UpdateResourceW(void* const update_handle, const std::uint16_t* const type, const std::uint16_t* const name, const std::uint16_t language, void* const data, const std::uint32_t size) noexcept {
+    (void)update_handle;
+    (void)type;
+    (void)name;
+    (void)language;
+    (void)data;
+    (void)size;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI int tl_EndUpdateResourceW(void* const update_handle, const int discard) noexcept {
+    (void)update_handle;
+    (void)discard;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux

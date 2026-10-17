@@ -600,6 +600,12 @@ TL_MSABI int tl_SetThreadPriority(const void* const thread_handle, const int pri
     return 1;
 }
 
+TL_MSABI int tl_GetThreadPriority(void* const thread) noexcept {
+    (void)thread;
+    set_last_error(abi::kErrorSuccess);
+    return 0; // THREAD_PRIORITY_NORMAL
+}
+
 TL_MSABI std::uint32_t tl_SetThreadExecutionState(const std::uint32_t es_flags) noexcept {
     return es_flags;
 }

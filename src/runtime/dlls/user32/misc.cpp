@@ -1414,5 +1414,105 @@ TL_MSABI int tl_OemToCharBuffW(const char* const src, std::uint16_t* const dst, 
     return 1;
 }
 
+struct GuestScrollBarInfo {
+    std::uint32_t cb_size;
+    abi::GuestRect rc_scroll_bar;
+    int dxy_line_button;
+    int xy_thumb_top;
+    int xy_thumb_bottom;
+    int reserved;
+    std::uint32_t rgstate[6];
+};
+
+TL_MSABI int tl_GetScrollBarInfo(void* const hwnd, const std::int32_t id_object, void* const psbi) noexcept {
+    (void)hwnd;
+    (void)id_object;
+    if (psbi == nullptr) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    GuestScrollBarInfo info{};
+    if (!read_guest_value(psbi, info) || info.cb_size < sizeof(GuestScrollBarInfo)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    info = GuestScrollBarInfo{};
+    info.cb_size = sizeof(GuestScrollBarInfo);
+    if (!write_guest_value(psbi, info)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI std::uint32_t tl_SendInput(const std::uint32_t c_inputs, void* const p_inputs, const int cb_size) noexcept {
+    (void)p_inputs;
+    (void)cb_size;
+    set_last_error(abi::kErrorSuccess);
+    return c_inputs;
+}
+
+TL_MSABI int tl_EnumDisplayMonitors(void* const hdc, const void* const lprc_clip, void* const lpfn_enum, const std::intptr_t dw_data) noexcept {
+    (void)hdc;
+    (void)lprc_clip;
+    (void)lpfn_enum;
+    (void)dw_data;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI void tl_keybd_event(const std::uint8_t b_vk, const std::uint8_t b_scan, const std::uint32_t dw_flags, const std::uintptr_t dw_extra_info) noexcept {
+    (void)b_vk;
+    (void)b_scan;
+    (void)dw_flags;
+    (void)dw_extra_info;
+    set_last_error(abi::kErrorSuccess);
+}
+
+TL_MSABI void* tl_CreateIcon(void* const h_instance, const int n_width, const int n_height, const std::uint8_t c_planes, const std::uint8_t c_bits_pixel, const void* const lpb_and_bits, const void* const lpb_xor_bits) noexcept {
+    (void)h_instance;
+    (void)n_width;
+    (void)n_height;
+    (void)c_planes;
+    (void)c_bits_pixel;
+    (void)lpb_and_bits;
+    (void)lpb_xor_bits;
+    set_last_error(abi::kErrorSuccess);
+    return reinterpret_cast<void*>(0x49434F4EULL); // 'ICON'
+}
+
+TL_MSABI int tl_EnumWindows(void* const lp_enum_func, const std::intptr_t l_param) noexcept {
+    (void)lp_enum_func;
+    (void)l_param;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI void* tl_SetWinEventHook(const std::uint32_t event_min, const std::uint32_t event_max, void* const hmod_win_event_proc, void* const pfn_win_event_proc, const std::uint32_t id_process, const std::uint32_t id_thread, const std::uint32_t dw_flags) noexcept {
+    (void)event_min;
+    (void)event_max;
+    (void)hmod_win_event_proc;
+    (void)pfn_win_event_proc;
+    (void)id_process;
+    (void)id_thread;
+    (void)dw_flags;
+    set_last_error(abi::kErrorSuccess);
+    return reinterpret_cast<void*>(0x484F4F4BULL); // 'HOOK'
+}
+
+TL_MSABI int tl_UnhookWinEvent(void* const h_win_event_hook) noexcept {
+    (void)h_win_event_hook;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI int tl_SetMenuInfo(void* const hmenu, const void* const lpcmi) noexcept {
+    (void)hmenu;
+    (void)lpcmi;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux

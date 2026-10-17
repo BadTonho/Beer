@@ -610,6 +610,18 @@ TL_MSABI std::int32_t tl_AppPolicyGetProcessTerminationMethod(void* token, std::
 TL_MSABI std::int32_t tl_AppPolicyGetShowDeveloperDiagnostic(void* token, std::uint32_t* policy) noexcept;
 TL_MSABI std::int32_t tl_AppPolicyGetThreadInitializationType(void* token, std::uint32_t* policy) noexcept;
 TL_MSABI std::int32_t tl_AppPolicyGetWindowingModel(void* token, std::uint32_t* policy) noexcept;
+TL_MSABI void* tl_CreateNamedPipeW(const std::uint16_t* name, std::uint32_t open_mode, std::uint32_t pipe_mode,
+                                  std::uint32_t max_instances, std::uint32_t out_buf_size, std::uint32_t in_buf_size,
+                                  std::uint32_t default_time_out, void* sec_attr) noexcept;
+TL_MSABI int tl_DisconnectNamedPipe(void* named_pipe) noexcept;
+TL_MSABI int tl_EnumResourceNamesW(void* module, const std::uint16_t* type, void* enum_func, std::intptr_t param) noexcept;
+TL_MSABI int tl_EnumResourceLanguagesW(void* module, const std::uint16_t* type, const std::uint16_t* name, void* enum_func, std::intptr_t param) noexcept;
+TL_MSABI void* tl_BeginUpdateResourceW(const std::uint16_t* file_name, int delete_existing_resources) noexcept;
+TL_MSABI int tl_UpdateResourceW(void* update_handle, const std::uint16_t* type, const std::uint16_t* name, std::uint16_t language, void* data, std::uint32_t size) noexcept;
+TL_MSABI int tl_EndUpdateResourceW(void* update_handle, int discard) noexcept;
+TL_MSABI int tl_GetThreadPriority(void* thread) noexcept;
+TL_MSABI std::uint32_t tl_GetPriorityClass(void* process) noexcept;
+TL_MSABI int tl_GetCPInfoExW(std::uint32_t code_page, std::uint32_t flags, void* cp_info_ex) noexcept;
 
 }  // extern "C"
 }  // namespace tradutorlinux

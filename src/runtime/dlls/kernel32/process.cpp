@@ -637,6 +637,12 @@ TL_MSABI int tl_SetPriorityClass(void* const process, const std::uint32_t priori
     return 1;
 }
 
+TL_MSABI std::uint32_t tl_GetPriorityClass(void* const process) noexcept {
+    (void)process;
+    set_last_error(abi::kErrorSuccess);
+    return 0x00000020U; // NORMAL_PRIORITY_CLASS
+}
+
 TL_MSABI int tl_K32GetProcessMemoryInfo(void* const process, void* const counters, const std::uint32_t cb) noexcept {
     (void)process;
     if (counters == nullptr || cb < 32 || cb > 4096U) {

@@ -416,6 +416,25 @@ TL_MSABI void* tl_CreateNamedPipeA(const char* const name, const std::uint32_t o
     return reinterpret_cast<void*>(0x50495045ULL); // 'PIPE'
 }
 
+TL_MSABI void* tl_CreateNamedPipeW(const std::uint16_t* const name, const std::uint32_t open_mode, const std::uint32_t pipe_mode, const std::uint32_t max_instances, const std::uint32_t out_buf_size, const std::uint32_t in_buf_size, const std::uint32_t default_time_out, void* const sec_attr) noexcept {
+    (void)name;
+    (void)open_mode;
+    (void)pipe_mode;
+    (void)max_instances;
+    (void)out_buf_size;
+    (void)in_buf_size;
+    (void)default_time_out;
+    (void)sec_attr;
+    set_last_error(abi::kErrorSuccess);
+    return reinterpret_cast<void*>(0x50495045ULL); // 'PIPE'
+}
+
+TL_MSABI int tl_DisconnectNamedPipe(void* const named_pipe) noexcept {
+    (void)named_pipe;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 TL_MSABI int tl_CreatePipe(void** const read_pipe, void** const write_pipe, void* const pipe_attr, const std::uint32_t size) noexcept {
     (void)pipe_attr;
     (void)size;

@@ -332,6 +332,15 @@ void register_user32_module() {
         {"OemToCharW", 322, reinterpret_cast<std::uintptr_t>(&tl_OemToCharW), ExportSupport::Full},
         {"OemToCharBuffA", 323, reinterpret_cast<std::uintptr_t>(&tl_OemToCharBuffA), ExportSupport::Full},
         {"OemToCharBuffW", 324, reinterpret_cast<std::uintptr_t>(&tl_OemToCharBuffW), ExportSupport::Full},
+        {"GetScrollBarInfo", 325, reinterpret_cast<std::uintptr_t>(&tl_GetScrollBarInfo), ExportSupport::Full},
+        {"SendInput", 326, reinterpret_cast<std::uintptr_t>(&tl_SendInput), ExportSupport::Full},
+        {"EnumDisplayMonitors", 327, reinterpret_cast<std::uintptr_t>(&tl_EnumDisplayMonitors), ExportSupport::Full},
+        {"keybd_event", 328, reinterpret_cast<std::uintptr_t>(&tl_keybd_event), ExportSupport::Full},
+        {"CreateIcon", 329, reinterpret_cast<std::uintptr_t>(&tl_CreateIcon), ExportSupport::Full},
+        {"EnumWindows", 330, reinterpret_cast<std::uintptr_t>(&tl_EnumWindows), ExportSupport::Full},
+        {"SetWinEventHook", 331, reinterpret_cast<std::uintptr_t>(&tl_SetWinEventHook), ExportSupport::Full},
+        {"UnhookWinEvent", 332, reinterpret_cast<std::uintptr_t>(&tl_UnhookWinEvent), ExportSupport::Full},
+        {"SetMenuInfo", 333, reinterpret_cast<std::uintptr_t>(&tl_SetMenuInfo), ExportSupport::Full},
     };
     static const InternalModule kUser32Module{"USER32.dll", kUser32Exports};
     register_module(kUser32Module);

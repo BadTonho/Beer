@@ -380,6 +380,15 @@ TL_MSABI int tl_OemToCharA(const char* src, char* dst) noexcept;
 TL_MSABI int tl_OemToCharW(const char* src, std::uint16_t* dst) noexcept;
 TL_MSABI int tl_OemToCharBuffA(const char* src, char* dst, std::uint32_t length) noexcept;
 TL_MSABI int tl_OemToCharBuffW(const char* src, std::uint16_t* dst, std::uint32_t length) noexcept;
+TL_MSABI int tl_GetScrollBarInfo(void* hwnd, std::int32_t idObject, void* psbi) noexcept;
+TL_MSABI std::uint32_t tl_SendInput(std::uint32_t cInputs, void* pInputs, int cbSize) noexcept;
+TL_MSABI int tl_EnumDisplayMonitors(void* hdc, const void* lprcClip, void* lpfnEnum, std::intptr_t dwData) noexcept;
+TL_MSABI void tl_keybd_event(std::uint8_t bVk, std::uint8_t bScan, std::uint32_t dwFlags, std::uintptr_t dwExtraInfo) noexcept;
+TL_MSABI void* tl_CreateIcon(void* hInstance, int nWidth, int nHeight, std::uint8_t cPlanes, std::uint8_t cBitsPixel, const void* lpbANDbits, const void* lpbXORbits) noexcept;
+TL_MSABI int tl_EnumWindows(void* lpEnumFunc, std::intptr_t lParam) noexcept;
+TL_MSABI void* tl_SetWinEventHook(std::uint32_t eventMin, std::uint32_t eventMax, void* hmodWinEventProc, void* pfnWinEventProc, std::uint32_t idProcess, std::uint32_t idThread, std::uint32_t dwFlags) noexcept;
+TL_MSABI int tl_UnhookWinEvent(void* hWinEventHook) noexcept;
+TL_MSABI int tl_SetMenuInfo(void* hmenu, const void* lpcmi) noexcept;
 
 }  // extern "C"
 }  // namespace tradutorlinux

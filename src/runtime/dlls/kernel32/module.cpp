@@ -462,6 +462,16 @@ void register_kernel32_module() {
         {"GetErrorMode", 424, reinterpret_cast<std::uintptr_t>(&tl_GetErrorMode), ExportSupport::Full},
         {"BackupRead", 425, reinterpret_cast<std::uintptr_t>(&tl_BackupRead), ExportSupport::Full},
         {"BackupSeek", 426, reinterpret_cast<std::uintptr_t>(&tl_BackupSeek), ExportSupport::Full},
+        {"CreateNamedPipeW", 427, reinterpret_cast<std::uintptr_t>(&tl_CreateNamedPipeW), ExportSupport::Full},
+        {"DisconnectNamedPipe", 428, reinterpret_cast<std::uintptr_t>(&tl_DisconnectNamedPipe), ExportSupport::Full},
+        {"EnumResourceNamesW", 429, reinterpret_cast<std::uintptr_t>(&tl_EnumResourceNamesW), ExportSupport::Full},
+        {"EnumResourceLanguagesW", 430, reinterpret_cast<std::uintptr_t>(&tl_EnumResourceLanguagesW), ExportSupport::Full},
+        {"BeginUpdateResourceW", 431, reinterpret_cast<std::uintptr_t>(&tl_BeginUpdateResourceW), ExportSupport::Full},
+        {"UpdateResourceW", 432, reinterpret_cast<std::uintptr_t>(&tl_UpdateResourceW), ExportSupport::Full},
+        {"EndUpdateResourceW", 433, reinterpret_cast<std::uintptr_t>(&tl_EndUpdateResourceW), ExportSupport::Full},
+        {"GetThreadPriority", 434, reinterpret_cast<std::uintptr_t>(&tl_GetThreadPriority), ExportSupport::Full},
+        {"GetPriorityClass", 435, reinterpret_cast<std::uintptr_t>(&tl_GetPriorityClass), ExportSupport::Full},
+        {"GetCPInfoExW", 436, reinterpret_cast<std::uintptr_t>(&tl_GetCPInfoExW), ExportSupport::Full},
     };
     static const InternalModule kKernel32Module{"KERNEL32.dll", kKernel32Exports};
     register_module(kKernel32Module);

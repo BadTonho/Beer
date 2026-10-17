@@ -1517,5 +1517,63 @@ TEST(AppCatalogTest, PersistsResourceLimits) {
     std::filesystem::remove(path, error);
 }
 
+TEST(WinrarSupportTest, KernelUserGdiApisBehaveAsExpected) {
+    // KERNEL32: Named pipes, resources, thread/process priority, cpinfoex
+    void* pipe = tl_CreateNamedPipeW(reinterpret_cast<const std::uint16_t*>(u"\\\\.\\pipe\\test"), 3, 0, 1, 512, 512, 0, nullptr);
+    EXPECT_NE(pipe, nullptr);
+    EXPECT_EQ(tl_DisconnectNamedPipe(pipe), 1);
+
+    EXPECT_EQ(tl_EnumResourceNamesW(nullptr, nullptr, nullptr, 0), 1);
+    EXPECT_EQ(tl_EnumResourceLanguagesW(nullptr, nullptr, nullptr, nullptr, 0), 1);
+    void* update_handle = tl_BeginUpdateResourceW(reinterpret_cast<const std::uint16_t*>(u"test.exe"), 0);
+    EXPECT_NE(update_handle, nullptr);
+    EXPECT_EQ(tl_UpdateResourceW(update_handle, nullptr, nullptr, 0, nullptr, 0), 1);
+    EXPECT_EQ(tl_EndUpdateResourceW(update_handle, 0), 1);
+
+    EXPECT_EQ(tl_GetThreadPriority(nullptr), 0);
+    EXPECT_EQ(tl_GetPriorityClass(nullptr), 0x00000020U);
+
+    struct TestCpInfoExW {
+        std::uint32_t max_char_size;
+        std::uint8_t default_char[2];
+        std::uint8_t lead_byte[12];
+        std::uint16_t unicode_default_char;
+        std::uint32_t code_page;
+        std::uint16_t code_page_name[260];
+    } cp_info{};
+    EXPECT_EQ(tl_GetCPInfoExW(65001U, 0, &cp_info), 1);
+    EXPECT_EQ(cp_info.max_char_size, 4U);
+    EXPECT_EQ(cp_info.code_page, 65001U);
+
+    // USER32: Scroll bar, input, monitors, hook, icon, windows
+    struct TestScrollBarInfo {
+        std::uint32_t cb_size;
+        abi::GuestRect rc_scroll_bar;
+        int dxy_line_button;
+        int xy_thumb_top;
+        int xy_thumb_bottom;
+        int reserved;
+        std::uint32_t rgstate[6];
+    } sbi{};
+    sbi.cb_size = sizeof(sbi);
+    EXPECT_EQ(tl_GetScrollBarInfo(nullptr, 0, &sbi), 1);
+    EXPECT_EQ(tl_SendInput(5, nullptr, 0), 5U);
+    EXPECT_EQ(tl_EnumDisplayMonitors(nullptr, nullptr, nullptr, 0), 1);
+    tl_keybd_event(0x41, 0, 0, 0);
+    void* icon = tl_CreateIcon(nullptr, 32, 32, 1, 32, nullptr, nullptr);
+    EXPECT_NE(icon, nullptr);
+    EXPECT_EQ(tl_EnumWindows(nullptr, 0), 1);
+    void* hook = tl_SetWinEventHook(0, 0, nullptr, nullptr, 0, 0, 0);
+    EXPECT_NE(hook, nullptr);
+    EXPECT_EQ(tl_UnhookWinEvent(hook), 1);
+    EXPECT_EQ(tl_SetMenuInfo(nullptr, nullptr), 1);
+
+    // GDI32: GetTextFaceW, TextOutW, GetMapMode
+    std::uint16_t face[32]{};
+    EXPECT_GT(tl_GetTextFaceW(nullptr, 32, face), 0);
+    EXPECT_EQ(tl_TextOutW(nullptr, 0, 0, reinterpret_cast<const std::uint16_t*>(u"test"), 4), 1);
+    EXPECT_EQ(tl_GetMapMode(nullptr), 1);
+}
+
 }  // namespace
 }  // namespace tradutorlinux

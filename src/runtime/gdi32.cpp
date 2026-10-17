@@ -1573,6 +1573,43 @@ TL_MSABI int tl_Rectangle(const void* dc, int left, int top, int right, int bott
     return 1;
 }
 
+TL_MSABI int tl_GetTextFaceW(void* const hdc, const int count, std::uint16_t* const face_name) noexcept {
+    (void)hdc;
+    if (face_name == nullptr || count <= 0) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    static const char16_t kDefaultFace[] = u"Segoe UI";
+    constexpr int kLen = 8;
+    int to_copy = std::min(count - 1, kLen);
+    for (int i = 0; i < to_copy; ++i) {
+        if (!write_guest_value(&face_name[i], static_cast<std::uint16_t>(kDefaultFace[i]))) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+    }
+    static_cast<void>(write_guest_value(&face_name[to_copy], static_cast<std::uint16_t>(0)));
+    set_last_error(abi::kErrorSuccess);
+    return to_copy + 1;
+}
+
+TL_MSABI int tl_TextOutW(const void* const dc, const int x, const int y,
+                        const std::uint16_t* const text, const int length) noexcept {
+    (void)dc;
+    (void)x;
+    (void)y;
+    (void)text;
+    (void)length;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI int tl_GetMapMode(void* const hdc) noexcept {
+    (void)hdc;
+    set_last_error(abi::kErrorSuccess);
+    return 1; // MM_TEXT
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux
 
@@ -1690,6 +1727,9 @@ void register_gdi32_module() {
         {"GetCharABCWidthsA", 108, reinterpret_cast<std::uintptr_t>(&tl_GetCharABCWidthsA), ExportSupport::Full},
         {"GetDeviceGammaRamp", 109, reinterpret_cast<std::uintptr_t>(&tl_GetDeviceGammaRamp), ExportSupport::Full},
         {"CreateDCA", 110, reinterpret_cast<std::uintptr_t>(&tl_CreateDCA), ExportSupport::Full},
+        {"GetTextFaceW", 111, reinterpret_cast<std::uintptr_t>(&tl_GetTextFaceW), ExportSupport::Full},
+        {"TextOutW", 112, reinterpret_cast<std::uintptr_t>(&tl_TextOutW), ExportSupport::Full},
+        {"GetMapMode", 113, reinterpret_cast<std::uintptr_t>(&tl_GetMapMode), ExportSupport::Full},
     };
     static const InternalModule kGdi32Module{"GDI32.dll", kGdi32Exports};
     register_module(kGdi32Module);

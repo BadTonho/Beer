@@ -1596,6 +1596,35 @@ TL_MSABI int tl_GetCPInfo(const std::uint32_t code_page, abi::GuestCpInfo* const
     return 1;
 }
 
+struct GuestCpInfoExW {
+    std::uint32_t max_char_size;
+    std::uint8_t default_char[2];
+    std::uint8_t lead_byte[12];
+    std::uint16_t unicode_default_char;
+    std::uint32_t code_page;
+    std::uint16_t code_page_name[260];
+};
+
+TL_MSABI int tl_GetCPInfoExW(const std::uint32_t code_page, const std::uint32_t flags, void* const cp_info_ex) noexcept {
+    (void)flags;
+    if (cp_info_ex == nullptr) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    GuestCpInfoExW output{};
+    output.max_char_size = code_page == abi::kCpUtf8 ? 4U : 1U;
+    output.default_char[0] = '?';
+    output.unicode_default_char = u'?';
+    output.code_page = code_page;
+    if (runtime::write_guest_memory(cp_info_ex, &output, sizeof(output)).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 TL_MSABI int tl_GetLocaleInfoW(const std::uint32_t locale, const std::uint32_t locale_type,
                                std::uint16_t* const data, const int data_count) noexcept {
     if (!supported_locale_lcid(locale) || data_count < 0 ||
