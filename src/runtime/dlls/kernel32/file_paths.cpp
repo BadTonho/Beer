@@ -67,12 +67,16 @@ TL_MSABI int tl_CreateDirectoryW(const std::uint16_t* path, const void* security
     char normalized[4096]{};
     if (!normalized_wide_path(path, normalized)) {
         set_last_error(abi::kErrorInvalidParameter);
+        trace_filesystem("create-directory", "failed", "invalid-path");
         return 0;
     }
     if (mkdir(normalized, 0755) != 0) {
-        set_last_error(errno_to_win32(errno));
+        const std::uint32_t error = errno_to_win32(errno);
+        set_last_error(error);
+        trace_filesystem("create-directory", "failed", std::to_string(error));
         return 0;
     }
+    trace_filesystem("create-directory", "success", normalized);
     set_last_error(abi::kErrorSuccess);
     return 1;
 }

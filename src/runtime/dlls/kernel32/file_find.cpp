@@ -82,7 +82,10 @@ void convert_find_data(const Win32FindDataA& source, LegacyFindDataW& target) no
     const void* handle = reinterpret_cast<const void*>(
         kFindHandleBase + static_cast<std::uintptr_t>(it - g_find_slots.begin()));
     if (tl_FindNextFileA(handle, find_data) == 0) {
-        const auto err = tl_GetLastError();
+        auto err = tl_GetLastError();
+        if (err == abi::kErrorNoMoreFiles) {
+            err = abi::kErrorFileNotFound;
+        }
         tl_FindClose(handle);
         set_last_error(err);
         return kInvalidHandleValue;
@@ -107,10 +110,6 @@ TL_MSABI int tl_FindNextFileA(const void* handle, void* find_data) noexcept {
     }
     struct dirent* entry = nullptr;
     while ((entry = readdir(slot->dir)) != nullptr) {
-        // Windows nunca devolve "." nem ".." na enumeração.
-        if (std::strcmp(entry->d_name, ".") == 0 || std::strcmp(entry->d_name, "..") == 0) {
-            continue;
-        }
         if (win32_wildcard_match(slot->pattern, entry->d_name)) {
             Win32FindDataA data{};
             std::strncpy(data.c_file_name, entry->d_name, sizeof(data.c_file_name) - 1);

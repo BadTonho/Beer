@@ -233,7 +233,14 @@ TL_MSABI void* tl_CreateFileA(const char* const file_name, const std::uint32_t d
     if ((flags & O_CREAT) != 0) {
         ensure_parent_directory(normalized);
     }
-    const int fd = ::open(normalized, flags, 0644);
+    int fd = ::open(normalized, flags, 0644);
+    if (fd < 0 && (errno == EISDIR ||
+                   ((flags_and_attributes & abi::kFileFlagBackupSemantics) != 0 &&
+                    (errno == EACCES || errno == EPERM)))) {
+        if ((flags_and_attributes & abi::kFileFlagBackupSemantics) != 0) {
+            fd = ::open(normalized, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+        }
+    }
     if (fd < 0) {
         set_last_error(errno_to_win32(errno));
         return kInvalidHandleValue;
@@ -249,7 +256,7 @@ TL_MSABI void* tl_CreateFileA(const char* const file_name, const std::uint32_t d
     it->header = {runtime::HandleObjectType::File, 1};
     it->fd = fd;
     it->path = normalized;
-    it->delete_pending = false;
+    it->delete_pending = (flags_and_attributes & abi::kFileFlagDeleteOnClose) != 0;
     it->unlinked = false;
     struct stat st{};
     if (fstat(fd, &st) == 0) {
@@ -288,7 +295,14 @@ TL_MSABI void* tl_CreateFileW(const std::uint16_t* path, const std::uint32_t des
     if ((flags & O_CREAT) != 0) {
         ensure_parent_directory(normalized);
     }
-    const int fd = ::open(normalized, flags, 0644);
+    int fd = ::open(normalized, flags, 0644);
+    if (fd < 0 && (errno == EISDIR ||
+                   ((flags_and_attributes & abi::kFileFlagBackupSemantics) != 0 &&
+                    (errno == EACCES || errno == EPERM)))) {
+        if ((flags_and_attributes & abi::kFileFlagBackupSemantics) != 0) {
+            fd = ::open(normalized, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+        }
+    }
     if (fd < 0) {
         set_last_error(errno_to_win32(errno));
         return kInvalidHandleValue;
@@ -304,7 +318,7 @@ TL_MSABI void* tl_CreateFileW(const std::uint16_t* path, const std::uint32_t des
     it->header = {runtime::HandleObjectType::File, 1};
     it->fd = fd;
     it->path = normalized;
-    it->delete_pending = false;
+    it->delete_pending = (flags_and_attributes & abi::kFileFlagDeleteOnClose) != 0;
     it->unlinked = false;
     struct stat st{};
     if (fstat(fd, &st) == 0) {

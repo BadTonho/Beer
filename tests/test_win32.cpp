@@ -2778,9 +2778,14 @@ TEST(Win32WideTest, FindFirstFileWReturnsWideName) {
     alignas(8) unsigned char find_data_buf[592]{};
     void* find_handle = tl_FindFirstFileW(wide_pattern, find_data_buf);
     ASSERT_NE(find_handle, reinterpret_cast<void*>(std::numeric_limits<std::uintptr_t>::max()));
-    const auto* data = reinterpret_cast<const std::uint16_t*>(find_data_buf + 44);
-    EXPECT_EQ(std::u16string(reinterpret_cast<const char16_t*>(data)), u"widefile.txt");
-    EXPECT_EQ(tl_FindNextFileW(find_handle, find_data_buf), 0);
+    std::vector<std::u16string> found_names;
+    do {
+        const auto* data = reinterpret_cast<const std::uint16_t*>(find_data_buf + 44);
+        found_names.push_back(std::u16string(reinterpret_cast<const char16_t*>(data)));
+    } while (tl_FindNextFileW(find_handle, find_data_buf) != 0);
+    EXPECT_TRUE(std::find(found_names.begin(), found_names.end(), u".") != found_names.end());
+    EXPECT_TRUE(std::find(found_names.begin(), found_names.end(), u"..") != found_names.end());
+    EXPECT_TRUE(std::find(found_names.begin(), found_names.end(), u"widefile.txt") != found_names.end());
     tl_FindClose(find_handle);
     std::remove(file_path.c_str());
     rmdir(tmpdir);
