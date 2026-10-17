@@ -323,6 +323,15 @@ void register_user32_module() {
         {"EnumDisplaySettingsA", 313, reinterpret_cast<std::uintptr_t>(&tl_EnumDisplaySettingsA), ExportSupport::Full},
         {"IsRectEmpty", 314, reinterpret_cast<std::uintptr_t>(&tl_IsRectEmpty), ExportSupport::Full},
         {"SubtractRect", 315, reinterpret_cast<std::uintptr_t>(&tl_SubtractRect), ExportSupport::Full},
+        {"ExitWindowsEx", 316, reinterpret_cast<std::uintptr_t>(&tl_ExitWindowsEx), ExportSupport::Full},
+        {"CharToOemA", 317, reinterpret_cast<std::uintptr_t>(&tl_CharToOemA), ExportSupport::Full},
+        {"CharToOemW", 318, reinterpret_cast<std::uintptr_t>(&tl_CharToOemW), ExportSupport::Full},
+        {"CharToOemBuffA", 319, reinterpret_cast<std::uintptr_t>(&tl_CharToOemBuffA), ExportSupport::Full},
+        {"CharToOemBuffW", 320, reinterpret_cast<std::uintptr_t>(&tl_CharToOemBuffW), ExportSupport::Full},
+        {"OemToCharA", 321, reinterpret_cast<std::uintptr_t>(&tl_OemToCharA), ExportSupport::Full},
+        {"OemToCharW", 322, reinterpret_cast<std::uintptr_t>(&tl_OemToCharW), ExportSupport::Full},
+        {"OemToCharBuffA", 323, reinterpret_cast<std::uintptr_t>(&tl_OemToCharBuffA), ExportSupport::Full},
+        {"OemToCharBuffW", 324, reinterpret_cast<std::uintptr_t>(&tl_OemToCharBuffW), ExportSupport::Full},
     };
     static const InternalModule kUser32Module{"USER32.dll", kUser32Exports};
     register_module(kUser32Module);

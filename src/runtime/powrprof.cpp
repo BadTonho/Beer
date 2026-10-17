@@ -105,6 +105,18 @@ TL_MSABI std::uint32_t tl_CallNtPowerInformation(int InformationLevel, void* Inp
     return 0; // STATUS_SUCCESS
 }
 
+TL_MSABI int tl_SetSuspendState(int hibernate, int force, int wakeup_events_disabled) noexcept {
+    const std::array<diagnostics::TraceField, 4> fields{
+        diagnostics::TraceField{"symbol", "SetSuspendState"},
+        diagnostics::TraceField{"hibernate", hibernate != 0 ? "true" : "false"},
+        diagnostics::TraceField{"force", force != 0 ? "true" : "false"},
+        diagnostics::TraceField{"wakeup_disabled", wakeup_events_disabled != 0 ? "true" : "false"},
+    };
+    runtime_trace("power", fields, 4);
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 } // extern "C"
 } // namespace tradutorlinux
 
@@ -115,6 +127,7 @@ void register_powrprof_module() {
         {"PowerGetActiveScheme", 1, reinterpret_cast<std::uintptr_t>(&tl_PowerGetActiveScheme), ExportSupport::Full},
         {"PowerSetActiveScheme", 2, reinterpret_cast<std::uintptr_t>(&tl_PowerSetActiveScheme), ExportSupport::Full},
         {"CallNtPowerInformation", 3, reinterpret_cast<std::uintptr_t>(&tl_CallNtPowerInformation), ExportSupport::Full},
+        {"SetSuspendState", 4, reinterpret_cast<std::uintptr_t>(&tl_SetSuspendState), ExportSupport::Full},
     };
     static const InternalModule kPowrProfModule{"POWRPROF.dll", kPowrProfExports};
     register_module(kPowrProfModule);

@@ -704,5 +704,45 @@ TL_MSABI int tl_SetEndOfFile(const void* handle) noexcept {
     set_last_error(abi::kErrorSuccess);
     return 1;
 }
+
+TL_MSABI int tl_BackupRead(const void* const file, void* const buffer,
+                           const std::uint32_t bytes_to_read, std::uint32_t* const bytes_read,
+                           const int abort, const int process_security,
+                           void** const context) noexcept {
+    (void)file;
+    (void)buffer;
+    (void)bytes_to_read;
+    (void)process_security;
+    if (bytes_read != nullptr) {
+        static_cast<void>(write_guest_value(bytes_read, std::uint32_t{0}));
+    }
+    if (abort != 0) {
+        if (context != nullptr) {
+            static_cast<void>(write_guest_value(context, static_cast<void*>(nullptr)));
+        }
+        set_last_error(abi::kErrorSuccess);
+        return 1;
+    }
+    set_last_error(abi::kErrorNotSupported);
+    return 0;
+}
+
+TL_MSABI int tl_BackupSeek(const void* const file, const std::uint32_t low_seek,
+                           const std::uint32_t high_seek, std::uint32_t* const low_seeked,
+                           std::uint32_t* const high_seeked, void** const context) noexcept {
+    (void)file;
+    (void)low_seek;
+    (void)high_seek;
+    (void)context;
+    if (low_seeked != nullptr) {
+        static_cast<void>(write_guest_value(low_seeked, std::uint32_t{0}));
+    }
+    if (high_seeked != nullptr) {
+        static_cast<void>(write_guest_value(high_seeked, std::uint32_t{0}));
+    }
+    set_last_error(abi::kErrorNotSupported);
+    return 0;
+}
+
 }
 }  // namespace tradutorlinux

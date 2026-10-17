@@ -1146,5 +1146,273 @@ TL_MSABI int tl_SubtractRect(void* const dest, const void* const src1, const voi
     return (left < right && top < bottom) ? 1 : 0;
 }
 
+namespace {
+
+inline std::uint8_t ansi_to_oem_char(const std::uint8_t c) noexcept {
+    const std::uint32_t codepoint = util::cp1252_to_unicode(c);
+    std::uint8_t out = '?';
+    if (!util::unicode_to_cp437(codepoint, out)) {
+        out = '?';
+    }
+    return out;
+}
+
+inline std::uint8_t wide_to_oem_char(const std::uint32_t codepoint) noexcept {
+    std::uint8_t out = '?';
+    if (!util::unicode_to_cp437(codepoint, out)) {
+        out = '?';
+    }
+    return out;
+}
+
+inline std::uint8_t oem_to_ansi_char(const std::uint8_t c) noexcept {
+    const std::uint32_t codepoint = util::cp437_to_unicode(c);
+    std::uint8_t out = '?';
+    if (!util::unicode_to_cp1252(codepoint, out)) {
+        out = '?';
+    }
+    return out;
+}
+
+}  // namespace
+
+TL_MSABI int tl_ExitWindowsEx(const std::uint32_t flags, const std::uint32_t reason) noexcept {
+    const std::array<diagnostics::TraceField, 4> fields{
+        diagnostics::TraceField{"symbol", "ExitWindowsEx"},
+        diagnostics::TraceField{"flags", std::to_string(flags)},
+        diagnostics::TraceField{"reason", std::to_string(reason)},
+        diagnostics::TraceField{"status", "simulated"},
+    };
+    runtime_trace("ExitWindowsEx", fields, 4);
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI int tl_CharToOemA(const char* const src, char* const dst) noexcept {
+    if (src == nullptr || dst == nullptr) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    std::string source;
+    if (!runtime::copy_guest_cstring(src, 65535U, source)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    std::string result;
+    result.resize(source.size());
+    for (std::size_t i = 0; i < source.size(); ++i) {
+        result[i] = static_cast<char>(ansi_to_oem_char(static_cast<std::uint8_t>(source[i])));
+    }
+    result.push_back('\0');
+    if (runtime::write_guest_memory(dst, result.data(), result.size()).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI int tl_CharToOemW(const std::uint16_t* const src, char* const dst) noexcept {
+    if (src == nullptr || dst == nullptr) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    std::u16string source;
+    if (!runtime::copy_guest_wstring(src, 65535U, source)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    std::string result;
+    std::size_t index = 0;
+    while (index < source.size()) {
+        const std::uint32_t codepoint = util::decode_utf16(
+            reinterpret_cast<const std::uint16_t*>(source.data()), source.size(), index);
+        result.push_back(static_cast<char>(wide_to_oem_char(codepoint)));
+    }
+    result.push_back('\0');
+    if (runtime::write_guest_memory(dst, result.data(), result.size()).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI int tl_CharToOemBuffA(const char* const src, char* const dst, const std::uint32_t length) noexcept {
+    if (length == 0) {
+        set_last_error(abi::kErrorSuccess);
+        return 1;
+    }
+    if (src == nullptr || dst == nullptr) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    std::vector<std::uint8_t> buffer(length);
+    if (runtime::read_guest_memory(src, buffer.data(), length).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    for (std::size_t i = 0; i < length; ++i) {
+        buffer[i] = ansi_to_oem_char(buffer[i]);
+    }
+    if (runtime::write_guest_memory(dst, buffer.data(), length).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI int tl_CharToOemBuffW(const std::uint16_t* const src, char* const dst, const std::uint32_t length) noexcept {
+    if (length == 0) {
+        set_last_error(abi::kErrorSuccess);
+        return 1;
+    }
+    if (src == nullptr || dst == nullptr) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    std::vector<std::uint16_t> wide_buf(length);
+    if (runtime::read_guest_memory(src, wide_buf.data(), length * sizeof(std::uint16_t)).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    std::vector<std::uint8_t> result;
+    result.reserve(length);
+    std::size_t index = 0;
+    while (index < length) {
+        const std::uint32_t codepoint = util::decode_utf16(wide_buf.data(), length, index);
+        result.push_back(wide_to_oem_char(codepoint));
+    }
+    if (runtime::write_guest_memory(dst, result.data(), result.size()).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI int tl_OemToCharA(const char* const src, char* const dst) noexcept {
+    if (src == nullptr || dst == nullptr) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    std::string source;
+    if (!runtime::copy_guest_cstring(src, 65535U, source)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    std::string result;
+    result.resize(source.size());
+    for (std::size_t i = 0; i < source.size(); ++i) {
+        result[i] = static_cast<char>(oem_to_ansi_char(static_cast<std::uint8_t>(source[i])));
+    }
+    result.push_back('\0');
+    if (runtime::write_guest_memory(dst, result.data(), result.size()).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI int tl_OemToCharW(const char* const src, std::uint16_t* const dst) noexcept {
+    if (src == nullptr || dst == nullptr) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    std::string source;
+    if (!runtime::copy_guest_cstring(src, 65535U, source)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    std::vector<std::uint16_t> result;
+    result.reserve(source.size() + 1);
+    for (char c : source) {
+        const std::uint32_t codepoint = util::cp437_to_unicode(static_cast<std::uint8_t>(c));
+        std::uint16_t units[2]{};
+        const std::size_t count = util::utf16_units_for(codepoint, units);
+        for (std::size_t i = 0; i < count; ++i) {
+            result.push_back(units[i]);
+        }
+    }
+    result.push_back(0);
+    if (runtime::write_guest_memory(dst, result.data(), result.size() * sizeof(std::uint16_t)).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI int tl_OemToCharBuffA(const char* const src, char* const dst, const std::uint32_t length) noexcept {
+    if (length == 0) {
+        set_last_error(abi::kErrorSuccess);
+        return 1;
+    }
+    if (src == nullptr || dst == nullptr) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    std::vector<std::uint8_t> buffer(length);
+    if (runtime::read_guest_memory(src, buffer.data(), length).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    for (std::size_t i = 0; i < length; ++i) {
+        buffer[i] = oem_to_ansi_char(buffer[i]);
+    }
+    if (runtime::write_guest_memory(dst, buffer.data(), length).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI int tl_OemToCharBuffW(const char* const src, std::uint16_t* const dst, const std::uint32_t length) noexcept {
+    if (length == 0) {
+        set_last_error(abi::kErrorSuccess);
+        return 1;
+    }
+    if (src == nullptr || dst == nullptr) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    std::vector<std::uint8_t> buffer(length);
+    if (runtime::read_guest_memory(src, buffer.data(), length).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    std::vector<std::uint16_t> result;
+    result.reserve(length);
+    for (std::uint8_t c : buffer) {
+        const std::uint32_t codepoint = util::cp437_to_unicode(c);
+        std::uint16_t units[2]{};
+        const std::size_t count = util::utf16_units_for(codepoint, units);
+        for (std::size_t i = 0; i < count; ++i) {
+            result.push_back(units[i]);
+        }
+    }
+    if (runtime::write_guest_memory(dst, result.data(), result.size() * sizeof(std::uint16_t)).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux

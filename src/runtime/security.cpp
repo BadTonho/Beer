@@ -1160,6 +1160,280 @@ TL_ADVAPI_MSABI int tl_SetFileSecurityW(const std::uint16_t* const file_name,
     }
 }
 
+TL_ADVAPI_MSABI int tl_ConvertSidToStringSidW(const void* const sid, std::uint16_t** const string_sid) noexcept {
+    try {
+        if (sid == nullptr || string_sid == nullptr) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+        SidBytes sid_bytes;
+        if (!copy_sid(sid, sid_bytes)) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+        const auto* const header = reinterpret_cast<const abi::GuestSidHeader*>(sid_bytes.data());
+        std::string result = "S-" + std::to_string(header->revision);
+        const auto& auth = header->identifier_authority;
+        if (auth[0] == 0 && auth[1] == 0) {
+            const std::uint64_t val = (static_cast<std::uint64_t>(auth[2]) << 24) |
+                                      (static_cast<std::uint64_t>(auth[3]) << 16) |
+                                      (static_cast<std::uint64_t>(auth[4]) << 8) |
+                                      static_cast<std::uint64_t>(auth[5]);
+            result += "-" + std::to_string(val);
+        } else {
+            char buf[32];
+            std::snprintf(buf, sizeof(buf), "-0x%02x%02x%02x%02x%02x%02x",
+                          auth[0], auth[1], auth[2], auth[3], auth[4], auth[5]);
+            result += buf;
+        }
+        const auto* const sub_auths = reinterpret_cast<const std::uint32_t*>(
+            sid_bytes.data() + sizeof(abi::GuestSidHeader));
+        for (std::uint8_t i = 0; i < header->sub_authority_count; ++i) {
+            result += "-" + std::to_string(sub_auths[i]);
+        }
+
+        const std::size_t units_needed = result.size() + 1;
+        auto* const storage = static_cast<std::uint16_t*>(std::malloc(units_needed * sizeof(std::uint16_t)));
+        if (storage == nullptr) {
+            set_last_error(abi::kErrorNotEnoughMemory);
+            return 0;
+        }
+        for (std::size_t i = 0; i < result.size(); ++i) {
+            storage[i] = static_cast<std::uint16_t>(static_cast<unsigned char>(result[i]));
+        }
+        storage[result.size()] = 0;
+        if (!register_local_free_block(storage)) {
+            std::free(storage);
+            set_last_error(abi::kErrorNotEnoughMemory);
+            return 0;
+        }
+        if (!write_guest_value(string_sid, storage)) {
+            static_cast<void>(take_local_free_block(storage));
+            std::free(storage);
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+        set_last_error(abi::kErrorSuccess);
+        return 1;
+    } catch (...) {
+        set_last_error(abi::kErrorNotEnoughMemory);
+        return 0;
+    }
+}
+
+TL_ADVAPI_MSABI int tl_ConvertStringSidToSidW(const std::uint16_t* const string_sid, void** const sid) noexcept {
+    try {
+        if (string_sid == nullptr || sid == nullptr) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+        std::u16string wide_str;
+        if (!runtime::copy_guest_wstring(string_sid, 256, wide_str)) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+        std::string str;
+        str.reserve(wide_str.size());
+        for (const char16_t ch : wide_str) {
+            if (ch > 127) {
+                set_last_error(abi::kErrorInvalidParameter);
+                return 0;
+            }
+            str.push_back(static_cast<char>(ch));
+        }
+        if (str.size() < 4 || (str[0] != 'S' && str[0] != 's') || str[1] != '-') {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+        std::vector<std::string> parts;
+        std::size_t start = 2;
+        while (start < str.size()) {
+            const std::size_t dash = str.find('-', start);
+            if (dash == std::string::npos) {
+                parts.push_back(str.substr(start));
+                break;
+            }
+            parts.push_back(str.substr(start, dash - start));
+            start = dash + 1;
+        }
+        if (parts.size() < 2) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+        unsigned long revision = 0;
+        try {
+            revision = std::stoul(parts[0]);
+        } catch (...) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+        if (revision != abi::kSecurityDescriptorRevision) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+        std::array<std::uint8_t, 6> authority{};
+        const std::string& auth_str = parts[1];
+        if (auth_str.rfind("0x", 0) == 0 || auth_str.rfind("0X", 0) == 0) {
+            try {
+                const std::uint64_t val = std::stoull(auth_str, nullptr, 16);
+                authority[0] = static_cast<std::uint8_t>((val >> 40) & 0xFF);
+                authority[1] = static_cast<std::uint8_t>((val >> 32) & 0xFF);
+                authority[2] = static_cast<std::uint8_t>((val >> 24) & 0xFF);
+                authority[3] = static_cast<std::uint8_t>((val >> 16) & 0xFF);
+                authority[4] = static_cast<std::uint8_t>((val >> 8) & 0xFF);
+                authority[5] = static_cast<std::uint8_t>(val & 0xFF);
+            } catch (...) {
+                set_last_error(abi::kErrorInvalidParameter);
+                return 0;
+            }
+        } else {
+            try {
+                const std::uint64_t val = std::stoull(auth_str, nullptr, 10);
+                authority[0] = 0;
+                authority[1] = 0;
+                authority[2] = static_cast<std::uint8_t>((val >> 24) & 0xFF);
+                authority[3] = static_cast<std::uint8_t>((val >> 16) & 0xFF);
+                authority[4] = static_cast<std::uint8_t>((val >> 8) & 0xFF);
+                authority[5] = static_cast<std::uint8_t>(val & 0xFF);
+            } catch (...) {
+                set_last_error(abi::kErrorInvalidParameter);
+                return 0;
+            }
+        }
+        const std::size_t sub_count = parts.size() - 2;
+        if (sub_count > 15) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+        std::vector<std::uint32_t> sub_authorities;
+        sub_authorities.reserve(sub_count);
+        for (std::size_t i = 2; i < parts.size(); ++i) {
+            try {
+                const auto sa = static_cast<std::uint32_t>(std::stoul(parts[i]));
+                sub_authorities.push_back(sa);
+            } catch (...) {
+                set_last_error(abi::kErrorInvalidParameter);
+                return 0;
+            }
+        }
+        SidBytes sid_bytes = make_sid(authority, sub_authorities);
+        void* const storage = std::malloc(sid_bytes.size());
+        if (storage == nullptr) {
+            set_last_error(abi::kErrorNotEnoughMemory);
+            return 0;
+        }
+        std::memcpy(storage, sid_bytes.data(), sid_bytes.size());
+        if (!register_local_free_block(storage)) {
+            std::free(storage);
+            set_last_error(abi::kErrorNotEnoughMemory);
+            return 0;
+        }
+        if (!write_guest_value(sid, storage)) {
+            static_cast<void>(take_local_free_block(storage));
+            std::free(storage);
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+        set_last_error(abi::kErrorSuccess);
+        return 1;
+    } catch (...) {
+        set_last_error(abi::kErrorNotEnoughMemory);
+        return 0;
+    }
+}
+
+TL_ADVAPI_MSABI std::uint32_t tl_GetSecurityDescriptorLength(const void* const security_descriptor) noexcept {
+    if (security_descriptor == nullptr) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    std::uint8_t revision = 0;
+    std::uint16_t control = 0;
+    if (!read_guest_value(security_descriptor, revision) ||
+        revision != abi::kSecurityDescriptorRevision) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    const auto* const byte_ptr = static_cast<const std::uint8_t*>(security_descriptor);
+    if (runtime::read_guest_memory(byte_ptr + 2, &control, sizeof(control)).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    constexpr std::uint16_t kSeSelfRelative = 0x8000;
+    if ((control & kSeSelfRelative) != 0) {
+        struct RelativeHeader {
+            std::uint8_t revision;
+            std::uint8_t sbz1;
+            std::uint16_t control;
+            std::uint32_t owner;
+            std::uint32_t group;
+            std::uint32_t sacl;
+            std::uint32_t dacl;
+        } rel{};
+        if (!read_guest_value(security_descriptor, rel)) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+        std::size_t max_span = sizeof(RelativeHeader);
+        const auto check_sid_offset = [&](const std::uint32_t offset) {
+            if (offset != 0) {
+                std::size_t len = 0;
+                if (sid_length(byte_ptr + offset, len)) {
+                    max_span = std::max(max_span, static_cast<std::size_t>(offset) + len);
+                }
+            }
+        };
+        const auto check_acl_offset = [&](const std::uint32_t offset) {
+            if (offset != 0) {
+                abi::GuestAcl acl{};
+                if (read_guest_value(byte_ptr + offset, acl)) {
+                    max_span = std::max(max_span, static_cast<std::size_t>(offset) + acl.acl_size);
+                }
+            }
+        };
+        check_sid_offset(rel.owner);
+        check_sid_offset(rel.group);
+        check_acl_offset(rel.sacl);
+        check_acl_offset(rel.dacl);
+        set_last_error(abi::kErrorSuccess);
+        return static_cast<std::uint32_t>(max_span);
+    }
+
+    abi::GuestSecurityDescriptor descriptor{};
+    if (!read_guest_value(security_descriptor, descriptor)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    std::size_t total = sizeof(abi::GuestSecurityDescriptor);
+    if (descriptor.owner != nullptr) {
+        std::size_t sid_len = 0;
+        if (sid_length(descriptor.owner, sid_len)) {
+            total += sid_len;
+        }
+    }
+    if (descriptor.group != nullptr) {
+        std::size_t sid_len = 0;
+        if (sid_length(descriptor.group, sid_len)) {
+            total += sid_len;
+        }
+    }
+    if (descriptor.sacl != nullptr) {
+        abi::GuestAcl acl{};
+        if (read_guest_value(descriptor.sacl, acl)) {
+            total += acl.acl_size;
+        }
+    }
+    if (descriptor.dacl != nullptr) {
+        abi::GuestAcl acl{};
+        if (read_guest_value(descriptor.dacl, acl)) {
+            total += acl.acl_size;
+        }
+    }
+    set_last_error(abi::kErrorSuccess);
+    return static_cast<std::uint32_t>(total);
+}
+
 }  // extern "C"
 
 }  // namespace tradutorlinux

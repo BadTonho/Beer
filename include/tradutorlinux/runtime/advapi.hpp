@@ -117,6 +117,9 @@ TL_ADVAPI_MSABI std::uint32_t tl_SetNamedSecurityInfoW(std::uint16_t* object_nam
 TL_ADVAPI_MSABI int tl_SetFileSecurityW(const std::uint16_t* file_name,
                                         std::uint32_t security_information,
                                         const void* security_descriptor) noexcept;
+TL_ADVAPI_MSABI int tl_ConvertSidToStringSidW(const void* sid, std::uint16_t** string_sid) noexcept;
+TL_ADVAPI_MSABI int tl_ConvertStringSidToSidW(const std::uint16_t* string_sid, void** sid) noexcept;
+TL_ADVAPI_MSABI std::uint32_t tl_GetSecurityDescriptorLength(const void* security_descriptor) noexcept;
 
 }  // extern "C"
 

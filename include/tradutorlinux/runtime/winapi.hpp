@@ -26,6 +26,7 @@ TL_MSABI std::uint32_t tl_PowerSetActiveScheme(void* UserRootPowerKey, const voi
 TL_MSABI std::uint32_t tl_CallNtPowerInformation(int InformationLevel, void* InputBuffer,
                                                  std::uint32_t InputBufferLength, void* OutputBuffer,
                                                  std::uint32_t OutputBufferLength) noexcept;
+TL_MSABI int tl_SetSuspendState(int hibernate, int force, int wakeup_events_disabled) noexcept;
 TL_MSABI std::uint32_t tl_GetAdaptersInfo(void* AdapterInfo, std::uint32_t* OutBufLen) noexcept;
 TL_MSABI std::uint32_t tl_GetAdaptersAddresses(std::uint32_t Family, std::uint32_t Flags, void* Reserved,
                                                void* AdapterAddresses, std::uint32_t* SizePointer) noexcept;

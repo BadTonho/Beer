@@ -3,6 +3,7 @@
 #include "tradutorlinux/util/basics.hpp"
 #include "tradutorlinux/util/unicode.hpp"
 
+#include <atomic>
 #include <charconv>
 #include <cstring>
 #include <vector>
@@ -394,6 +395,20 @@ TL_MSABI std::uint32_t tl_GetLastError() noexcept {
 
 TL_MSABI void tl_SetLastError(const std::uint32_t error_code) noexcept {
     set_last_error(error_code);
+}
+
+namespace {
+std::atomic<std::uint32_t> g_error_mode{0};
+}
+
+TL_MSABI std::uint32_t tl_SetErrorMode(const std::uint32_t mode) noexcept {
+    const std::uint32_t prev = g_error_mode.exchange(mode);
+    set_last_error(abi::kErrorSuccess);
+    return prev;
+}
+
+TL_MSABI std::uint32_t tl_GetErrorMode() noexcept {
+    return g_error_mode.load();
 }
 
 TL_MSABI int tl_GetVersionExA(void* version_information) noexcept {

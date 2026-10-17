@@ -1491,6 +1491,9 @@ void register_advapi32_module() {
         {"IsTextUnicode", 70, reinterpret_cast<std::uintptr_t>(&tl_IsTextUnicode), ExportSupport::Full},
         {"CryptImportKey", 71, reinterpret_cast<std::uintptr_t>(&tl_CryptImportKey), ExportSupport::Full},
         {"CryptEncrypt", 72, reinterpret_cast<std::uintptr_t>(&tl_CryptEncrypt), ExportSupport::Full},
+        {"ConvertSidToStringSidW", 73, reinterpret_cast<std::uintptr_t>(&tl_ConvertSidToStringSidW), ExportSupport::Full},
+        {"ConvertStringSidToSidW", 74, reinterpret_cast<std::uintptr_t>(&tl_ConvertStringSidToSidW), ExportSupport::Full},
+        {"GetSecurityDescriptorLength", 75, reinterpret_cast<std::uintptr_t>(&tl_GetSecurityDescriptorLength), ExportSupport::Full},
     };
     static const InternalModule kAdvapi32Module{"ADVAPI32.dll", kAdvapi32Exports};
     register_module(kAdvapi32Module);

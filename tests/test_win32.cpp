@@ -3187,5 +3187,73 @@ TEST(Win32StringResourceTest, LoadStringWSupportsReadOnlyPointerModeAndBufferCop
     set_guest_image_view(nullptr, 0, 0, 0);
 }
 
+TEST(Win32ErrorModeTest, SetAndGetErrorModePreservesState) {
+    const std::uint32_t prev = tl_SetErrorMode(0x0001); // SEM_FAILCRITICALERRORS
+    EXPECT_EQ(tl_GetErrorMode(), 0x0001U);
+    const std::uint32_t prev2 = tl_SetErrorMode(0x0003);
+    EXPECT_EQ(prev2, 0x0001U);
+    EXPECT_EQ(tl_GetErrorMode(), 0x0003U);
+    tl_SetErrorMode(prev); // restore
+}
+
+TEST(Win32OemTest, CharToOemAndOemToCharConversions) {
+    const char ansi[] = "Hello WinRAR!";
+    char oem_out[32]{};
+    ASSERT_EQ(tl_CharToOemA(ansi, oem_out), 1);
+    EXPECT_STREQ(oem_out, "Hello WinRAR!");
+
+    char ansi_back[32]{};
+    ASSERT_EQ(tl_OemToCharA(oem_out, ansi_back), 1);
+    EXPECT_STREQ(ansi_back, "Hello WinRAR!");
+
+    // Wide version
+    const std::u16string wide_src = u"Hello WinRAR!";
+    std::fill(std::begin(oem_out), std::end(oem_out), 0);
+    ASSERT_EQ(tl_CharToOemW(reinterpret_cast<const std::uint16_t*>(wide_src.c_str()), oem_out), 1);
+    EXPECT_STREQ(oem_out, "Hello WinRAR!");
+
+    std::uint16_t wide_back[32]{};
+    ASSERT_EQ(tl_OemToCharW(oem_out, wide_back), 1);
+    EXPECT_EQ(std::u16string_view(reinterpret_cast<const char16_t*>(wide_back)), u"Hello WinRAR!");
+
+    // Buffer versions
+    char buff_dst[6]{};
+    ASSERT_EQ(tl_CharToOemBuffA(ansi, buff_dst, 5), 1);
+    EXPECT_EQ(std::string_view(buff_dst, 5), "Hello");
+
+    std::uint16_t wide_buff_dst[6]{};
+    ASSERT_EQ(tl_OemToCharBuffW(buff_dst, wide_buff_dst, 5), 1);
+    EXPECT_EQ(std::u16string_view(reinterpret_cast<const char16_t*>(wide_buff_dst), 5), u"Hello");
+
+    // Null checks
+    EXPECT_EQ(tl_CharToOemA(nullptr, oem_out), 0);
+    EXPECT_EQ(tl_OemToCharA(nullptr, ansi_back), 0);
+}
+
+TEST(Win32PowerAndExitTest, ExitWindowsExAndSetSuspendStateSucceed) {
+    EXPECT_EQ(tl_ExitWindowsEx(0, 0), 1);
+    EXPECT_EQ(tl_SetSuspendState(0, 0, 0), 1);
+}
+
+TEST(Win32BackupTest, BackupReadAndSeekBehaveCorrectly) {
+    std::uint32_t bytes_read = 123;
+    void* context = reinterpret_cast<void*>(0x1234);
+    // Abort should clean context and return 1
+    EXPECT_EQ(tl_BackupRead(nullptr, nullptr, 0, &bytes_read, 1, 0, &context), 1);
+    EXPECT_EQ(bytes_read, 0U);
+    EXPECT_EQ(context, nullptr);
+
+    // Non-abort should return 0 with ERROR_NOT_SUPPORTED
+    EXPECT_EQ(tl_BackupRead(nullptr, nullptr, 10, &bytes_read, 0, 0, &context), 0);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorNotSupported);
+
+    std::uint32_t low_seeked = 99;
+    std::uint32_t high_seeked = 99;
+    EXPECT_EQ(tl_BackupSeek(nullptr, 0, 0, &low_seeked, &high_seeked, &context), 0);
+    EXPECT_EQ(low_seeked, 0U);
+    EXPECT_EQ(high_seeked, 0U);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorNotSupported);
+}
+
 }  // namespace
 }  // namespace tradutorlinux

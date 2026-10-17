@@ -318,5 +318,42 @@ TEST(Win32SecurityTest, ProtectedAclAndDescriptorBuffersRejectUnmappedPointers) 
     EXPECT_EQ(tl_LocalFree(new_acl), nullptr);
 }
 
+TEST(Win32SecurityTest, ConvertSidToStringSidAndBack) {
+    SecurityPrefixFixture ctx;
+    std::uint8_t world_authority[6]{0, 0, 0, 0, 0, 1};
+    void* sid = nullptr;
+    ASSERT_EQ(tl_AllocateAndInitializeSid(world_authority, 1, 0, 0, 0, 0, 0, 0, 0, 0, &sid), 1);
+    ASSERT_NE(sid, nullptr);
+
+    std::uint16_t* string_sid = nullptr;
+    ASSERT_EQ(tl_ConvertSidToStringSidW(sid, &string_sid), 1);
+    ASSERT_NE(string_sid, nullptr);
+    EXPECT_EQ(std::u16string_view(reinterpret_cast<const char16_t*>(string_sid)), u"S-1-1-0");
+
+    void* parsed_sid = nullptr;
+    ASSERT_EQ(tl_ConvertStringSidToSidW(string_sid, &parsed_sid), 1);
+    ASSERT_NE(parsed_sid, nullptr);
+    EXPECT_EQ(tl_EqualSid(sid, parsed_sid), 1);
+
+    EXPECT_EQ(tl_LocalFree(string_sid), nullptr);
+    EXPECT_EQ(tl_LocalFree(parsed_sid), nullptr);
+    EXPECT_EQ(tl_FreeSid(sid), nullptr);
+
+    // Invalid parameters
+    EXPECT_EQ(tl_ConvertSidToStringSidW(nullptr, &string_sid), 0);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
+    EXPECT_EQ(tl_ConvertStringSidToSidW(nullptr, &parsed_sid), 0);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
+}
+
+TEST(Win32SecurityTest, GetSecurityDescriptorLengthReturnsValidSize) {
+    abi::GuestSecurityDescriptor descriptor{};
+    ASSERT_EQ(tl_InitializeSecurityDescriptor(&descriptor, abi::kSecurityDescriptorRevision), 1);
+    const std::uint32_t length = tl_GetSecurityDescriptorLength(&descriptor);
+    EXPECT_GE(length, sizeof(abi::GuestSecurityDescriptor));
+    EXPECT_EQ(tl_GetSecurityDescriptorLength(nullptr), 0U);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
+}
+
 }  // namespace
 }  // namespace tradutorlinux

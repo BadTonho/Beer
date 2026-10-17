@@ -458,6 +458,10 @@ void register_kernel32_module() {
         {"AppPolicyGetShowDeveloperDiagnostic", 420, reinterpret_cast<std::uintptr_t>(&tl_AppPolicyGetShowDeveloperDiagnostic), ExportSupport::Full},
         {"AppPolicyGetThreadInitializationType", 421, reinterpret_cast<std::uintptr_t>(&tl_AppPolicyGetThreadInitializationType), ExportSupport::Full},
         {"AppPolicyGetWindowingModel", 422, reinterpret_cast<std::uintptr_t>(&tl_AppPolicyGetWindowingModel), ExportSupport::Full},
+        {"SetErrorMode", 423, reinterpret_cast<std::uintptr_t>(&tl_SetErrorMode), ExportSupport::Full},
+        {"GetErrorMode", 424, reinterpret_cast<std::uintptr_t>(&tl_GetErrorMode), ExportSupport::Full},
+        {"BackupRead", 425, reinterpret_cast<std::uintptr_t>(&tl_BackupRead), ExportSupport::Full},
+        {"BackupSeek", 426, reinterpret_cast<std::uintptr_t>(&tl_BackupSeek), ExportSupport::Full},
     };
     static const InternalModule kKernel32Module{"KERNEL32.dll", kKernel32Exports};
     register_module(kKernel32Module);

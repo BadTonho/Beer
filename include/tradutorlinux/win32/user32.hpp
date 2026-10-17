@@ -371,6 +371,15 @@ TL_MSABI void tl_mouse_event(std::uint32_t dwFlags, std::uint32_t dx, std::uint3
 TL_MSABI int tl_SetMenuItemBitmaps(void* hMenu, std::uint32_t uPosition, std::uint32_t uFlags, void* hBitmapUnchecked, void* hBitmapChecked) noexcept;
 TL_MSABI void* tl_GetDCEx(void* hWnd, void* hrgnClip, std::uint32_t flags) noexcept;
 TL_MSABI int tl_IsChild(void* hWndParent, void* hWnd) noexcept;
+TL_MSABI int tl_ExitWindowsEx(std::uint32_t flags, std::uint32_t reason) noexcept;
+TL_MSABI int tl_CharToOemA(const char* src, char* dst) noexcept;
+TL_MSABI int tl_CharToOemW(const std::uint16_t* src, char* dst) noexcept;
+TL_MSABI int tl_CharToOemBuffA(const char* src, char* dst, std::uint32_t length) noexcept;
+TL_MSABI int tl_CharToOemBuffW(const std::uint16_t* src, char* dst, std::uint32_t length) noexcept;
+TL_MSABI int tl_OemToCharA(const char* src, char* dst) noexcept;
+TL_MSABI int tl_OemToCharW(const char* src, std::uint16_t* dst) noexcept;
+TL_MSABI int tl_OemToCharBuffA(const char* src, char* dst, std::uint32_t length) noexcept;
+TL_MSABI int tl_OemToCharBuffW(const char* src, std::uint16_t* dst, std::uint32_t length) noexcept;
 
 }  // extern "C"
 }  // namespace tradutorlinux

@@ -29,6 +29,8 @@ TL_MSABI int tl_ReadFile(const void* file, void* buffer, std::uint32_t bytes_to_
 TL_MSABI void tl_ExitProcess(std::uint32_t exit_code) noexcept;
 TL_MSABI std::uint32_t tl_GetLastError() noexcept;
 TL_MSABI void tl_SetLastError(std::uint32_t error) noexcept;
+TL_MSABI std::uint32_t tl_SetErrorMode(std::uint32_t mode) noexcept;
+TL_MSABI std::uint32_t tl_GetErrorMode() noexcept;
 TL_MSABI void* tl_VirtualAlloc(void* address, std::size_t size, std::uint32_t allocation_type,
                                std::uint32_t protection) noexcept;
 TL_MSABI int tl_VirtualFree(void* address, std::size_t size,
@@ -182,6 +184,12 @@ TL_MSABI int tl_SetFilePointerEx(const void* handle, std::int64_t distance,
                                  std::int64_t* new_position, std::uint32_t move_method) noexcept;
 TL_MSABI int tl_SetEndOfFile(const void* handle) noexcept;
 TL_MSABI int tl_FlushFileBuffers(const void* handle) noexcept;
+TL_MSABI int tl_BackupRead(const void* file, void* buffer, std::uint32_t bytes_to_read,
+                           std::uint32_t* bytes_read, int abort, int process_security,
+                           void** context) noexcept;
+TL_MSABI int tl_BackupSeek(const void* file, std::uint32_t low_seek, std::uint32_t high_seek,
+                           std::uint32_t* low_seeked, std::uint32_t* high_seeked,
+                           void** context) noexcept;
 TL_MSABI std::uint32_t tl_GetFileAttributesA(const char* path) noexcept;
 TL_MSABI std::uint32_t tl_GetFileAttributesW(const std::uint16_t* path) noexcept;
 TL_MSABI int tl_SetFileAttributesW(const std::uint16_t* path,
