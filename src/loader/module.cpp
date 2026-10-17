@@ -73,6 +73,9 @@ bool is_kernelbase_dll(const std::string_view dll) noexcept {
         }
         return true;
     };
+    if (starts_with_ci(dll, "api-ms-win-core-com-")) {
+        return "ole32.dll";
+    }
     if (starts_with_ci(dll, "api-ms-win-core-") || starts_with_ci(dll, "ext-ms-win-kernel32-") ||
         starts_with_ci(dll, "api-ms-win-appmodel-")) {
         return "KERNEL32.dll";

@@ -35,6 +35,13 @@ TL_SHLWAPI_MSABI int tl_StrCmpIA(const char* string1, const char* string2) noexc
 TL_SHLWAPI_MSABI int tl_StrCmpIW(const std::uint16_t* string1, const std::uint16_t* string2) noexcept;
 TL_SHLWAPI_MSABI int tl_StrCmpLogicalW(const std::uint16_t* string1, const std::uint16_t* string2) noexcept;
 TL_SHLWAPI_MSABI int tl_QISearch(void* that, const void* pqit, const void* riid, void** ppv) noexcept;
+TL_SHLWAPI_MSABI std::int32_t tl_SHCreateStreamOnFileEx(const std::uint16_t* file, std::uint32_t mode,
+                                                        std::uint32_t attributes, std::int32_t create,
+                                                        void* template_stream, void** stream) noexcept;
+TL_SHLWAPI_MSABI std::int32_t tl_SHCreateStreamOnFileW(const std::uint16_t* file, std::uint32_t mode,
+                                                       void** stream) noexcept;
+TL_SHLWAPI_MSABI std::int32_t tl_SHCreateStreamOnFileA(const char* file, std::uint32_t mode,
+                                                       void** stream) noexcept;
 
 }  // extern "C"
 

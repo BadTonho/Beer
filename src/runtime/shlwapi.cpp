@@ -1,4 +1,5 @@
 #include "tradutorlinux/runtime/shlwapi.hpp"
+#include "tradutorlinux/runtime/ole32.hpp"
 #include "tradutorlinux/loader/module.hpp"
 #include "tradutorlinux/loader/builtin_modules.hpp"
 
@@ -907,6 +908,32 @@ TL_SHLWAPI_MSABI int tl_QISearch(void* const that, const void* const pqit,
     return static_cast<int>(0x80004002U); // E_NOINTERFACE
 }
 
+TL_SHLWAPI_MSABI std::int32_t tl_SHCreateStreamOnFileEx(
+    const std::uint16_t* const file, const std::uint32_t mode,
+    const std::uint32_t attributes, const std::int32_t create,
+    void* const template_stream, void** const stream) noexcept {
+    (void)attributes;
+    (void)template_stream;
+    return tl_CreateStreamFromFile(file, mode, create, reinterpret_cast<GuestIStream**>(stream));
+}
+
+TL_SHLWAPI_MSABI std::int32_t tl_SHCreateStreamOnFileW(
+    const std::uint16_t* const file, const std::uint32_t mode,
+    void** const stream) noexcept {
+    return tl_CreateStreamFromFile(file, mode, 0, reinterpret_cast<GuestIStream**>(stream));
+}
+
+TL_SHLWAPI_MSABI std::int32_t tl_SHCreateStreamOnFileA(
+    const char* const file, const std::uint32_t mode,
+    void** const stream) noexcept {
+    if (file == nullptr) return kEInvalidArg;
+    std::string ansi_path;
+    if (!copy_guest_string(file, ansi_path)) return kEInvalidArg;
+    const std::u16string wide_path = util::utf8_to_wide(ansi_path);
+    return tl_CreateStreamFromFile(reinterpret_cast<const std::uint16_t*>(wide_path.c_str()),
+                                  mode, 0, reinterpret_cast<GuestIStream**>(stream));
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux
 
@@ -958,8 +985,14 @@ void register_shlwapi_module() {
         {"StrCmpLogicalW", 42, reinterpret_cast<std::uintptr_t>(&tl_StrCmpLogicalW), ExportSupport::Full},
         {"PathIsRootW", 43, reinterpret_cast<std::uintptr_t>(&tl_PathIsRootW), ExportSupport::Full},
         {"SHRegGetUSValueW", 44, reinterpret_cast<std::uintptr_t>(&tl_SHRegGetUSValueW), ExportSupport::Full},
+        {"SHCreateStreamOnFileEx", 108, reinterpret_cast<std::uintptr_t>(&tl_SHCreateStreamOnFileEx), ExportSupport::Full},
+        {"SHCreateStreamOnFileW", 107, reinterpret_cast<std::uintptr_t>(&tl_SHCreateStreamOnFileW), ExportSupport::Full},
+        {"SHCreateStreamOnFileA", 106, reinterpret_cast<std::uintptr_t>(&tl_SHCreateStreamOnFileA), ExportSupport::Full},
         {"QISearch", 219, reinterpret_cast<std::uintptr_t>(&tl_QISearch), ExportSupport::Full},
         {"", 101, reinterpret_cast<std::uintptr_t>(&tl_PathStripToRootW), ExportSupport::Full},
+        {"", 106, reinterpret_cast<std::uintptr_t>(&tl_SHCreateStreamOnFileA), ExportSupport::Full},
+        {"", 107, reinterpret_cast<std::uintptr_t>(&tl_SHCreateStreamOnFileW), ExportSupport::Full},
+        {"", 108, reinterpret_cast<std::uintptr_t>(&tl_SHCreateStreamOnFileEx), ExportSupport::Full},
         {"", 176, reinterpret_cast<std::uintptr_t>(&tl_PathStripToRootW), ExportSupport::Full},
         {"", 219, reinterpret_cast<std::uintptr_t>(&tl_QISearch), ExportSupport::Full},
         {"", 410, reinterpret_cast<std::uintptr_t>(&tl_PathStripToRootW), ExportSupport::Full},

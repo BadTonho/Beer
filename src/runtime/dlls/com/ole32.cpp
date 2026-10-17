@@ -16,9 +16,11 @@
 #include <optional>
 #include <unordered_set>
 #include <vector>
+#include <sys/stat.h>
 
 #include "tradutorlinux/diagnostics/trace.hpp"
 #include "tradutorlinux/runtime/memory_validator.hpp"
+#include "tradutorlinux/util/unicode.hpp"
 
 namespace tradutorlinux {
 
@@ -44,6 +46,33 @@ struct StreamState {
     void* global_handle{nullptr};
     bool global_backing{false};
     bool delete_global_on_release{false};
+    char file_path[4096]{};
+    bool file_backing{false};
+};
+
+struct FreeThreadedMarshalerState {
+    GuestIUnknown interface{};
+    std::uint32_t references{1};
+    void* punk_outer{nullptr};
+};
+
+std::array<FreeThreadedMarshalerState*, 32> g_marshalers{};
+std::mutex g_marshalers_mutex;
+
+constexpr std::array<std::uint8_t, 16> kIidIMarshal{
+    0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46,
+};
+
+TL_OLE_MSABI std::int32_t marshaler_query_interface(void* const self, const void* const riid,
+                                                    void** const object) noexcept;
+TL_OLE_MSABI std::uint32_t marshaler_add_ref(void* const self) noexcept;
+TL_OLE_MSABI std::uint32_t marshaler_release(void* const self) noexcept;
+
+const GuestIUnknownVtable kMarshalerVtable{
+    &marshaler_query_interface,
+    &marshaler_add_ref,
+    &marshaler_release,
 };
 
 std::array<StreamState*, kMaxStreams> g_streams{};
@@ -194,6 +223,68 @@ TL_OLE_MSABI std::int32_t stream_query_interface(GuestIStream* const self, const
     return kSOk;
 }
 
+FreeThreadedMarshalerState* find_marshaler(void* const self) noexcept {
+    if (self == nullptr) return nullptr;
+    std::lock_guard<std::mutex> lock(g_marshalers_mutex);
+    for (FreeThreadedMarshalerState* candidate : g_marshalers) {
+        if (candidate != nullptr && &candidate->interface == self) return candidate;
+    }
+    return nullptr;
+}
+
+TL_OLE_MSABI std::int32_t marshaler_query_interface(void* const self, const void* const riid,
+                                                    void** const object) noexcept {
+    FreeThreadedMarshalerState* const marshaler = find_marshaler(self);
+    if (marshaler == nullptr || riid == nullptr || object == nullptr) {
+        return kEInvalidArg;
+    }
+    std::array<std::uint8_t, 16> id{};
+    if (runtime::read_guest_memory(riid, id.data(), id.size()).status !=
+            runtime::GuestMemoryAccessStatus::Success ||
+        !write_guest_value(object, static_cast<void*>(nullptr))) {
+        return kEInvalidArg;
+    }
+    const bool supported = std::memcmp(id.data(), kIidIUnknown.data(), kIidIUnknown.size()) == 0 ||
+                           std::memcmp(id.data(), kIidIMarshal.data(), kIidIMarshal.size()) == 0;
+    if (!supported) {
+        return kENoInterface;
+    }
+    (void)marshaler_add_ref(self);
+    if (!write_guest_value(object, self)) {
+        (void)marshaler_release(self);
+        return kEInvalidArg;
+    }
+    return kSOk;
+}
+
+TL_OLE_MSABI std::uint32_t marshaler_add_ref(void* const self) noexcept {
+    FreeThreadedMarshalerState* const marshaler = find_marshaler(self);
+    if (marshaler == nullptr) return 0;
+    std::lock_guard lock(g_marshalers_mutex);
+    if (marshaler->references == std::numeric_limits<std::uint32_t>::max()) return marshaler->references;
+    return ++marshaler->references;
+}
+
+TL_OLE_MSABI std::uint32_t marshaler_release(void* const self) noexcept {
+    FreeThreadedMarshalerState* const marshaler = find_marshaler(self);
+    if (marshaler == nullptr) return 0;
+    std::uint32_t references = 0;
+    {
+        std::lock_guard lock(g_marshalers_mutex);
+        if (marshaler->references == 0) return 0;
+        references = --marshaler->references;
+        if (references != 0) return references;
+        for (FreeThreadedMarshalerState*& candidate : g_marshalers) {
+            if (candidate == marshaler) {
+                candidate = nullptr;
+                break;
+            }
+        }
+    }
+    std::free(marshaler);
+    return 0;
+}
+
 TL_OLE_MSABI std::uint32_t stream_add_ref(GuestIStream* const self) noexcept {
     StreamState* const stream = find_stream(self);
     if (stream == nullptr) return 0;
@@ -223,6 +314,15 @@ TL_OLE_MSABI std::uint32_t stream_release(GuestIStream* const self) noexcept {
             (void)tl_GlobalFree(stream->global_handle);
         }
     } else {
+        if (stream->file_backing && stream->file_path[0] != '\0') {
+            FILE* fp = std::fopen(stream->file_path, "wb");
+            if (fp != nullptr) {
+                if (stream->size > 0 && stream->data != nullptr) {
+                    (void)std::fwrite(stream->data, 1, stream->size, fp);
+                }
+                std::fclose(fp);
+            }
+        }
         std::free(stream->data);
     }
     std::free(stream);
@@ -351,7 +451,18 @@ TL_OLE_MSABI std::int32_t stream_copy_to(GuestIStream* const self, GuestIStream*
 }
 
 TL_OLE_MSABI std::int32_t stream_commit(GuestIStream* const self, const std::uint32_t flags) noexcept {
-    if (find_stream(self) == nullptr || flags != 0U) return kEInvalidArg;
+    (void)flags;
+    StreamState* const stream = find_stream(self);
+    if (stream == nullptr) return kEInvalidArg;
+    if (stream->file_backing && stream->file_path[0] != '\0') {
+        FILE* fp = std::fopen(stream->file_path, "wb");
+        if (fp != nullptr) {
+            if (stream->size > 0 && stream->data != nullptr) {
+                (void)std::fwrite(stream->data, 1, stream->size, fp);
+            }
+            std::fclose(fp);
+        }
+    }
     return kSOk;
 }
 
@@ -754,6 +865,116 @@ TL_OLE_MSABI int tl_CoInitializeSecurity(void* const sec_desc, const std::int32_
     return 0; // S_OK
 }
 
+TL_OLE_MSABI std::int32_t tl_CoCreateFreeThreadedMarshaler(void* const punk_outer,
+                                                          void** const ppunk_marshaler) noexcept {
+    if (ppunk_marshaler == nullptr || !write_guest_value(ppunk_marshaler, static_cast<void*>(nullptr))) {
+        return kEInvalidArg;
+    }
+    auto* state = static_cast<FreeThreadedMarshalerState*>(std::calloc(1, sizeof(FreeThreadedMarshalerState)));
+    if (state == nullptr) {
+        return static_cast<std::int32_t>(0x8007000EU); // E_OUTOFMEMORY
+    }
+    state->references = 1;
+    state->punk_outer = punk_outer;
+    state->interface.vtable = const_cast<GuestIUnknownVtable*>(&kMarshalerVtable);
+    {
+        std::lock_guard lock(g_marshalers_mutex);
+        bool registered = false;
+        for (auto*& cand : g_marshalers) {
+            if (cand == nullptr) {
+                cand = state;
+                registered = true;
+                break;
+            }
+        }
+        if (!registered) {
+            std::free(state);
+            return static_cast<std::int32_t>(0x8007000EU);
+        }
+    }
+    if (!write_guest_value(ppunk_marshaler, &state->interface)) {
+        (void)marshaler_release(&state->interface);
+        return kEInvalidArg;
+    }
+    return kSOk;
+}
+
+TL_OLE_MSABI std::int32_t tl_CreateStreamFromFile(const std::uint16_t* const path,
+                                                  const std::uint32_t mode,
+                                                  const std::int32_t create,
+                                                  GuestIStream** const stream) noexcept {
+    (void)mode;
+    if (stream == nullptr || !write_guest_value(stream, static_cast<GuestIStream*>(nullptr))) {
+        trace_stream("create-file", "invalid");
+        return kEInvalidArg;
+    }
+    if (path == nullptr) {
+        trace_stream("create-file", "invalid");
+        return kEInvalidArg;
+    }
+    std::u16string guest_path;
+    if (!runtime::copy_guest_wstring(path, 4096U, guest_path)) {
+        trace_stream("create-file", "invalid");
+        return kEInvalidArg;
+    }
+    const std::string utf8 = util::wide_to_utf8(
+        reinterpret_cast<const std::uint16_t*>(guest_path.data()), guest_path.size());
+    char normalized[4096]{};
+    const char* effective_path = utf8.c_str();
+    if (translate_windows_path(utf8.c_str(), normalized, sizeof(normalized))) {
+        effective_path = normalized;
+    }
+
+    struct stat st{};
+    const bool exists = (stat(effective_path, &st) == 0 && S_ISREG(st.st_mode));
+    if (!exists && !create) {
+        trace_stream("create-file", "not-found");
+        return static_cast<std::int32_t>(0x80030002U); // STG_E_FILENOTFOUND
+    }
+
+    auto* state = static_cast<StreamState*>(std::calloc(1, sizeof(StreamState)));
+    if (state == nullptr || !register_stream(state)) {
+        std::free(state);
+        trace_stream("create-file", "failed");
+        return static_cast<std::int32_t>(0x8007000EU);
+    }
+    state->references = 1;
+    state->interface.vtable = const_cast<GuestIStreamVtable*>(&kStreamVtable);
+    std::strncpy(state->file_path, effective_path, sizeof(state->file_path) - 1);
+    state->file_backing = true;
+
+    if (exists && st.st_size > 0) {
+        FILE* fp = std::fopen(effective_path, "rb");
+        if (fp != nullptr) {
+            state->data = static_cast<std::uint8_t*>(std::malloc(static_cast<std::size_t>(st.st_size)));
+            if (state->data != nullptr) {
+                const std::size_t bytes_read = std::fread(state->data, 1, static_cast<std::size_t>(st.st_size), fp);
+                state->size = bytes_read;
+                state->capacity = static_cast<std::size_t>(st.st_size);
+            }
+            std::fclose(fp);
+        }
+    }
+
+    if (!write_guest_value(stream, &state->interface)) {
+        {
+            std::lock_guard lock(g_streams_mutex);
+            for (StreamState*& candidate : g_streams) {
+                if (candidate == state) {
+                    candidate = nullptr;
+                    break;
+                }
+            }
+        }
+        std::free(state->data);
+        std::free(state);
+        trace_stream("create-file", "invalid");
+        return kEInvalidArg;
+    }
+    trace_stream("create-file", "success");
+    return kSOk;
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux
 
@@ -784,6 +1005,7 @@ void register_ole32_module() {
         {"CoSetProxyBlanket", 21, reinterpret_cast<std::uintptr_t>(&tl_CoSetProxyBlanket), ExportSupport::Full},
         {"OleSetClipboard", 22, reinterpret_cast<std::uintptr_t>(&tl_OleSetClipboard), ExportSupport::Full},
         {"CoInitializeSecurity", 23, reinterpret_cast<std::uintptr_t>(&tl_CoInitializeSecurity), ExportSupport::Full},
+        {"CoCreateFreeThreadedMarshaler", 24, reinterpret_cast<std::uintptr_t>(&tl_CoCreateFreeThreadedMarshaler), ExportSupport::Full},
     };
     static const InternalModule kOle32Module{"ole32.dll", kOle32Exports};
     register_module(kOle32Module);

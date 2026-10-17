@@ -82,6 +82,22 @@ struct GuestIStream {
 static_assert(sizeof(GuestIStream) == 8);
 static_assert(sizeof(GuestIStreamVtable) == 14U * sizeof(void*));
 
+struct GuestIUnknown;
+
+using GuestIUnknownQueryInterface = TL_OLE_MSABI std::int32_t (*)(void* self, const void* riid, void** object);
+using GuestIUnknownAddRef = TL_OLE_MSABI std::uint32_t (*)(void* self);
+using GuestIUnknownRelease = TL_OLE_MSABI std::uint32_t (*)(void* self);
+
+struct GuestIUnknownVtable {
+    GuestIUnknownQueryInterface query_interface{};
+    GuestIUnknownAddRef add_ref{};
+    GuestIUnknownRelease release{};
+};
+
+struct GuestIUnknown {
+    const GuestIUnknownVtable* vtable{};
+};
+
 constexpr std::int32_t kSOk = 0;
 constexpr std::int32_t kSFalse = 1;
 constexpr std::int32_t kEInvalidArg = static_cast<std::int32_t>(0x80070057U);
@@ -150,6 +166,11 @@ TL_OLE_MSABI int tl_OleSetClipboard(void* data_obj) noexcept;
 TL_OLE_MSABI int tl_CoInitializeSecurity(void* sec_desc, std::int32_t c_auth_svc, void* as_auth_svc,
                                          void* reserved1, std::uint32_t authn_level, std::uint32_t imp_level,
                                          void* auth_info, std::uint32_t capabilities, void* reserved3) noexcept;
+TL_OLE_MSABI std::int32_t tl_CoCreateFreeThreadedMarshaler(void* punk_outer, void** ppunk_marshaler) noexcept;
+TL_OLE_MSABI std::int32_t tl_CreateStreamFromFile(const std::uint16_t* path,
+                                                  std::uint32_t mode,
+                                                  std::int32_t create,
+                                                  GuestIStream** stream) noexcept;
 
 }  // extern "C"
 
