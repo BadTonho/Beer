@@ -175,9 +175,13 @@ TEST(Win32SecurityTest, NamedDaclPersistsAndPrefixesRemainIsolated) {
 TEST(Win32SecurityTest, RejectsUnsupportedAclInputsAndExternalPaths) {
     SecurityPrefixFixture ctx;
     abi::GuestExplicitAccessW unsupported{};
-    unsupported.inheritance = 1;
+    unsupported.inheritance = 0x80U;
     void* new_acl = nullptr;
     EXPECT_EQ(tl_SetEntriesInAclW(1, &unsupported, nullptr, &new_acl), abi::kErrorNotSupported);
+
+    abi::GuestExplicitAccessW invalid_form{};
+    invalid_form.trustee.trustee_form = 99;
+    EXPECT_EQ(tl_SetEntriesInAclW(1, &invalid_form, nullptr, &new_acl), abi::kErrorNotSupported);
 
     std::vector<std::uint16_t> file_name = ctx.file_name();
     void* dacl = nullptr;
@@ -353,6 +357,40 @@ TEST(Win32SecurityTest, GetSecurityDescriptorLengthReturnsValidSize) {
     EXPECT_GE(length, sizeof(abi::GuestSecurityDescriptor));
     EXPECT_EQ(tl_GetSecurityDescriptorLength(nullptr), 0U);
     EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
+}
+
+TEST(Win32SecurityTest, SupportsInheritanceAndTrusteeNameInSetEntriesInAclW) {
+    SecurityPrefixFixture ctx;
+    std::u16string trustee_name = u"CURRENT_USER";
+    abi::GuestExplicitAccessW entry{};
+    entry.access_permissions = 0x10000000U;
+    entry.access_mode = abi::kDenyAccess;
+    entry.inheritance = 3U;  // SUB_CONTAINERS_AND_OBJECTS_INHERIT
+    entry.trustee.trustee_form = abi::kTrusteeIsName;
+    entry.trustee.name = trustee_name.data();
+
+    void* new_acl = nullptr;
+    ASSERT_EQ(tl_SetEntriesInAclW(1, &entry, nullptr, &new_acl), abi::kErrorSuccess);
+    ASSERT_NE(new_acl, nullptr);
+    const auto* const acl = static_cast<const abi::GuestAcl*>(new_acl);
+    EXPECT_EQ(acl->ace_count, 1U);
+    EXPECT_EQ(tl_LocalFree(new_acl), nullptr);
+
+    // Test with String SID
+    std::u16string string_sid = u"S-1-1-0";
+    abi::GuestExplicitAccessW entry2{};
+    entry2.access_permissions = abi::kGenericRead;
+    entry2.access_mode = abi::kGrantAccess;
+    entry2.inheritance = 2U;  // CONTAINER_INHERIT_ACE
+    entry2.trustee.trustee_form = abi::kTrusteeIsName;
+    entry2.trustee.name = string_sid.data();
+
+    void* new_acl2 = nullptr;
+    ASSERT_EQ(tl_SetEntriesInAclW(1, &entry2, nullptr, &new_acl2), abi::kErrorSuccess);
+    ASSERT_NE(new_acl2, nullptr);
+    const auto* const acl2 = static_cast<const abi::GuestAcl*>(new_acl2);
+    EXPECT_EQ(acl2->ace_count, 1U);
+    EXPECT_EQ(tl_LocalFree(new_acl2), nullptr);
 }
 
 }  // namespace
