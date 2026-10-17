@@ -43,6 +43,9 @@ TL_SHLWAPI_MSABI std::int32_t tl_SHCreateStreamOnFileW(const std::uint16_t* file
 TL_SHLWAPI_MSABI std::int32_t tl_SHCreateStreamOnFileA(const char* file, std::uint32_t mode,
                                                        void** stream) noexcept;
 
+TL_SHLWAPI_MSABI std::int32_t tl_SHStrDupW(const std::uint16_t* psz, std::uint16_t** ppwsz) noexcept;
+TL_SHLWAPI_MSABI std::int32_t tl_SHStrDupA(const char* psz, char** ppsz) noexcept;
+
 }  // extern "C"
 
 }  // namespace tradutorlinux

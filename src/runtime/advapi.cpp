@@ -1763,6 +1763,7 @@ void register_advapi32_module() {
         {"QueryServiceConfigW", 95, reinterpret_cast<std::uintptr_t>(&tl_QueryServiceConfigW), ExportSupport::Full},
         {"RegisterServiceCtrlHandlerW", 96, reinterpret_cast<std::uintptr_t>(&tl_RegisterServiceCtrlHandlerW), ExportSupport::Full},
         {"StartServiceCtrlDispatcherW", 97, reinterpret_cast<std::uintptr_t>(&tl_StartServiceCtrlDispatcherW), ExportSupport::Full},
+        {"InitializeAcl", 98, reinterpret_cast<std::uintptr_t>(&tl_InitializeAcl), ExportSupport::Full},
     };
     static const InternalModule kAdvapi32Module{"ADVAPI32.dll", kAdvapi32Exports};
     register_module(kAdvapi32Module);

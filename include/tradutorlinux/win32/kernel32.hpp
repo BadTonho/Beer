@@ -68,6 +68,7 @@ TL_MSABI int tl_CreateProcessW(const std::uint16_t* application_name,
                                void* process_information) noexcept;
 TL_MSABI int tl_GetExitCodeProcess(const void* process, std::uint32_t* exit_code) noexcept;
 TL_MSABI int tl_TerminateProcess(const void* process, std::uint32_t exit_code) noexcept;
+TL_MSABI int tl_TerminateThread(const void* thread_handle, std::uint32_t exit_code) noexcept;
 TL_MSABI void* tl_CreateSemaphoreA(const void* security_attributes, std::int32_t initial_count,
                                    std::int32_t maximum_count, const char* name) noexcept;
 TL_MSABI void* tl_CreateSemaphoreW(const void* security_attributes, std::int32_t initial_count,
@@ -364,6 +365,14 @@ TL_MSABI std::uint32_t tl_GetPrivateProfileSectionA(const char* app_name, char* 
                                                     std::uint32_t size, const char* file_name) noexcept;
 TL_MSABI std::uint32_t tl_GetPrivateProfileSectionW(const std::uint16_t* app_name, std::uint16_t* returned_string,
                                                     std::uint32_t size, const std::uint16_t* file_name) noexcept;
+TL_MSABI std::uint32_t tl_GetPrivateProfileSectionNamesA(char* returned_string, std::uint32_t size,
+                                                         const char* file_name) noexcept;
+TL_MSABI std::uint32_t tl_GetPrivateProfileSectionNamesW(std::uint16_t* returned_string, std::uint32_t size,
+                                                         const std::uint16_t* file_name) noexcept;
+TL_MSABI int tl_GetThreadPreferredUILanguages(std::uint32_t flags, std::uint32_t* num_languages,
+                                              std::uint16_t* languages_buffer, std::uint32_t* buffer_size) noexcept;
+TL_MSABI int tl_SetThreadPreferredUILanguages(std::uint32_t flags, const std::uint16_t* languages_buffer,
+                                              std::uint32_t* num_languages) noexcept;
 TL_MSABI int tl_GetConsoleScreenBufferInfo(const void* console_handle, void* buffer_info) noexcept;
 TL_MSABI int tl_SetConsoleTextAttribute(const void* console_handle, std::uint16_t attributes) noexcept;
 TL_MSABI void* tl_CreateThreadpoolWork(void* callback, void* context, void* environment) noexcept;

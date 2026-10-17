@@ -1942,5 +1942,52 @@ TL_MSABI int tl_LCMapStringEx(const std::uint16_t* const locale_name, const std:
                            destination, destination_count);
 }
 
+TL_MSABI int tl_GetThreadPreferredUILanguages(const std::uint32_t flags,
+                                              std::uint32_t* const num_languages,
+                                              std::uint16_t* const languages_buffer,
+                                              std::uint32_t* const buffer_size) noexcept {
+    (void)flags;
+    constexpr char16_t kDefaultLang[] = u"en-US\0";
+    constexpr std::uint32_t kDefaultChars = 7U; // "en-US\0\0"
+    if (num_languages != nullptr && !write_guest_value(num_languages, 1U)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    if (buffer_size == nullptr) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    std::uint32_t req_size = 0;
+    if (!read_guest_value(buffer_size, req_size)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    if (languages_buffer == nullptr || req_size < kDefaultChars) {
+        (void)write_guest_value(buffer_size, kDefaultChars);
+        set_last_error(abi::kErrorInsufficientBuffer);
+        return 0;
+    }
+    if (runtime::write_guest_memory(languages_buffer, kDefaultLang, sizeof(kDefaultLang)).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    (void)write_guest_value(buffer_size, kDefaultChars);
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI int tl_SetThreadPreferredUILanguages(const std::uint32_t flags,
+                                              const std::uint16_t* const languages_buffer,
+                                              std::uint32_t* const num_languages) noexcept {
+    (void)flags;
+    (void)languages_buffer;
+    if (num_languages != nullptr) {
+        (void)write_guest_value(num_languages, 1U);
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux

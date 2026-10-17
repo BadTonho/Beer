@@ -934,6 +934,58 @@ TL_SHLWAPI_MSABI std::int32_t tl_SHCreateStreamOnFileA(
                                   mode, 0, reinterpret_cast<GuestIStream**>(stream));
 }
 
+TL_SHLWAPI_MSABI std::int32_t tl_SHStrDupW(const std::uint16_t* const psz,
+                                           std::uint16_t** const ppwsz) noexcept {
+    if (ppwsz == nullptr) return kEInvalidArg;
+    if (psz == nullptr) {
+        if (!write_guest_value(ppwsz, static_cast<std::uint16_t*>(nullptr))) {
+            return kEInvalidArg;
+        }
+        return kSOk;
+    }
+    std::u16string s;
+    if (!copy_guest_string(psz, s)) return kEInvalidArg;
+    const std::size_t bytes = (s.size() + 1U) * sizeof(std::uint16_t);
+    void* const mem = tl_CoTaskMemAlloc(bytes);
+    if (mem == nullptr) return static_cast<std::int32_t>(0x8007000EU); // E_OUTOFMEMORY
+    if (runtime::write_guest_memory(mem, s.c_str(), bytes).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        tl_CoTaskMemFree(mem);
+        return kEInvalidArg;
+    }
+    if (!write_guest_value(ppwsz, static_cast<std::uint16_t*>(mem))) {
+        tl_CoTaskMemFree(mem);
+        return kEInvalidArg;
+    }
+    return kSOk;
+}
+
+TL_SHLWAPI_MSABI std::int32_t tl_SHStrDupA(const char* const psz,
+                                           char** const ppsz) noexcept {
+    if (ppsz == nullptr) return kEInvalidArg;
+    if (psz == nullptr) {
+        if (!write_guest_value(ppsz, static_cast<char*>(nullptr))) {
+            return kEInvalidArg;
+        }
+        return kSOk;
+    }
+    std::string s;
+    if (!copy_guest_string(psz, s)) return kEInvalidArg;
+    const std::size_t bytes = s.size() + 1U;
+    void* const mem = tl_CoTaskMemAlloc(bytes);
+    if (mem == nullptr) return static_cast<std::int32_t>(0x8007000EU); // E_OUTOFMEMORY
+    if (runtime::write_guest_memory(mem, s.c_str(), bytes).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        tl_CoTaskMemFree(mem);
+        return kEInvalidArg;
+    }
+    if (!write_guest_value(ppsz, static_cast<char*>(mem))) {
+        tl_CoTaskMemFree(mem);
+        return kEInvalidArg;
+    }
+    return kSOk;
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux
 
@@ -988,11 +1040,15 @@ void register_shlwapi_module() {
         {"SHCreateStreamOnFileEx", 108, reinterpret_cast<std::uintptr_t>(&tl_SHCreateStreamOnFileEx), ExportSupport::Full},
         {"SHCreateStreamOnFileW", 107, reinterpret_cast<std::uintptr_t>(&tl_SHCreateStreamOnFileW), ExportSupport::Full},
         {"SHCreateStreamOnFileA", 106, reinterpret_cast<std::uintptr_t>(&tl_SHCreateStreamOnFileA), ExportSupport::Full},
+        {"SHStrDupW", 158, reinterpret_cast<std::uintptr_t>(&tl_SHStrDupW), ExportSupport::Full},
+        {"SHStrDupA", 157, reinterpret_cast<std::uintptr_t>(&tl_SHStrDupA), ExportSupport::Full},
         {"QISearch", 219, reinterpret_cast<std::uintptr_t>(&tl_QISearch), ExportSupport::Full},
         {"", 101, reinterpret_cast<std::uintptr_t>(&tl_PathStripToRootW), ExportSupport::Full},
         {"", 106, reinterpret_cast<std::uintptr_t>(&tl_SHCreateStreamOnFileA), ExportSupport::Full},
         {"", 107, reinterpret_cast<std::uintptr_t>(&tl_SHCreateStreamOnFileW), ExportSupport::Full},
         {"", 108, reinterpret_cast<std::uintptr_t>(&tl_SHCreateStreamOnFileEx), ExportSupport::Full},
+        {"", 157, reinterpret_cast<std::uintptr_t>(&tl_SHStrDupA), ExportSupport::Full},
+        {"", 158, reinterpret_cast<std::uintptr_t>(&tl_SHStrDupW), ExportSupport::Full},
         {"", 176, reinterpret_cast<std::uintptr_t>(&tl_PathStripToRootW), ExportSupport::Full},
         {"", 219, reinterpret_cast<std::uintptr_t>(&tl_QISearch), ExportSupport::Full},
         {"", 410, reinterpret_cast<std::uintptr_t>(&tl_PathStripToRootW), ExportSupport::Full},

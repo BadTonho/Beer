@@ -1066,6 +1066,27 @@ TL_ADVAPI_MSABI int tl_SetSecurityDescriptorDacl(void* const descriptor, const i
     return 1;
 }
 
+TL_ADVAPI_MSABI int tl_InitializeAcl(void* const acl, const std::uint32_t acl_length,
+                                     const std::uint32_t acl_revision) noexcept {
+    if (acl == nullptr || acl_length < sizeof(abi::GuestAcl)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    abi::GuestAcl header{};
+    header.revision = static_cast<std::uint8_t>(acl_revision);
+    header.sbz1 = 0;
+    header.acl_size = static_cast<std::uint16_t>(acl_length);
+    header.ace_count = 0;
+    header.sbz2 = 0;
+    if (runtime::write_guest_memory(acl, &header, sizeof(header)).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 TL_ADVAPI_MSABI std::uint32_t tl_SetEntriesInAclW(const std::uint32_t entry_count,
                                                   const void* const entries,
                                                   const void* const old_acl,

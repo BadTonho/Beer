@@ -117,6 +117,7 @@ void register_kernel32_module() {
         {"GetExitCodeProcess", 103,
          reinterpret_cast<std::uintptr_t>(&tl_GetExitCodeProcess), ExportSupport::Full},
         {"TerminateProcess", 104, reinterpret_cast<std::uintptr_t>(&tl_TerminateProcess), ExportSupport::Full},
+        {"TerminateThread", 475, reinterpret_cast<std::uintptr_t>(&tl_TerminateThread), ExportSupport::Full},
         {"CreateSemaphoreA", 97, reinterpret_cast<std::uintptr_t>(&tl_CreateSemaphoreA), ExportSupport::Full},
         {"CreateSemaphoreW", 98, reinterpret_cast<std::uintptr_t>(&tl_CreateSemaphoreW), ExportSupport::Full},
         {"ReleaseSemaphore", 99, reinterpret_cast<std::uintptr_t>(&tl_ReleaseSemaphore), ExportSupport::Full},
@@ -482,6 +483,10 @@ void register_kernel32_module() {
         {"GetStringTypeA", 444, reinterpret_cast<std::uintptr_t>(&tl_GetStringTypeA), ExportSupport::Full},
         {"GetCalendarInfoW", 445, reinterpret_cast<std::uintptr_t>(&tl_GetCalendarInfoW), ExportSupport::Full},
         {"QueryDosDeviceW", 446, reinterpret_cast<std::uintptr_t>(&tl_QueryDosDeviceW), ExportSupport::Full},
+        {"GetPrivateProfileSectionNamesA", 476, reinterpret_cast<std::uintptr_t>(&tl_GetPrivateProfileSectionNamesA), ExportSupport::Full},
+        {"GetPrivateProfileSectionNamesW", 477, reinterpret_cast<std::uintptr_t>(&tl_GetPrivateProfileSectionNamesW), ExportSupport::Full},
+        {"GetThreadPreferredUILanguages", 478, reinterpret_cast<std::uintptr_t>(&tl_GetThreadPreferredUILanguages), ExportSupport::Full},
+        {"SetThreadPreferredUILanguages", 479, reinterpret_cast<std::uintptr_t>(&tl_SetThreadPreferredUILanguages), ExportSupport::Full},
     };
     static const InternalModule kKernel32Module{"KERNEL32.dll", kKernel32Exports};
     register_module(kKernel32Module);

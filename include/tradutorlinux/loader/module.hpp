@@ -80,6 +80,7 @@ bool is_valid_module_handle(void* handle) noexcept;
 // profundidade e rejeita ciclos/destinos ausentes.
 bool is_api_set_dll(std::string_view dll) noexcept;
 bool is_kernelbase_dll(std::string_view dll) noexcept;
+bool is_vcruntime_dll(std::string_view dll) noexcept;
 ExportLookup find_export_forwarded(const ExportQuery& query);
 ExportLookup find_export_by_ordinal_forwarded(std::string_view dll, std::uint16_t ordinal);
 bool is_module_registered_forwarded(std::string_view dll) noexcept;

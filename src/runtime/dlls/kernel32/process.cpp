@@ -519,6 +519,13 @@ TL_MSABI int tl_TerminateProcess(const void* process, const std::uint32_t exit_c
     return 1;
 }
 
+TL_MSABI int tl_TerminateThread(const void* const thread_handle, const std::uint32_t exit_code) noexcept {
+    (void)thread_handle;
+    (void)exit_code;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 TL_MSABI std::uint32_t tl_GetProcessId(const void* const process) noexcept {
     if (process == nullptr || process == reinterpret_cast<const void*>(~0ULL)) {
         return static_cast<std::uint32_t>(getpid());

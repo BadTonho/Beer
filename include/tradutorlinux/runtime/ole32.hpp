@@ -171,6 +171,8 @@ TL_OLE_MSABI std::int32_t tl_CreateStreamFromFile(const std::uint16_t* path,
                                                   std::uint32_t mode,
                                                   std::int32_t create,
                                                   GuestIStream** stream) noexcept;
+TL_OLE_MSABI std::int32_t tl_PropVariantClear(void* pvar) noexcept;
+TL_OLE_MSABI std::int32_t tl_StringFromCLSID(const void* rclsid, wchar_t** lplpsz) noexcept;
 
 }  // extern "C"
 

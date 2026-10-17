@@ -246,5 +246,33 @@ TL_MSABI std::uint32_t tl_GetPrivateProfileSectionW(const std::uint16_t* app_nam
     }
     return 0;
 }
+TL_MSABI std::uint32_t tl_GetPrivateProfileSectionNamesA(char* returned_string, const std::uint32_t size,
+                                                         const char* file_name) noexcept {
+    (void)file_name;
+    if (returned_string != nullptr && size >= 2U) {
+        const std::uint8_t empty[2]{0U, 0U};
+        if (runtime::write_guest_memory(returned_string, empty, sizeof(empty)).status !=
+            runtime::GuestMemoryAccessStatus::Success) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0U;
+        }
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 0U;
+}
+TL_MSABI std::uint32_t tl_GetPrivateProfileSectionNamesW(std::uint16_t* returned_string, const std::uint32_t size,
+                                                         const std::uint16_t* file_name) noexcept {
+    (void)file_name;
+    if (returned_string != nullptr && size >= 2U) {
+        const std::uint16_t empty[2]{0U, 0U};
+        if (runtime::write_guest_memory(returned_string, empty, sizeof(empty)).status !=
+            runtime::GuestMemoryAccessStatus::Success) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0U;
+        }
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 0U;
+}
 }
 }  // namespace tradutorlinux

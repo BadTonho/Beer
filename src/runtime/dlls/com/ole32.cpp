@@ -975,6 +975,33 @@ TL_OLE_MSABI std::int32_t tl_CreateStreamFromFile(const std::uint16_t* const pat
     return kSOk;
 }
 
+TL_OLE_MSABI std::int32_t tl_PropVariantClear(void* const pvar) noexcept {
+    if (pvar == nullptr) return kEInvalidArg;
+    std::array<std::uint8_t, 24> zero{};
+    (void)runtime::write_guest_memory(pvar, zero.data(), zero.size());
+    return kSOk;
+}
+
+TL_OLE_MSABI std::int32_t tl_StringFromCLSID(const void* const rclsid, wchar_t** const lplpsz) noexcept {
+    if (lplpsz == nullptr) return kEInvalidArg;
+    if (rclsid == nullptr) {
+        (void)write_guest_value(lplpsz, static_cast<wchar_t*>(nullptr));
+        return kEInvalidArg;
+    }
+    constexpr std::size_t kGuidChars = 39U;
+    void* const mem = tl_CoTaskMemAlloc(kGuidChars * sizeof(wchar_t));
+    if (mem == nullptr) return static_cast<std::int32_t>(0x8007000EU); // E_OUTOFMEMORY
+    if (tl_StringFromGUID2(rclsid, static_cast<wchar_t*>(mem), static_cast<int>(kGuidChars)) == 0) {
+        tl_CoTaskMemFree(mem);
+        return kEInvalidArg;
+    }
+    if (!write_guest_value(lplpsz, static_cast<wchar_t*>(mem))) {
+        tl_CoTaskMemFree(mem);
+        return kEInvalidArg;
+    }
+    return kSOk;
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux
 
@@ -1006,6 +1033,8 @@ void register_ole32_module() {
         {"OleSetClipboard", 22, reinterpret_cast<std::uintptr_t>(&tl_OleSetClipboard), ExportSupport::Full},
         {"CoInitializeSecurity", 23, reinterpret_cast<std::uintptr_t>(&tl_CoInitializeSecurity), ExportSupport::Full},
         {"CoCreateFreeThreadedMarshaler", 24, reinterpret_cast<std::uintptr_t>(&tl_CoCreateFreeThreadedMarshaler), ExportSupport::Full},
+        {"PropVariantClear", 25, reinterpret_cast<std::uintptr_t>(&tl_PropVariantClear), ExportSupport::Full},
+        {"StringFromCLSID", 26, reinterpret_cast<std::uintptr_t>(&tl_StringFromCLSID), ExportSupport::Full},
     };
     static const InternalModule kOle32Module{"ole32.dll", kOle32Exports};
     register_module(kOle32Module);

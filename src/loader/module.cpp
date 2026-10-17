@@ -65,6 +65,19 @@ bool is_kernelbase_dll(const std::string_view dll) noexcept {
            util::ascii_iequals(dll, "kernelbase");
 }
 
+bool is_vcruntime_dll(const std::string_view dll) noexcept {
+    return util::ascii_iequals(dll, "vcruntime140.dll") ||
+           util::ascii_iequals(dll, "vcruntime140") ||
+           util::ascii_iequals(dll, "vcruntime140_1.dll") ||
+           util::ascii_iequals(dll, "vcruntime140_1") ||
+           util::ascii_iequals(dll, "vcruntime140d.dll") ||
+           util::ascii_iequals(dll, "msvcr120.dll") ||
+           util::ascii_iequals(dll, "msvcr110.dll") ||
+           util::ascii_iequals(dll, "msvcr100.dll") ||
+           util::ascii_iequals(dll, "ucrtbase.dll") ||
+           util::ascii_iequals(dll, "ucrtbase");
+}
+
 [[nodiscard]] std::string_view preferred_api_set_module(const std::string_view dll) noexcept {
     auto starts_with_ci = [](std::string_view s, std::string_view prefix) {
         if (s.size() < prefix.size()) return false;
@@ -206,6 +219,11 @@ ExportLookup resolve_forwarder_ordinal(const ForwarderQuery& query,
             ForwarderQuery{"KERNEL32.dll", true, {}, query.ordinal}, visits, depth + 1U);
         if (kernel32.found || !kernel32.detail.empty()) return finish(std::move(kernel32));
     }
+    if (is_vcruntime_dll(query.dll)) {
+        ExportLookup msvcrt = resolve_forwarder_ordinal(
+            ForwarderQuery{"msvcrt.dll", true, {}, query.ordinal}, visits, depth + 1U);
+        if (msvcrt.found || !msvcrt.detail.empty()) return finish(std::move(msvcrt));
+    }
     return finish(std::move(direct));
 }
 
@@ -239,6 +257,11 @@ ExportLookup resolve_forwarder_named(const ForwarderQuery& query,
         ExportLookup kernel32 = resolve_forwarder_named(
             ForwarderQuery{"KERNEL32.dll", false, query.symbol, 0}, visits, depth + 1U);
         if (kernel32.found || !kernel32.detail.empty()) return finish(std::move(kernel32));
+    }
+    if (is_vcruntime_dll(query.dll)) {
+        ExportLookup msvcrt = resolve_forwarder_named(
+            ForwarderQuery{"msvcrt.dll", false, query.symbol, 0}, visits, depth + 1U);
+        if (msvcrt.found || !msvcrt.detail.empty()) return finish(std::move(msvcrt));
     }
     if (!is_api_set_dll(query.dll)) return finish(std::move(direct));
 
@@ -281,6 +304,7 @@ ExportLookup find_export_by_ordinal_forwarded(const std::string_view dll,
 bool is_module_registered_forwarded(const std::string_view dll) noexcept {
     if (is_module_registered(dll)) return true;
     if (is_kernelbase_dll(dll)) return is_module_registered("KERNEL32.dll");
+    if (is_vcruntime_dll(dll)) return is_module_registered("msvcrt.dll");
     if (!is_api_set_dll(dll)) return false;
     // API Set só é considerado registrado se ao menos um provedor real existir.
     // Evita classificar como unknown-symbol quando registry está vazio (ex: testes com clear_modules).

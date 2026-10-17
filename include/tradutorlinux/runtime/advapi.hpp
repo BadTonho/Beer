@@ -97,6 +97,8 @@ TL_ADVAPI_MSABI int tl_CreateWellKnownSid(std::uint32_t well_known_sid_type,
 TL_ADVAPI_MSABI int tl_CheckTokenMembership(const void* token, const void* sid,
                                             int* is_member) noexcept;
 TL_ADVAPI_MSABI void tl_BuildTrusteeWithSidW(void* trustee, void* sid) noexcept;
+TL_ADVAPI_MSABI int tl_InitializeAcl(void* acl, std::uint32_t acl_length,
+                                     std::uint32_t acl_revision) noexcept;
 TL_ADVAPI_MSABI int tl_InitializeSecurityDescriptor(void* descriptor,
                                                      std::uint32_t revision) noexcept;
 TL_ADVAPI_MSABI int tl_SetSecurityDescriptorDacl(void* descriptor, int dacl_present,
