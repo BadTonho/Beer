@@ -717,6 +717,43 @@ TL_OLE_MSABI int tl_CLSIDFromProgID(const wchar_t* const lpszProgID, void* const
     return 0; // S_OK
 }
 
+TL_OLE_MSABI int tl_CoSetProxyBlanket(void* const proxy, const std::uint32_t authn_svc,
+                                      const std::uint32_t authz_svc, const wchar_t* const server_princ_name,
+                                      const std::uint32_t authn_level, const std::uint32_t imp_level,
+                                      void* const auth_info, const std::uint32_t capabilities) noexcept {
+    (void)proxy;
+    (void)authn_svc;
+    (void)authz_svc;
+    (void)server_princ_name;
+    (void)authn_level;
+    (void)imp_level;
+    (void)auth_info;
+    (void)capabilities;
+    return 0; // S_OK
+}
+
+TL_OLE_MSABI int tl_OleSetClipboard(void* const data_obj) noexcept {
+    (void)data_obj;
+    return 0; // S_OK
+}
+
+TL_OLE_MSABI int tl_CoInitializeSecurity(void* const sec_desc, const std::int32_t c_auth_svc,
+                                         void* const as_auth_svc, void* const reserved1,
+                                         const std::uint32_t authn_level, const std::uint32_t imp_level,
+                                         void* const auth_info, const std::uint32_t capabilities,
+                                         void* const reserved3) noexcept {
+    (void)sec_desc;
+    (void)c_auth_svc;
+    (void)as_auth_svc;
+    (void)reserved1;
+    (void)authn_level;
+    (void)imp_level;
+    (void)auth_info;
+    (void)capabilities;
+    (void)reserved3;
+    return 0; // S_OK
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux
 
@@ -744,6 +781,9 @@ void register_ole32_module() {
         {"StringFromGUID2", 18, reinterpret_cast<std::uintptr_t>(&tl_StringFromGUID2), ExportSupport::Full},
         {"CLSIDFromProgID", 19, reinterpret_cast<std::uintptr_t>(&tl_CLSIDFromProgID), ExportSupport::Full},
         {"CoGetMalloc", 20, reinterpret_cast<std::uintptr_t>(&tl_CoGetMalloc), ExportSupport::Full},
+        {"CoSetProxyBlanket", 21, reinterpret_cast<std::uintptr_t>(&tl_CoSetProxyBlanket), ExportSupport::Full},
+        {"OleSetClipboard", 22, reinterpret_cast<std::uintptr_t>(&tl_OleSetClipboard), ExportSupport::Full},
+        {"CoInitializeSecurity", 23, reinterpret_cast<std::uintptr_t>(&tl_CoInitializeSecurity), ExportSupport::Full},
     };
     static const InternalModule kOle32Module{"ole32.dll", kOle32Exports};
     register_module(kOle32Module);

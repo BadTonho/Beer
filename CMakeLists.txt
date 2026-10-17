@@ -7,9 +7,6 @@ include(GNUInstallDirs)
 include(CTest)
 include(FetchContent)
 
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
-set(CMAKE_AUTOUIC ON)
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
 find_package(ZLIB REQUIRED)
 

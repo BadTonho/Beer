@@ -143,6 +143,13 @@ TL_OLE_MSABI std::int32_t tl_RegisterDragDrop(void* hwnd, void* drop_target) noe
 TL_OLE_MSABI std::int32_t tl_RevokeDragDrop(void* hwnd) noexcept;
 TL_OLE_MSABI std::int32_t tl_DoDragDrop(void* data_obj, void* drop_source, std::uint32_t ok_effects, std::uint32_t* effect) noexcept;
 TL_OLE_MSABI void tl_ReleaseStgMedium(void* medium) noexcept;
+TL_OLE_MSABI int tl_CoSetProxyBlanket(void* proxy, std::uint32_t authn_svc, std::uint32_t authz_svc,
+                                      const wchar_t* server_princ_name, std::uint32_t authn_level,
+                                      std::uint32_t imp_level, void* auth_info, std::uint32_t capabilities) noexcept;
+TL_OLE_MSABI int tl_OleSetClipboard(void* data_obj) noexcept;
+TL_OLE_MSABI int tl_CoInitializeSecurity(void* sec_desc, std::int32_t c_auth_svc, void* as_auth_svc,
+                                         void* reserved1, std::uint32_t authn_level, std::uint32_t imp_level,
+                                         void* auth_info, std::uint32_t capabilities, void* reserved3) noexcept;
 
 }  // extern "C"
 

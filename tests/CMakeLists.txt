@@ -519,6 +519,11 @@ add_executable(tradutorlinux_qt_launcher_tests
     ../src/gui/main_window.cpp
     ../src/gui/main_window.hpp
 )
+set_target_properties(tradutorlinux_qt_launcher_tests PROPERTIES
+    AUTOMOC ON
+    AUTOUIC ON
+    AUTORCC ON
+)
 target_include_directories(tradutorlinux_qt_launcher_tests PRIVATE
     "${PROJECT_SOURCE_DIR}/src/gui"
 )

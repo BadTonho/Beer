@@ -91,6 +91,12 @@ TL_MSABI std::uint32_t tl_ExtractIconExW(const std::uint16_t* file, int index, v
 TL_MSABI int tl_SHGetDesktopFolder(void** ppshf) noexcept;
 TL_MSABI int tl_SHGetSpecialFolderLocation(void* hwnd, int folder, void** ppidl) noexcept;
 TL_MSABI int tl_SHGetSpecialFolderPathW(void* hwnd, std::uint16_t* path, int folder, int create) noexcept;
+TL_MSABI void tl_DragAcceptFiles(void* hwnd, int accept) noexcept;
+TL_MSABI void tl_SHAddToRecentDocs(std::uint32_t flags, const void* pv) noexcept;
+TL_MSABI int tl_SHGetFolderLocation(void* hwnd, int csidl, void* htoken, std::uint32_t flags, void** ppidl) noexcept;
+TL_MSABI int tl_SHGetStockIconInfo(std::uint32_t siid, std::uint32_t flags, void* stock_icon_info) noexcept;
+TL_MSABI int tl_SHGetImageList(int image_list, const void* riid, void** ppv) noexcept;
+TL_MSABI int tl_LoadIconMetric(void* hinst, const wchar_t* pszName, int lims, void** phico) noexcept;
 TL_MSABI void* tl_CreateStatusWindowW(std::int32_t style, const std::uint16_t* text, void* parent, std::uint32_t id) noexcept;
 TL_MSABI void* tl_CreateToolbarEx(void* hwnd, std::uint32_t style, std::uint32_t id, int num_bitmaps, void* instance,
                                   std::uintptr_t bitmap_id, const void* buttons, int num_buttons, int cx_button,

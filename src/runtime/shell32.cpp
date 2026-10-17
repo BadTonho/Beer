@@ -692,6 +692,58 @@ TL_MSABI void tl_DragFinish(void* const hDrop) noexcept {
     (void)hDrop;
 }
 
+TL_MSABI void tl_DragAcceptFiles(void* const hwnd, const int accept) noexcept {
+    (void)hwnd;
+    (void)accept;
+}
+
+TL_MSABI void tl_SHAddToRecentDocs(const std::uint32_t flags, const void* const pv) noexcept {
+    (void)flags;
+    (void)pv;
+}
+
+TL_MSABI int tl_SHGetFolderLocation(void* const hwnd, const int csidl, void* const htoken,
+                                    const std::uint32_t flags, void** const ppidl) noexcept {
+    (void)hwnd;
+    (void)csidl;
+    (void)htoken;
+    (void)flags;
+    if (ppidl == nullptr) {
+        return static_cast<int>(0x80004003U); // E_POINTER
+    }
+    static_cast<void>(write_guest_value(ppidl, reinterpret_cast<void*>(0x5049444CULL))); // 'PIDL'
+    return 0; // S_OK
+}
+
+TL_MSABI int tl_SHGetStockIconInfo(const std::uint32_t siid, const std::uint32_t flags,
+                                   void* const stock_icon_info) noexcept {
+    (void)siid;
+    (void)flags;
+    if (stock_icon_info == nullptr) {
+        return static_cast<int>(0x80004003U); // E_POINTER
+    }
+    std::uint32_t cb_size = 0;
+    if (!read_guest_value(stock_icon_info, cb_size) || cb_size < sizeof(std::uint32_t)) {
+        return static_cast<int>(0x80070057U); // E_INVALIDARG
+    }
+    if (cb_size >= 16) {
+        static_cast<void>(write_guest_value(
+            reinterpret_cast<void**>(reinterpret_cast<std::uintptr_t>(stock_icon_info) + 8),
+            reinterpret_cast<void*>(0x1000ULL)));
+    }
+    return 0; // S_OK
+}
+
+TL_MSABI int tl_SHGetImageList(const int image_list, const void* const riid, void** const ppv) noexcept {
+    (void)image_list;
+    (void)riid;
+    if (ppv == nullptr) {
+        return static_cast<int>(0x80004003U); // E_POINTER
+    }
+    static_cast<void>(write_guest_value(ppv, reinterpret_cast<void*>(0x494D474CULL))); // 'IMGL'
+    return 0; // S_OK
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux
 
@@ -725,6 +777,12 @@ void register_shell32_module() {
         {"DragQueryFileW", 21, reinterpret_cast<std::uintptr_t>(&tl_DragQueryFileW), ExportSupport::Full},
         {"DragQueryPoint", 22, reinterpret_cast<std::uintptr_t>(&tl_DragQueryPoint), ExportSupport::Full},
         {"DragFinish", 23, reinterpret_cast<std::uintptr_t>(&tl_DragFinish), ExportSupport::Full},
+        {"DragAcceptFiles", 24, reinterpret_cast<std::uintptr_t>(&tl_DragAcceptFiles), ExportSupport::Full},
+        {"SHAddToRecentDocs", 25, reinterpret_cast<std::uintptr_t>(&tl_SHAddToRecentDocs), ExportSupport::Full},
+        {"SHGetFolderLocation", 26, reinterpret_cast<std::uintptr_t>(&tl_SHGetFolderLocation), ExportSupport::Full},
+        {"SHGetStockIconInfo", 27, reinterpret_cast<std::uintptr_t>(&tl_SHGetStockIconInfo), ExportSupport::Full},
+        {"SHGetImageList", 100, reinterpret_cast<std::uintptr_t>(&tl_SHGetImageList), ExportSupport::Full},
+        {"", 100, reinterpret_cast<std::uintptr_t>(&tl_SHGetImageList), ExportSupport::Full},
         {"", 165, reinterpret_cast<std::uintptr_t>(&tl_SHCreateItemFromParsingName), ExportSupport::Full},
     };
     static const InternalModule kShell32Module{"SHELL32.dll", kShell32Exports};

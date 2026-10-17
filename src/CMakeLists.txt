@@ -229,6 +229,11 @@ add_executable(tradutorlinux_gui
     gui/main_window.hpp
     gui/qt_main.cpp
 )
+set_target_properties(tradutorlinux_gui PROPERTIES
+    AUTOMOC ON
+    AUTOUIC ON
+    AUTORCC ON
+)
 target_link_libraries(tradutorlinux_gui PRIVATE tradutorlinux_core Qt6::Widgets)
 tl_enable_warnings(tradutorlinux_gui)
 tl_enable_sanitizers(tradutorlinux_gui)

@@ -434,6 +434,19 @@ TL_COMCTL_MSABI int tl_LoadIconWithScaleDown(void* const hinst, const wchar_t* c
     return static_cast<int>(0x80070057U); // E_INVALIDARG
 }
 
+TL_COMCTL_MSABI int tl_LoadIconMetric(void* const hinst, const wchar_t* const pszName, const int lims, void** const phico) noexcept {
+    (void)lims;
+    if (phico != nullptr) {
+        void* const icon = reinterpret_cast<void*>(tl_LoadIconW(
+            hinst, reinterpret_cast<const std::uint16_t*>(pszName)));
+        if (!write_guest_value(phico, icon)) {
+            return static_cast<int>(0x80070057U); // E_INVALIDARG
+        }
+        return icon != nullptr ? 0 : static_cast<int>(0x80004005U);
+    }
+    return static_cast<int>(0x80070057U); // E_INVALIDARG
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux
 
@@ -471,11 +484,13 @@ void register_comctl32_module() {
         {"ImageList_Remove", 28, reinterpret_cast<std::uintptr_t>(&tl_ImageList_Remove), ExportSupport::Full},
         {"ImageList_SetIconSize", 29, reinterpret_cast<std::uintptr_t>(&tl_ImageList_SetIconSize), ExportSupport::Full},
         {"CreateToolbarEx", 30, reinterpret_cast<std::uintptr_t>(&tl_CreateToolbarEx), ExportSupport::Full},
+        {"LoadIconMetric", 380, reinterpret_cast<std::uintptr_t>(&tl_LoadIconMetric), ExportSupport::Full},
         {"LoadIconWithScaleDown", 381, reinterpret_cast<std::uintptr_t>(&tl_LoadIconWithScaleDown), ExportSupport::Full},
         {"SetWindowSubclass", 410, reinterpret_cast<std::uintptr_t>(&tl_SetWindowSubclass), ExportSupport::Full},
         {"RemoveWindowSubclass", 412, reinterpret_cast<std::uintptr_t>(&tl_RemoveWindowSubclass), ExportSupport::Full},
         {"DefSubclassProc", 413, reinterpret_cast<std::uintptr_t>(&tl_DefSubclassProc), ExportSupport::Full},
         {"", 17, reinterpret_cast<std::uintptr_t>(&tl_InitCommonControls), ExportSupport::Full},
+        {"", 380, reinterpret_cast<std::uintptr_t>(&tl_LoadIconMetric), ExportSupport::Full},
         {"", 381, reinterpret_cast<std::uintptr_t>(&tl_LoadIconWithScaleDown), ExportSupport::Full},
         {"", 410, reinterpret_cast<std::uintptr_t>(&tl_SetWindowSubclass), ExportSupport::Full},
         {"", 411, reinterpret_cast<std::uintptr_t>(&tl_TaskDialogIndirect), ExportSupport::Full},

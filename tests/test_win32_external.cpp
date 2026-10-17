@@ -2,6 +2,8 @@
 #include "tradutorlinux/win32/kernel32.hpp"
 #include "tradutorlinux/runtime/psapi.hpp"
 #include "tradutorlinux/runtime/shlwapi.hpp"
+#include "tradutorlinux/runtime/ole32.hpp"
+#include "tradutorlinux/runtime/winapi.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -851,6 +853,35 @@ TEST(ShellPathTest, ProtectedShellOutputsRejectUnmappedPointers) {
     EXPECT_EQ(tl_SHCreateItemFromParsingName(nullptr, nullptr, nullptr,
                                               static_cast<void**>(invalid)), 0);
     EXPECT_EQ(tl_DragQueryPoint(nullptr, invalid), 1);
+    tl_DragAcceptFiles(invalid, 1);
+    tl_SHAddToRecentDocs(0, invalid);
+    EXPECT_EQ(tl_SHGetFolderLocation(nullptr, 0, nullptr, 0, nullptr), static_cast<int>(0x80004003U));
+    EXPECT_EQ(tl_SHGetStockIconInfo(0, 0, nullptr), static_cast<int>(0x80004003U));
+    EXPECT_EQ(tl_SHGetStockIconInfo(0, 0, invalid), static_cast<int>(0x80070057U));
+    EXPECT_EQ(tl_SHGetImageList(0, nullptr, nullptr), static_cast<int>(0x80004003U));
+    EXPECT_EQ(tl_LoadIconMetric(nullptr, nullptr, 0, nullptr), static_cast<int>(0x80070057U));
+    EXPECT_EQ(tl_CoSetProxyBlanket(nullptr, 0, 0, nullptr, 0, 0, nullptr, 0), 0);
+    EXPECT_EQ(tl_OleSetClipboard(nullptr), 0);
+    EXPECT_EQ(tl_CoInitializeSecurity(nullptr, 0, nullptr, nullptr, 0, 0, nullptr, 0, nullptr), 0);
+
+    void* pidl = nullptr;
+    EXPECT_EQ(tl_SHGetFolderLocation(nullptr, 0, nullptr, 0, &pidl), 0);
+    EXPECT_NE(pidl, nullptr);
+
+    void* img_list = nullptr;
+    EXPECT_EQ(tl_SHGetImageList(0, nullptr, &img_list), 0);
+    EXPECT_NE(img_list, nullptr);
+
+    struct StockIconInfo {
+        std::uint32_t cb_size{sizeof(StockIconInfo)};
+        std::uint32_t padding{0};
+        void* icon{nullptr};
+        int sys_image_index{0};
+        int icon_index{0};
+        wchar_t path[260]{};
+    } stock_info{};
+    EXPECT_EQ(tl_SHGetStockIconInfo(0, 0, &stock_info), 0);
+    EXPECT_NE(stock_info.icon, nullptr);
 
     set_guest_prefix_path({});
     std::error_code error;
