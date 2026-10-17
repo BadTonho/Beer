@@ -92,8 +92,36 @@ bool read_guest_file_for_process(const char* path, std::vector<std::byte>& bytes
     return true;
 }
 
+[[nodiscard]] std::vector<std::string> parse_command_line_arguments(const std::string_view command_line) {
+    std::vector<std::string> arguments;
+    std::string current;
+    bool in_quotes = false;
+    for (std::size_t i = 0; i < command_line.size(); ++i) {
+        const char c = command_line[i];
+        if (c == '"') {
+            in_quotes = !in_quotes;
+            continue;
+        }
+        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+            if (!in_quotes) {
+                if (!current.empty()) {
+                    arguments.push_back(std::move(current));
+                    current.clear();
+                }
+                continue;
+            }
+        }
+        current += c;
+    }
+    if (!current.empty() || in_quotes) {
+        arguments.push_back(std::move(current));
+    }
+    return arguments;
+}
+
 [[noreturn]] void run_created_guest_child(const std::string& path, const int result_fd,
-                                          const std::string& working_directory) noexcept {
+                                          const std::string& working_directory,
+                                          std::vector<std::string> arguments) noexcept {
     runtime::invalidate_memory_map_cache();
     if (g_guest_image_base != nullptr && g_guest_image_size > 0) {
         ::munmap(const_cast<std::byte*>(g_guest_image_base), g_guest_image_size);
@@ -134,8 +162,11 @@ bool read_guest_file_for_process(const char* path, std::vector<std::byte>& bytes
 
     loader::GuestProcess& process = prepared.process;
     set_guest_module_path(path.c_str());
-    msvcrt_set_guest_command_line(std::vector<std::string>{
-        prefix::to_windows_path(std::filesystem::path(path), guest_prefix_root())});
+    if (arguments.empty()) {
+        arguments.push_back(
+            prefix::to_windows_path(std::filesystem::path(path), guest_prefix_root()));
+    }
+    msvcrt_set_guest_command_line(std::move(arguments));
     set_guest_image_view(process.image.memory, process.image.size,
                          parsed.info.resource_directory_rva,
                          parsed.info.resource_directory_size);
@@ -275,9 +306,38 @@ TL_MSABI int tl_CreateProcessA(const char* application_name, char* command_line,
         set_last_error(abi::kErrorInvalidParameter);
         return 0;
     }
+    std::string app_name_str;
+    if (application_name != nullptr) {
+        if (!runtime::copy_guest_cstring(application_name, 4096, app_name_str)) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+    }
+    std::string cmd_line_str;
+    if (command_line != nullptr) {
+        if (!runtime::copy_guest_cstring(command_line, 32768, cmd_line_str)) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+    }
+
+    std::vector<std::string> arguments;
+    if (!cmd_line_str.empty()) {
+        arguments = parse_command_line_arguments(cmd_line_str);
+    }
+
+    std::string path_source;
+    if (!app_name_str.empty()) {
+        path_source = app_name_str;
+    } else if (!arguments.empty()) {
+        path_source = arguments[0];
+    } else {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+
     char normalized_path[4096]{};
-    const char* const path_source = application_name != nullptr ? application_name : command_line;
-    if (!translate_windows_path(path_source, normalized_path, sizeof(normalized_path))) {
+    if (!translate_windows_path(path_source.c_str(), normalized_path, sizeof(normalized_path))) {
         set_last_error(abi::kErrorInvalidParameter);
         return 0;
     }
@@ -311,8 +371,21 @@ TL_MSABI int tl_CreateProcessA(const char* application_name, char* command_line,
         }
     }
     if (::access(normalized_path, F_OK) != 0) {
+        char exe_candidate[4096]{};
+        const int written = std::snprintf(exe_candidate, sizeof(exe_candidate), "%s.exe", normalized_path);
+        if (written > 0 && written < static_cast<int>(sizeof(exe_candidate)) &&
+            ::access(exe_candidate, F_OK) == 0) {
+            std::memcpy(normalized_path, exe_candidate, static_cast<std::size_t>(written) + 1);
+        }
+    }
+    if (::access(normalized_path, F_OK) != 0) {
         set_last_error(abi::kErrorFileNotFound);
         return 0;
+    }
+
+    if (arguments.empty()) {
+        arguments.push_back(
+            prefix::to_windows_path(std::filesystem::path(normalized_path), guest_prefix_root()));
     }
 
     std::string child_working_directory;
@@ -387,7 +460,8 @@ TL_MSABI int tl_CreateProcessA(const char* application_name, char* command_line,
     }
     if (child == 0) {
         ::close(result_pipe[0]);
-        run_created_guest_child(normalized_path, result_pipe[1], child_working_directory);
+        run_created_guest_child(normalized_path, result_pipe[1], child_working_directory,
+                                std::move(arguments));
     }
     ::close(result_pipe[1]);
     {
@@ -683,7 +757,7 @@ TL_MSABI int tl_CreateProcessW(const std::uint16_t* application_name,
     if ((application_name != nullptr &&
          !runtime::copy_guest_wstring(application_name, kMaxModuleStringUnits, guest_application)) ||
         (command_line != nullptr &&
-         !runtime::copy_guest_wstring(command_line, kMaxModuleStringUnits, guest_command_line)) ||
+         !runtime::copy_guest_wstring(command_line, 32768U, guest_command_line)) ||
         (current_directory != nullptr &&
          !runtime::copy_guest_wstring(current_directory, kMaxModuleStringUnits, guest_directory)) ||
         (application_name == nullptr && command_line == nullptr)) {
@@ -705,8 +779,8 @@ TL_MSABI int tl_CreateProcessW(const std::uint16_t* application_name,
                                             reinterpret_cast<const std::uint16_t*>(guest_directory.data()),
                                             guest_directory.size())
                                       : "";
-    char* command_pointer = command.empty() ? nullptr : command.data();
-    const char* application_pointer = application.empty() ? nullptr : application.c_str();
+    char* command_pointer = (command_line != nullptr && !command.empty()) ? command.data() : nullptr;
+    const char* application_pointer = (application_name != nullptr && !application.empty()) ? application.c_str() : nullptr;
     const char* directory_pointer = directory.empty() ? nullptr : directory.c_str();
     return tl_CreateProcessA(application_pointer, command_pointer, process_attributes, thread_attributes,
                              inherit_handles, creation_flags, environment, directory_pointer, startup_info,

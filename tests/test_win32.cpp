@@ -585,6 +585,26 @@ TEST(Win32ProcessTest, ProtectedCreateProcessInputsAndOutputsRejectUnmappedPoint
     EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
 }
 
+TEST(Win32ProcessTest, SupportsCommandLineTokenizationAndNullApplicationName) {
+    std::array<std::byte, 24> process_information{};
+    char cmdline_a[] = "\"C:\\missing.exe\" /arg1 /arg2";
+    EXPECT_EQ(tl_CreateProcessA(nullptr, cmdline_a, nullptr, nullptr, 0, 0, nullptr,
+                                nullptr, nullptr, process_information.data()), 0);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorFileNotFound);
+
+    std::uint16_t cmdline_w[] = {
+        '"', 'C', ':', '\\', 'm', 'i', 's', 's', 'i', 'n', 'g', '.', 'e', 'x', 'e', '"',
+        ' ', '/', 'a', 'r', 'g', '1', 0};
+    EXPECT_EQ(tl_CreateProcessW(nullptr, cmdline_w, nullptr, nullptr, 0, 0, nullptr,
+                                nullptr, nullptr, process_information.data()), 0);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorFileNotFound);
+
+    char empty_cmdline[] = "    ";
+    EXPECT_EQ(tl_CreateProcessA(nullptr, empty_cmdline, nullptr, nullptr, 0, 0, nullptr,
+                                nullptr, nullptr, process_information.data()), 0);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
+}
+
 TEST(Win32ResourceTest, ProtectedResourceNamesRejectUnmappedPointers) {
     auto* const invalid = reinterpret_cast<const std::uint16_t*>(static_cast<std::uintptr_t>(0x100000U));
     EXPECT_EQ(tl_FindResourceW(nullptr, invalid,
