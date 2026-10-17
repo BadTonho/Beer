@@ -393,5 +393,35 @@ TEST(Win32SecurityTest, SupportsInheritanceAndTrusteeNameInSetEntriesInAclW) {
     EXPECT_EQ(tl_LocalFree(new_acl2), nullptr);
 }
 
+TEST(Win32SecurityTest, EventTracingAndAccessChecks) {
+    std::uint64_t reg_handle = 0;
+    EXPECT_EQ(tl_EventRegister(nullptr, nullptr, nullptr, &reg_handle), 0U);
+    EXPECT_EQ(reg_handle, 0xCAFEBABEU);
+    EXPECT_EQ(tl_EventSetInformation(reg_handle, 1, nullptr, 0), 0U);
+    EXPECT_EQ(tl_EventWriteTransfer(reg_handle, nullptr, nullptr, nullptr, 0, nullptr), 0U);
+    EXPECT_EQ(tl_EventUnregister(reg_handle), 0U);
+
+    void* dup_token = nullptr;
+    EXPECT_EQ(tl_DuplicateToken(nullptr, 2, &dup_token), 1);
+    EXPECT_NE(dup_token, nullptr);
+
+    std::uint32_t granted = 0;
+    int status = 0;
+    EXPECT_EQ(tl_AccessCheck(nullptr, dup_token, 0x1F0000U, nullptr, nullptr, nullptr, &granted, &status), 1);
+    EXPECT_EQ(granted, 0x1F0000U);
+    EXPECT_EQ(status, 1);
+
+    struct TestGenericMapping {
+        std::uint32_t read_mask;
+        std::uint32_t write_mask;
+        std::uint32_t exec_mask;
+        std::uint32_t all_mask;
+    } mapping{0x1, 0x2, 0x4, 0x7};
+
+    std::uint32_t access_mask = 0x80000000U; // GENERIC_READ
+    tl_MapGenericMask(&access_mask, &mapping);
+    EXPECT_EQ(access_mask, 0x1U);
+}
+
 }  // namespace
 }  // namespace tradutorlinux

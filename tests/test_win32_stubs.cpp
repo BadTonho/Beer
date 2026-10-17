@@ -221,6 +221,42 @@ TEST(Win32StubTest, GdiplusLifecycleAndMemoryManagementWork) {
 
     EXPECT_EQ(tl_GdipDisposeImage(nullptr), 2);
     EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
+
+    void* graphics = nullptr;
+    EXPECT_EQ(tl_GdipCreateFromHDC(nullptr, &graphics), 0);
+    EXPECT_NE(graphics, nullptr);
+    EXPECT_EQ(tl_GdipSetSmoothingMode(graphics, 2), 0);
+    EXPECT_EQ(tl_GdipDeleteGraphics(graphics), 0);
+
+    void* pen = nullptr;
+    EXPECT_EQ(tl_GdipCreatePen1(0xFF0000FF, 1.0f, 2, &pen), 0);
+    EXPECT_NE(pen, nullptr);
+    EXPECT_EQ(tl_GdipSetPenStartCap(pen, 0), 0);
+    EXPECT_EQ(tl_GdipSetPenEndCap(pen, 0), 0);
+    EXPECT_EQ(tl_GdipSetPenLineJoin(pen, 0), 0);
+    EXPECT_EQ(tl_GdipDeletePen(pen), 0);
+
+    void* brush = nullptr;
+    EXPECT_EQ(tl_GdipCreateSolidFill(0xFF00FF00, &brush), 0);
+    EXPECT_NE(brush, nullptr);
+    void* clone_brush = nullptr;
+    EXPECT_EQ(tl_GdipCloneBrush(brush, &clone_brush), 0);
+    EXPECT_NE(clone_brush, nullptr);
+    EXPECT_EQ(tl_GdipDeleteBrush(brush), 0);
+    EXPECT_EQ(tl_GdipDeleteBrush(clone_brush), 0);
+
+    void* path = nullptr;
+    EXPECT_EQ(tl_GdipCreatePath(0, &path), 0);
+    EXPECT_NE(path, nullptr);
+    EXPECT_EQ(tl_GdipAddPathLine(path, 0, 0, 10, 10), 0);
+    EXPECT_EQ(tl_GdipAddPathArc(path, 0, 0, 10, 10, 0, 90), 0);
+    EXPECT_EQ(tl_GdipClosePathFigure(path), 0);
+    EXPECT_EQ(tl_GdipDeletePath(path), 0);
+
+    std::uint32_t pixel_color = 0x12345678U;
+    EXPECT_EQ(tl_GdipBitmapGetPixel(nullptr, 0, 0, &pixel_color), 0);
+    EXPECT_EQ(pixel_color, 0U);
+    EXPECT_EQ(tl_GdipBitmapSetPixel(nullptr, 0, 0, 0xFF000000U), 0);
 }
 
 TEST(Win32StubTest, ComdlgStubsRejectFalseSuccessAndReportDialogFailure) {

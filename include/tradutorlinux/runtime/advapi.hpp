@@ -120,6 +120,19 @@ TL_ADVAPI_MSABI int tl_SetFileSecurityW(const std::uint16_t* file_name,
 TL_ADVAPI_MSABI int tl_ConvertSidToStringSidW(const void* sid, std::uint16_t** string_sid) noexcept;
 TL_ADVAPI_MSABI int tl_ConvertStringSidToSidW(const std::uint16_t* string_sid, void** sid) noexcept;
 TL_ADVAPI_MSABI std::uint32_t tl_GetSecurityDescriptorLength(const void* security_descriptor) noexcept;
+TL_ADVAPI_MSABI std::uint32_t tl_EventRegister(const void* provider_id, void* enable_callback,
+                                               void* callback_context, std::uint64_t* reg_handle) noexcept;
+TL_ADVAPI_MSABI std::uint32_t tl_EventUnregister(std::uint64_t reg_handle) noexcept;
+TL_ADVAPI_MSABI std::uint32_t tl_EventSetInformation(std::uint64_t reg_handle, int information_class,
+                                                    void* event_information, std::uint32_t information_length) noexcept;
+TL_ADVAPI_MSABI std::uint32_t tl_EventWriteTransfer(std::uint64_t reg_handle, const void* event_descriptor,
+                                                   const void* activity_id, const void* related_activity_id,
+                                                   std::uint32_t user_data_count, void* user_data) noexcept;
+TL_ADVAPI_MSABI int tl_AccessCheck(const void* sec_desc, void* token, std::uint32_t desired_access,
+                                   const void* generic_mapping, void* priv_set, std::uint32_t* priv_set_len,
+                                   std::uint32_t* granted_access, int* access_status) noexcept;
+TL_ADVAPI_MSABI int tl_DuplicateToken(void* existing_token, int impersonation_level, void** duplicate_token) noexcept;
+TL_ADVAPI_MSABI void tl_MapGenericMask(std::uint32_t* access_mask, const void* generic_mapping) noexcept;
 
 }  // extern "C"
 

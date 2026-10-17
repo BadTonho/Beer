@@ -1413,6 +1413,109 @@ TL_ADVAPI_MSABI int tl_IsTextUnicode(const void* const lpv, const int iSize, int
     }
 }
 
+TL_ADVAPI_MSABI std::uint32_t tl_EventRegister(const void* const provider_id,
+                                               void* const enable_callback,
+                                               void* const callback_context,
+                                               std::uint64_t* const reg_handle) noexcept {
+    (void)provider_id;
+    (void)enable_callback;
+    (void)callback_context;
+    if (reg_handle != nullptr) {
+        static_cast<void>(write_guest_value(reg_handle, static_cast<std::uint64_t>(0xCAFEBABEU)));
+    }
+    return 0; // ERROR_SUCCESS
+}
+
+TL_ADVAPI_MSABI std::uint32_t tl_EventUnregister(const std::uint64_t reg_handle) noexcept {
+    (void)reg_handle;
+    return 0; // ERROR_SUCCESS
+}
+
+TL_ADVAPI_MSABI std::uint32_t tl_EventSetInformation(const std::uint64_t reg_handle,
+                                                    const int information_class,
+                                                    void* const event_information,
+                                                    const std::uint32_t information_length) noexcept {
+    (void)reg_handle;
+    (void)information_class;
+    (void)event_information;
+    (void)information_length;
+    return 0; // ERROR_SUCCESS
+}
+
+TL_ADVAPI_MSABI std::uint32_t tl_EventWriteTransfer(const std::uint64_t reg_handle,
+                                                   const void* const event_descriptor,
+                                                   const void* const activity_id,
+                                                   const void* const related_activity_id,
+                                                   const std::uint32_t user_data_count,
+                                                   void* const user_data) noexcept {
+    (void)reg_handle;
+    (void)event_descriptor;
+    (void)activity_id;
+    (void)related_activity_id;
+    (void)user_data_count;
+    (void)user_data;
+    return 0; // ERROR_SUCCESS
+}
+
+TL_ADVAPI_MSABI int tl_AccessCheck(const void* const sec_desc, void* const token,
+                                   const std::uint32_t desired_access, const void* const generic_mapping,
+                                   void* const priv_set, std::uint32_t* const priv_set_len,
+                                   std::uint32_t* const granted_access, int* const access_status) noexcept {
+    (void)sec_desc;
+    (void)token;
+    (void)generic_mapping;
+    (void)priv_set;
+    (void)priv_set_len;
+    if (granted_access != nullptr) {
+        static_cast<void>(write_guest_value(granted_access, desired_access));
+    }
+    if (access_status != nullptr) {
+        static_cast<void>(write_guest_value(access_status, 1));
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_ADVAPI_MSABI int tl_DuplicateToken(void* const existing_token, const int impersonation_level,
+                                      void** const duplicate_token) noexcept {
+    (void)existing_token;
+    (void)impersonation_level;
+    if (duplicate_token != nullptr) {
+        static_cast<void>(write_guest_value(duplicate_token, reinterpret_cast<void*>(0x544F4B4EULL)));
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+struct GuestGenericMapping {
+    std::uint32_t generic_read;
+    std::uint32_t generic_write;
+    std::uint32_t generic_execute;
+    std::uint32_t generic_all;
+};
+
+TL_ADVAPI_MSABI void tl_MapGenericMask(std::uint32_t* const access_mask,
+                                       const void* const generic_mapping) noexcept {
+    if (access_mask == nullptr || generic_mapping == nullptr) {
+        return;
+    }
+    std::uint32_t mask = 0;
+    GuestGenericMapping mapping{};
+    if (!read_guest_value(access_mask, mask) || !read_guest_value(generic_mapping, mapping)) {
+        return;
+    }
+    constexpr std::uint32_t kGenericRead = 0x80000000U;
+    constexpr std::uint32_t kGenericWrite = 0x40000000U;
+    constexpr std::uint32_t kGenericExecute = 0x20000000U;
+    constexpr std::uint32_t kGenericAll = 0x10000000U;
+    if (mask & kGenericRead) mask |= mapping.generic_read;
+    if (mask & kGenericWrite) mask |= mapping.generic_write;
+    if (mask & kGenericExecute) mask |= mapping.generic_execute;
+    if (mask & kGenericAll) mask |= mapping.generic_all;
+    mask &= ~(kGenericRead | kGenericWrite | kGenericExecute | kGenericAll);
+    static_cast<void>(write_guest_value(access_mask, mask));
+}
+
 }  // namespace tradutorlinux
 
 namespace tradutorlinux::loader {
@@ -1494,6 +1597,13 @@ void register_advapi32_module() {
         {"ConvertSidToStringSidW", 73, reinterpret_cast<std::uintptr_t>(&tl_ConvertSidToStringSidW), ExportSupport::Full},
         {"ConvertStringSidToSidW", 74, reinterpret_cast<std::uintptr_t>(&tl_ConvertStringSidToSidW), ExportSupport::Full},
         {"GetSecurityDescriptorLength", 75, reinterpret_cast<std::uintptr_t>(&tl_GetSecurityDescriptorLength), ExportSupport::Full},
+        {"EventRegister", 76, reinterpret_cast<std::uintptr_t>(&tl_EventRegister), ExportSupport::Full},
+        {"EventUnregister", 77, reinterpret_cast<std::uintptr_t>(&tl_EventUnregister), ExportSupport::Full},
+        {"EventSetInformation", 78, reinterpret_cast<std::uintptr_t>(&tl_EventSetInformation), ExportSupport::Full},
+        {"EventWriteTransfer", 79, reinterpret_cast<std::uintptr_t>(&tl_EventWriteTransfer), ExportSupport::Full},
+        {"AccessCheck", 80, reinterpret_cast<std::uintptr_t>(&tl_AccessCheck), ExportSupport::Full},
+        {"DuplicateToken", 81, reinterpret_cast<std::uintptr_t>(&tl_DuplicateToken), ExportSupport::Full},
+        {"MapGenericMask", 82, reinterpret_cast<std::uintptr_t>(&tl_MapGenericMask), ExportSupport::Full},
     };
     static const InternalModule kAdvapi32Module{"ADVAPI32.dll", kAdvapi32Exports};
     register_module(kAdvapi32Module);
