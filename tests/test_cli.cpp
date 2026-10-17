@@ -75,6 +75,39 @@ TEST(CommandLineTest, AcceptsInstallWithExplicitExecutableAndPrefix) {
     EXPECT_EQ(result.command_line->trace_channels_raw.front(), "install");
 }
 
+TEST(CommandLineTest, AcceptsInstallWithGuestArguments) {
+    const std::vector<const char*> arguments{
+        "tradutorlinux", "install", "setup.exe", "-s", "/VERYSILENT"};
+
+    const ParseResult result = parse_arguments(arguments);
+
+    ASSERT_TRUE(result.command_line.has_value());
+    EXPECT_EQ(result.command_line->mode, CommandMode::Install);
+    ASSERT_TRUE(result.command_line->executable_path.has_value());
+    EXPECT_EQ(result.command_line->executable_path->string(), "setup.exe");
+    ASSERT_EQ(result.command_line->guest_arguments.size(), 2U);
+    EXPECT_EQ(result.command_line->guest_arguments[0], "-s");
+    EXPECT_EQ(result.command_line->guest_arguments[1], "/VERYSILENT");
+}
+
+TEST(CommandLineTest, AcceptsInstallWithDoubleDash) {
+    const std::vector<const char*> arguments{
+        "tradutorlinux", "install", "--prefix", "/tmp/tl-prefix", "setup.exe", "--", "-s", "--prefix", "guest_val"};
+
+    const ParseResult result = parse_arguments(arguments);
+
+    ASSERT_TRUE(result.command_line.has_value());
+    EXPECT_EQ(result.command_line->mode, CommandMode::Install);
+    ASSERT_TRUE(result.command_line->custom_prefix.has_value());
+    EXPECT_EQ(result.command_line->custom_prefix->string(), "/tmp/tl-prefix");
+    ASSERT_TRUE(result.command_line->executable_path.has_value());
+    EXPECT_EQ(result.command_line->executable_path->string(), "setup.exe");
+    ASSERT_EQ(result.command_line->guest_arguments.size(), 3U);
+    EXPECT_EQ(result.command_line->guest_arguments[0], "-s");
+    EXPECT_EQ(result.command_line->guest_arguments[1], "--prefix");
+    EXPECT_EQ(result.command_line->guest_arguments[2], "guest_val");
+}
+
 TEST(CommandLineTest, RejectsUnknownOption) {
     const std::vector<const char*> arguments{"tradutorlinux", "--invalida"};
 

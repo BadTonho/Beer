@@ -169,8 +169,21 @@ ParseResult parse_command_line(const int argc, const char* const argv[]) {
     // Subcomando: install <setup.exe|package.msix>
     if (first_arg == "install") {
         command_line.mode = CommandMode::Install;
+        bool options_ended = false;
         for (int i = 2; i < argc; ++i) {
             const std::string_view arg{argv[i]};
+            if (!options_ended && arg == "--") {
+                options_ended = true;
+                continue;
+            }
+            if (options_ended) {
+                if (!command_line.executable_path.has_value()) {
+                    command_line.executable_path = std::filesystem::path{std::string{arg}};
+                } else {
+                    command_line.guest_arguments.emplace_back(arg);
+                }
+                continue;
+            }
             if (arg == "--name") {
                 if (i + 1 >= argc) {
                     return {.command_line = std::nullopt,
@@ -279,10 +292,12 @@ ParseResult parse_command_line(const int argc, const char* const argv[]) {
                 }
                 command_line.trace_json_directory = std::filesystem::path{argv[++i]};
                 } else if (!command_line.executable_path.has_value() && !arg.starts_with('-')) {
-                command_line.executable_path = std::filesystem::path{std::string{arg}};
+                    command_line.executable_path = std::filesystem::path{std::string{arg}};
+                } else if (command_line.executable_path.has_value()) {
+                    command_line.guest_arguments.emplace_back(arg);
                 } else {
-                return {.command_line = std::nullopt,
-                        .error_message = "opção desconhecida para 'install': " + std::string{arg}};
+                    return {.command_line = std::nullopt,
+                            .error_message = "opção desconhecida para 'install': " + std::string{arg}};
                 }
             }
         }
@@ -670,7 +685,7 @@ void print_help(std::ostream& stream) {
     stream << "Comandos de Diagnóstico, Gerenciamento e Instalação:\n";
     stream << "  doctor [--json]\n";
     stream << "             diagnostica display, drivers gráficos, backends e isolamento no hospedeiro\n";
-    stream << "  install <setup.exe|package.msix> [--name <Nome>] [--prefix <dir>] [--app-exe <caminho>] [--cpu <segundos>] [--memory <MiB>]\n";
+    stream << "  install <setup.exe|package.msix> [--name <Nome>] [--prefix <dir>] [--app-exe <caminho>] [--cpu <segundos>] [--memory <MiB>] [argumentos...]\n";
     stream << "             instala em prefixo próprio; pacotes usam o executável do manifesto\n";
     stream << "             --app-exe escolhe manualmente um .exe dentro de drive_c\n";
     stream << "  app list   lista todos os aplicativos cadastrados na biblioteca\n";
