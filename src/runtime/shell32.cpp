@@ -608,10 +608,146 @@ TL_MSABI std::uint32_t tl_ExtractIconExW(const std::uint16_t* const file, const 
     return 1;
 }
 
-TL_MSABI int tl_SHGetDesktopFolder(void** const ppshf) noexcept {
-    if (ppshf != nullptr) {
-        static_cast<void>(write_guest_value(ppshf, reinterpret_cast<void*>(0x4445534BULL))); // 'DESK'
+namespace {
+
+TL_MSABI std::int32_t dummy_shell_folder_query_interface(void* const self, const void* const riid, void** const ppv) noexcept {
+    (void)riid;
+    if (ppv == nullptr) return static_cast<std::int32_t>(0x80004003U); // E_POINTER
+    static_cast<void>(write_guest_value(ppv, self));
+    return 0; // S_OK
+}
+
+TL_MSABI std::uint32_t dummy_shell_folder_add_ref(void* const self) noexcept {
+    (void)self;
+    return 2;
+}
+
+TL_MSABI std::uint32_t dummy_shell_folder_release(void* const self) noexcept {
+    (void)self;
+    return 1;
+}
+
+TL_MSABI std::int32_t dummy_shell_folder_parse_display_name(void* const self, void* const hwnd, void* const pbc, void* const pszDisplayName, void* const pchEaten, void** const ppidl, void* const pdwAttributes) noexcept {
+    (void)self; (void)hwnd; (void)pbc; (void)pszDisplayName; (void)pchEaten; (void)pdwAttributes;
+    if (ppidl != nullptr) {
+        static const std::uint16_t s_empty_pidl[2]{0, 0};
+        static_cast<void>(write_guest_value(ppidl, const_cast<void*>(static_cast<const void*>(s_empty_pidl))));
     }
+    return 0; // S_OK
+}
+
+TL_MSABI std::int32_t dummy_shell_folder_enum_objects(void* const self, void* const hwnd, const std::uint32_t grfFlags, void** const ppenumIDList) noexcept {
+    (void)self; (void)hwnd; (void)grfFlags;
+    if (ppenumIDList != nullptr) {
+        static_cast<void>(write_guest_value(ppenumIDList, static_cast<void*>(nullptr)));
+    }
+    return 1; // S_FALSE
+}
+
+TL_MSABI std::int32_t dummy_shell_folder_bind_to_object(void* const self, const void* const pidl, void* const pbc, const void* const riid, void** const ppv) noexcept {
+    (void)pidl; (void)pbc; (void)riid;
+    if (ppv != nullptr) {
+        static_cast<void>(write_guest_value(ppv, self));
+    }
+    return 0;
+}
+
+TL_MSABI std::int32_t dummy_shell_folder_bind_to_storage(void* const self, const void* const pidl, void* const pbc, const void* const riid, void** const ppv) noexcept {
+    (void)self; (void)pidl; (void)pbc; (void)riid;
+    if (ppv != nullptr) {
+        static_cast<void>(write_guest_value(ppv, static_cast<void*>(nullptr)));
+    }
+    return static_cast<std::int32_t>(0x80004001U); // E_NOTIMPL
+}
+
+TL_MSABI std::int32_t dummy_shell_folder_compare_ids(void* const self, const std::intptr_t lParam, const void* const pidl1, const void* const pidl2) noexcept {
+    (void)self; (void)lParam; (void)pidl1; (void)pidl2;
+    return 0;
+}
+
+TL_MSABI std::int32_t dummy_shell_folder_create_view_object(void* const self, void* const hwndOwner, const void* const riid, void** const ppv) noexcept {
+    (void)self; (void)hwndOwner; (void)riid;
+    if (ppv != nullptr) {
+        static_cast<void>(write_guest_value(ppv, static_cast<void*>(nullptr)));
+    }
+    return static_cast<std::int32_t>(0x80004001U); // E_NOTIMPL
+}
+
+TL_MSABI std::int32_t dummy_shell_folder_get_attributes_of(void* const self, const std::uint32_t cidl, const void** const apidl, std::uint32_t* const rgfInOut) noexcept {
+    (void)self; (void)cidl; (void)apidl;
+    if (rgfInOut != nullptr) {
+        static_cast<void>(write_guest_value(rgfInOut, static_cast<std::uint32_t>(0)));
+    }
+    return 0;
+}
+
+TL_MSABI std::int32_t dummy_shell_folder_get_ui_object_of(void* const self, void* const hwndOwner, const std::uint32_t cidl, const void** const apidl, const void* const riid, void* const prgfInOut, void** const ppv) noexcept {
+    (void)self; (void)hwndOwner; (void)cidl; (void)apidl; (void)riid; (void)prgfInOut;
+    if (ppv != nullptr) {
+        static_cast<void>(write_guest_value(ppv, static_cast<void*>(nullptr)));
+    }
+    return static_cast<std::int32_t>(0x80004001U); // E_NOTIMPL
+}
+
+TL_MSABI std::int32_t dummy_shell_folder_get_display_name_of(void* const self, const void* const pidl, const std::uint32_t uFlags, void* const lpName) noexcept {
+    (void)self; (void)pidl; (void)uFlags; (void)lpName;
+    return static_cast<std::int32_t>(0x80004001U); // E_NOTIMPL
+}
+
+TL_MSABI std::int32_t dummy_shell_folder_set_name_of(void* const self, void* const hwnd, const void* const pidl, const void* const pszName, const std::uint32_t uFlags, void** const ppidlOut) noexcept {
+    (void)self; (void)hwnd; (void)pidl; (void)pszName; (void)uFlags;
+    if (ppidlOut != nullptr) {
+        static_cast<void>(write_guest_value(ppidlOut, static_cast<void*>(nullptr)));
+    }
+    return static_cast<std::int32_t>(0x80004001U); // E_NOTIMPL
+}
+
+struct DummyShellFolderVtable {
+    TL_MSABI std::int32_t (*QueryInterface)(void* self, const void* riid, void** ppv) noexcept;
+    TL_MSABI std::uint32_t (*AddRef)(void* self) noexcept;
+    TL_MSABI std::uint32_t (*Release)(void* self) noexcept;
+    TL_MSABI std::int32_t (*ParseDisplayName)(void* self, void* hwnd, void* pbc, void* pszDisplayName, void* pchEaten, void** ppidl, void* pdwAttributes) noexcept;
+    TL_MSABI std::int32_t (*EnumObjects)(void* self, void* hwnd, std::uint32_t grfFlags, void** ppenumIDList) noexcept;
+    TL_MSABI std::int32_t (*BindToObject)(void* self, const void* pidl, void* pbc, const void* riid, void** ppv) noexcept;
+    TL_MSABI std::int32_t (*BindToStorage)(void* self, const void* pidl, void* pbc, const void* riid, void** ppv) noexcept;
+    TL_MSABI std::int32_t (*CompareIDs)(void* self, std::intptr_t lParam, const void* pidl1, const void* pidl2) noexcept;
+    TL_MSABI std::int32_t (*CreateViewObject)(void* self, void* hwndOwner, const void* riid, void** ppv) noexcept;
+    TL_MSABI std::int32_t (*GetAttributesOf)(void* self, std::uint32_t cidl, const void** apidl, std::uint32_t* rgfInOut) noexcept;
+    TL_MSABI std::int32_t (*GetUIObjectOf)(void* self, void* hwndOwner, std::uint32_t cidl, const void** apidl, const void* riid, void* prgfInOut, void** ppv) noexcept;
+    TL_MSABI std::int32_t (*GetDisplayNameOf)(void* self, const void* pidl, std::uint32_t uFlags, void* lpName) noexcept;
+    TL_MSABI std::int32_t (*SetNameOf)(void* self, void* hwnd, const void* pidl, const void* pszName, std::uint32_t uFlags, void** ppidlOut) noexcept;
+};
+
+struct DummyShellFolder {
+    const DummyShellFolderVtable* vtable;
+};
+
+static const DummyShellFolderVtable g_dummy_shell_folder_vtable{
+    dummy_shell_folder_query_interface,
+    dummy_shell_folder_add_ref,
+    dummy_shell_folder_release,
+    dummy_shell_folder_parse_display_name,
+    dummy_shell_folder_enum_objects,
+    dummy_shell_folder_bind_to_object,
+    dummy_shell_folder_bind_to_storage,
+    dummy_shell_folder_compare_ids,
+    dummy_shell_folder_create_view_object,
+    dummy_shell_folder_get_attributes_of,
+    dummy_shell_folder_get_ui_object_of,
+    dummy_shell_folder_get_display_name_of,
+    dummy_shell_folder_set_name_of,
+};
+
+static DummyShellFolder g_dummy_desktop_folder{&g_dummy_shell_folder_vtable};
+static const std::uint16_t g_empty_pidl_terminator[2]{0, 0};
+
+} // namespace
+
+TL_MSABI int tl_SHGetDesktopFolder(void** const ppshf) noexcept {
+    if (ppshf == nullptr) {
+        return static_cast<int>(0x80004003U); // E_POINTER
+    }
+    static_cast<void>(write_guest_value(ppshf, static_cast<void*>(&g_dummy_desktop_folder)));
     return 0; // S_OK
 }
 
@@ -619,7 +755,7 @@ TL_MSABI int tl_SHGetSpecialFolderLocation(void* const hwnd, const int folder, v
     (void)hwnd;
     (void)folder;
     if (ppidl != nullptr) {
-        static_cast<void>(write_guest_value(ppidl, reinterpret_cast<void*>(0x5049444CULL))); // 'PIDL'
+        static_cast<void>(write_guest_value(ppidl, const_cast<void*>(static_cast<const void*>(g_empty_pidl_terminator))));
     }
     return 0; // S_OK
 }
@@ -711,7 +847,7 @@ TL_MSABI int tl_SHGetFolderLocation(void* const hwnd, const int csidl, void* con
     if (ppidl == nullptr) {
         return static_cast<int>(0x80004003U); // E_POINTER
     }
-    static_cast<void>(write_guest_value(ppidl, reinterpret_cast<void*>(0x5049444CULL))); // 'PIDL'
+    static_cast<void>(write_guest_value(ppidl, const_cast<void*>(static_cast<const void*>(g_empty_pidl_terminator))));
     return 0; // S_OK
 }
 
