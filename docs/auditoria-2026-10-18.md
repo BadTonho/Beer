@@ -108,6 +108,13 @@ recebe "sucesso" onde não há implementação — violando a regra do projeto
 |---|---|---|
 | `gethostbyname` / `getservbyname` / `WSAAsyncGetHostByName` | `ws2_32.cpp:1549-1572, 1675-1684` | Sempre `0.0.0.0`/"localhost"/porta 22; `WSAAsyncGetHostByName` retorna ponteiro de `hostent` usado como task handle e buffer do chamador nunca preenchido |
 | `Process32First` / `Process32Next` | `toolhelp.cpp:204-249` | Processo fixo `"process.exe"` (PID 1000, 4 threads) com sucesso; depois "no more files" |
+
+> **Errata (2026-10-18, varredura de correção):** `Process32First`/`Next`
+> (A e W) são **implementação real** em `toolhelp.cpp` — `CreateToolhelp32Snapshot`
+> enumera `/proc`, `Next` avança `next_index` e o fim devolve
+> `ERROR_NO_MORE_FILES`, com fixture própria (`tl_toolhelp.exe`). O achado
+> acima está desatualizado e foi revertido durante o sweep; As exports
+> permanecem `ExportSupport::Full`.
 | `InsertMenuA/W`, `ModifyMenuA/W` | `menu.cpp:788-841` | Descartam todos os argumentos e retornam `TRUE` (menus ficam vazios) |
 | `wsprintfW` | `misc.cpp:1075-1090` | Ignora `va_list`; retorna o literal do formato |
 

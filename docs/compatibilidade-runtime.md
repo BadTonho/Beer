@@ -170,13 +170,30 @@ processo também zeram saídas por cópia protegida e retornam
 continua limitada à sessão local sintética, e as demais operações permanecem
 explicitamente não suportadas.
 
+Honestidade da matriz (reclassificação de exports sem implementação real para
+`ExportSupport::Stub`, alinhando o registro aos relatórios): `TerminateThread`,
+`DeviceIoControl`, `ResumeThread`, `LockFile`/`LockFileEx`,
+`UnlockFile`/`UnlockFileEx`, `OpenEventA/W`, `OpenFileMappingA/W`,
+`OpenSemaphoreW`, `WaitForThreadpoolTimerCallbacks` (`SetThreadpoolTimer`
+permanece `limited`, pois dispara inline só o vencimento imediato) em
+`KERNEL32.dll`; `CreateIcon`, `CreateIconIndirect`, `InsertMenuA/W`,
+`ModifyMenuA/W`, `UnregisterClassW`, `DialogBoxIndirectParamW`,
+`SendMessageTimeoutA/W`, `EnumWindows`, `SetWinEventHook`, `UnhookWinEvent`,
+`SetMenuInfo` e `wsprintfW` em `USER32.dll`. Esses exports continuam resolvendo
+endereço e não alteram o dispatch; apenas o relatório não alega mais suporte
+inexistente.
+
 No `WS2_32.dll`, `WSAStartup`, conversões de endereço, `WSAAddressToStringA`,
 `gethostname` e `getaddrinfo` copiam entradas e saídas entre memória host e
 convidada. `send`/`recv`, `sendto`/`recvfrom`, `getsockname`/`getpeername`,
 `setsockopt`/`getsockopt`, `ioctlsocket`, `WSAIoctl` e `getnameinfo` também
 usam buffers temporários do host e cópias protegidas; uma falha de acesso
 retorna erro Winsock controlado, sem entregar o ponteiro convidado ao syscall
-Linux. `WSAPoll`, `select`, `WSAWaitForMultipleEvents` e
+Linux. Limitações declaradas (nível no `--report`): `ioctlsocket` só
+`FIONBIO` (`limited`); `WSAIoctl` retorna `bytes_returned == 0` sem
+executar consulta real (`stub`); `gethostbyname`, `getservbyname`,
+`getservbyport` e `WSAAsyncGetHostByName` não resolvem dados reais do host
+(`stub`). `WSAPoll`, `select`, `WSAWaitForMultipleEvents` e
 `WSAEnumNetworkEvents` também copiam suas listas/estruturas para o host e
 publicam os resultados por transferência protegida. Endereços retornados por
 `getaddrinfo` continuam sendo registros estáticos do runtime, e a
@@ -460,7 +477,7 @@ do host como argumentos.
 |---|---|---|---|
 | `KERNEL32.dll` | `GetFileSize` | Suportado | Retorna tamanho do arquivo aberto via `FileSlot.file_size`; suporta ponteiro `high_size` para arquivos > 4 GiB |
 | `KERNEL32.dll` | `SetFilePointer` | Suportado | Seek por `FILE_BEGIN`/`FILE_CURRENT`/`FILE_END`; suporta ponteiro `high_distance`; atualiza `FileSlot.position` |
-| `KERNEL32.dll` | `ReadFile` / `WriteFile` / `SetFilePointerEx` / `DeviceIoControl` / `DuplicateHandle` | Suportado no subconjunto | Buffers e saídas escalares usam cópias protegidas; I/O permanece síncrono e limitado ao prefixo; `DuplicateHandle` publica o novo destino antes de incrementar a referência e `CloseHandle` só fecha o descritor no último fechamento |
+| `KERNEL32.dll` | `ReadFile` / `WriteFile` / `SetFilePointerEx` / `DeviceIoControl` / `DuplicateHandle` | Suportado no subconjunto (`DeviceIoControl` é `Stub`) | Buffers e saídas escalares usam cópias protegidas; I/O permanece síncrono e limitado ao prefixo; `DuplicateHandle` publica o novo destino antes de incrementar a referência e `CloseHandle` só fecha o descritor no último fechamento; `DeviceIoControl` apenas valida parâmetros e retorna sucesso sem executar IOCTL nenhum |
 | `KERNEL32.dll` | `GetFileAttributesA` | Suportado | `stat()` + bits `FILE_ATTRIBUTE_DIRECTORY`/`FILE_ATTRIBUTE_ARCHIVE`/`FILE_ATTRIBUTE_READONLY` |
 | `KERNEL32.dll` | `DeleteFileA` | Suportado | `unlink()` com mapeamento de erros |
 | `KERNEL32.dll` | `MoveFileA` / `MoveFileExA` | Suportado no subconjunto | `rename()` com mapeamento de erros; `MoveFileExA` aceita `MOVEFILE_REPLACE_EXISTING` e rejeita flags não implementadas |
@@ -773,7 +790,7 @@ processo filho; cada thread convidada recebe seu próprio TEB/GS, stack e
 | `OLEAUT32.dll` | `SafeArrayCreate` / `SafeArrayDestroy` / `SafeArrayGetDim` / `SafeArrayAccessData` / etc. | Suportado | Suporte e gerenciamento de contêineres SafeArray multidimensionais |
 | `KERNEL32.dll` | `GetTickCount` | Suportado | Retorna tempo de uptime do sistema em milissegundos via `CLOCK_MONOTONIC` |
 | `KERNEL32.dll` | `SetCurrentDirectoryW` | Suportado | Altera diretório de trabalho do processo no Linux via `chdir` |
-| `KERNEL32.dll` | `DeviceIoControl` | Suportado | Stub de controle de dispositivos e consultas de I/O de disco |
+| `KERNEL32.dll` | `DeviceIoControl` | Stub | Stub de controle de dispositivos e consultas de I/O de disco: valida parâmetros e retorna sucesso sem executar IOCTL; aparece como `support=stub` no `--report` |
 | `KERNEL32.dll` | `FoldStringW` | Suportado | Mapeamento e normalização de strings wide |
 | `KERNEL32.dll` | `SetThreadExecutionState` | Suportado | Gerenciamento de energia e estado de suspensão de thread |
 | `KERNEL32.dll` | `AllocConsole` / `AttachConsole` / `FreeConsole` | Suportado | Ciclo de vida e alocação de console Win32 |
