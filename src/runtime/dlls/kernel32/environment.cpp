@@ -65,6 +65,35 @@ TL_MSABI std::uint32_t tl_GetEnvironmentVariableW(const std::uint16_t* name, std
     return static_cast<std::uint32_t>(wide_value.size());
 }
 
+TL_MSABI int tl_SetEnvironmentVariableA(const char* const name,
+                                        const char* const value) noexcept {
+    std::string guest_name;
+    std::string guest_value;
+    if (!runtime::copy_guest_cstring(name, kMaxEnvironmentStringUnits, guest_name) ||
+        (value != nullptr &&
+         !runtime::copy_guest_cstring(value, kMaxEnvironmentStringUnits, guest_value))) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    std::optional<std::string> narrow_value;
+    if (value != nullptr) {
+        narrow_value = guest_value;
+    }
+    if (!runtime::set_guest_environment_value(guest_name, narrow_value)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    const std::array<diagnostics::TraceField, 4> fields{
+        diagnostics::TraceField{"operation", "set"},
+        diagnostics::TraceField{"name", guest_name},
+        diagnostics::TraceField{"action", value == nullptr ? "remove" : "define"},
+        diagnostics::TraceField{"status", "success"},
+    };
+    runtime_trace("environment", fields, 4);
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 TL_MSABI int tl_SetEnvironmentVariableW(const std::uint16_t* const name,
                                         const std::uint16_t* const value) noexcept {
     std::u16string guest_name;

@@ -492,6 +492,7 @@ void register_kernel32_module() {
         {"CreateIoCompletionPort", 482, reinterpret_cast<std::uintptr_t>(&tl_CreateIoCompletionPort), ExportSupport::Full},
         {"GetQueuedCompletionStatus", 483, reinterpret_cast<std::uintptr_t>(&tl_GetQueuedCompletionStatus), ExportSupport::Full},
         {"PostQueuedCompletionStatus", 484, reinterpret_cast<std::uintptr_t>(&tl_PostQueuedCompletionStatus), ExportSupport::Full},
+        {"SetEnvironmentVariableA", 485, reinterpret_cast<std::uintptr_t>(&tl_SetEnvironmentVariableA), ExportSupport::Full},
     };
     static const InternalModule kKernel32Module{"KERNEL32.dll", kKernel32Exports};
     register_module(kKernel32Module);

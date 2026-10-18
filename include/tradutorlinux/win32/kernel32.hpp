@@ -136,6 +136,8 @@ TL_MSABI std::uint32_t tl_GetEnvironmentVariableA(const char* name, char* buffer
                                                    std::uint32_t size) noexcept;
 TL_MSABI std::uint32_t tl_GetEnvironmentVariableW(const std::uint16_t* name, std::uint16_t* buffer,
                                                    std::uint32_t size) noexcept;
+TL_MSABI int tl_SetEnvironmentVariableA(const char* name,
+                                        const char* value) noexcept;
 TL_MSABI int tl_SetEnvironmentVariableW(const std::uint16_t* name,
                                         const std::uint16_t* value) noexcept;
 TL_MSABI std::uint16_t* tl_GetEnvironmentStringsW() noexcept;

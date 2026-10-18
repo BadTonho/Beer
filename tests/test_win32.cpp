@@ -673,6 +673,25 @@ TEST(Win32EnvTest, ProtectedEnvironmentInputsAndOutputsRejectUnmappedPointers) {
     EXPECT_EQ(tl_ExpandEnvironmentStringsW(expansion, static_cast<std::uint16_t*>(invalid),
                                            4096), 0U);
     EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
+    EXPECT_EQ(tl_SetEnvironmentVariableA(reinterpret_cast<const char*>(invalid), "x"), 0);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
+    EXPECT_EQ(tl_SetEnvironmentVariableA("PATH", reinterpret_cast<const char*>(invalid)), 0);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
+}
+
+TEST(Win32EnvTest, SetEnvironmentVariableASetsAndRemoves) {
+    EXPECT_EQ(tl_SetEnvironmentVariableA("TL_SET_ENV_TEST_A", "ValorDeTeste"), 1);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorSuccess);
+
+    std::array<char, 64> buffer{};
+    const std::uint32_t len = tl_GetEnvironmentVariableA("TL_SET_ENV_TEST_A", buffer.data(), buffer.size());
+    EXPECT_EQ(len, std::strlen("ValorDeTeste"));
+    EXPECT_STREQ(buffer.data(), "ValorDeTeste");
+
+    // Remocao (passando nullptr como valor)
+    EXPECT_EQ(tl_SetEnvironmentVariableA("TL_SET_ENV_TEST_A", nullptr), 1);
+    EXPECT_EQ(tl_GetEnvironmentVariableA("TL_SET_ENV_TEST_A", buffer.data(), buffer.size()), 0U);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorEnvvarNotFound);
 }
 
 TEST(Win32EnvTest, GetEnvironmentVariableAInsufficientBuffer) {
