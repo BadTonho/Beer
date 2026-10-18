@@ -698,6 +698,35 @@ TEST(Win32StubTest, MsfteditModuleExportsRequiredSymbolsAndFunctionsWork) {
     EXPECT_EQ(dvi.platform, 2U);
 }
 
+TEST(Win32StubTest, OpenGlAndVulkanModulesExportRequiredSymbols) {
+    if (loader::registered_module_count() == 0) {
+        loader::register_builtin_modules();
+    }
+    const loader::ExportLookup gl_ctx = loader::find_export(loader::ExportQuery{"OPENGL32.dll", "wglCreateContext"});
+    EXPECT_TRUE(gl_ctx.found);
+    EXPECT_NE(gl_ctx.address, 0U);
+
+    const loader::ExportLookup gl_del = loader::find_export(loader::ExportQuery{"OPENGL32.dll", "wglDeleteContext"});
+    EXPECT_TRUE(gl_del.found);
+    EXPECT_NE(gl_del.address, 0U);
+
+    const loader::ExportLookup gl_cur = loader::find_export(loader::ExportQuery{"OPENGL32.dll", "wglMakeCurrent"});
+    EXPECT_TRUE(gl_cur.found);
+    EXPECT_NE(gl_cur.address, 0U);
+
+    const loader::ExportLookup gl_vp = loader::find_export(loader::ExportQuery{"OPENGL32.dll", "glViewport"});
+    EXPECT_TRUE(gl_vp.found);
+    EXPECT_NE(gl_vp.address, 0U);
+
+    const loader::ExportLookup vk_inst = loader::find_export(loader::ExportQuery{"vulkan-1.dll", "vkCreateInstance"});
+    EXPECT_TRUE(vk_inst.found);
+    EXPECT_NE(vk_inst.address, 0U);
+
+    const loader::ExportLookup vk_proc = loader::find_export(loader::ExportQuery{"vulkan-1.dll", "vkGetInstanceProcAddr"});
+    EXPECT_TRUE(vk_proc.found);
+    EXPECT_NE(vk_proc.address, 0U);
+}
+
 }  // namespace
 }  // namespace tradutorlinux
 

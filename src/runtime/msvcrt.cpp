@@ -2253,6 +2253,193 @@ TL_CRT_MSABI int tl_strcat_s(char* const dest, const std::size_t destsz, const c
     return 0;
 }
 
+TL_CRT_MSABI char* tl_strpbrk(const char* const str, const char* const str_charset) noexcept {
+    if (str == nullptr || str_charset == nullptr) return nullptr;
+    return const_cast<char*>(std::strpbrk(str, str_charset));
+}
+
+TL_CRT_MSABI int tl__splitpath_s(const char* const path,
+                                 char* const drive, const std::size_t drive_len,
+                                 char* const dir, const std::size_t dir_len,
+                                 char* const fname, const std::size_t fname_len,
+                                 char* const ext, const std::size_t ext_len) noexcept {
+    if (path == nullptr) return EINVAL;
+    if ((drive != nullptr && drive_len == 0) ||
+        (dir != nullptr && dir_len == 0) ||
+        (fname != nullptr && fname_len == 0) ||
+        (ext != nullptr && ext_len == 0)) {
+        return EINVAL;
+    }
+
+    if (drive != nullptr) drive[0] = '\0';
+    if (dir != nullptr) dir[0] = '\0';
+    if (fname != nullptr) fname[0] = '\0';
+    if (ext != nullptr) ext[0] = '\0';
+
+    const char* p = path;
+    const char* fn_start = path;
+    const char* ext_start = nullptr;
+
+    if (p[0] != '\0' && p[1] == ':') {
+        if (drive != nullptr) {
+            if (drive_len < 3) return ERANGE;
+            drive[0] = p[0];
+            drive[1] = ':';
+            drive[2] = '\0';
+        }
+        p += 2;
+        fn_start = p;
+    }
+
+    const char* last_slash = nullptr;
+    for (const char* cur = p; *cur != '\0'; ++cur) {
+        if (*cur == '/' || *cur == '\\') {
+            last_slash = cur;
+        }
+    }
+
+    if (last_slash != nullptr) {
+        if (dir != nullptr) {
+            const std::size_t dlen = static_cast<std::size_t>(last_slash - p + 1);
+            if (dlen + 1 > dir_len) return ERANGE;
+            std::memcpy(dir, p, dlen);
+            dir[dlen] = '\0';
+        }
+        fn_start = last_slash + 1;
+    }
+
+    for (const char* cur = fn_start; *cur != '\0'; ++cur) {
+        if (*cur == '.') {
+            ext_start = cur;
+        }
+    }
+
+    if (ext_start != nullptr) {
+        if (ext != nullptr) {
+            const std::size_t elen = std::strlen(ext_start);
+            if (elen + 1 > ext_len) return ERANGE;
+            std::memcpy(ext, ext_start, elen + 1);
+        }
+        if (fname != nullptr) {
+            const std::size_t flen = static_cast<std::size_t>(ext_start - fn_start);
+            if (flen + 1 > fname_len) return ERANGE;
+            std::memcpy(fname, fn_start, flen);
+            fname[flen] = '\0';
+        }
+    } else {
+        if (fname != nullptr) {
+            const std::size_t flen = std::strlen(fn_start);
+            if (flen + 1 > fname_len) return ERANGE;
+            std::memcpy(fname, fn_start, flen + 1);
+        }
+    }
+
+    return 0;
+}
+
+TL_CRT_MSABI void tl__splitpath(const char* const path,
+                                char* const drive,
+                                char* const dir,
+                                char* const fname,
+                                char* const ext) noexcept {
+    tl__splitpath_s(path,
+                    drive, drive ? 1024 : 0,
+                    dir, dir ? 1024 : 0,
+                    fname, fname ? 1024 : 0,
+                    ext, ext ? 1024 : 0);
+}
+
+TL_CRT_MSABI int tl__wsplitpath_s(const wchar_t* const path,
+                                  wchar_t* const drive, const std::size_t drive_len,
+                                  wchar_t* const dir, const std::size_t dir_len,
+                                  wchar_t* const fname, const std::size_t fname_len,
+                                  wchar_t* const ext, const std::size_t ext_len) noexcept {
+    if (path == nullptr) return EINVAL;
+    if ((drive != nullptr && drive_len == 0) ||
+        (dir != nullptr && dir_len == 0) ||
+        (fname != nullptr && fname_len == 0) ||
+        (ext != nullptr && ext_len == 0)) {
+        return EINVAL;
+    }
+
+    if (drive != nullptr) drive[0] = L'\0';
+    if (dir != nullptr) dir[0] = L'\0';
+    if (fname != nullptr) fname[0] = L'\0';
+    if (ext != nullptr) ext[0] = L'\0';
+
+    const wchar_t* p = path;
+    const wchar_t* fn_start = path;
+    const wchar_t* ext_start = nullptr;
+
+    if (p[0] != L'\0' && p[1] == L':') {
+        if (drive != nullptr) {
+            if (drive_len < 3) return ERANGE;
+            drive[0] = p[0];
+            drive[1] = L':';
+            drive[2] = L'\0';
+        }
+        p += 2;
+        fn_start = p;
+    }
+
+    const wchar_t* last_slash = nullptr;
+    for (const wchar_t* cur = p; *cur != L'\0'; ++cur) {
+        if (*cur == L'/' || *cur == L'\\') {
+            last_slash = cur;
+        }
+    }
+
+    if (last_slash != nullptr) {
+        if (dir != nullptr) {
+            const std::size_t dlen = static_cast<std::size_t>(last_slash - p + 1);
+            if (dlen + 1 > dir_len) return ERANGE;
+            std::wmemcpy(dir, p, dlen);
+            dir[dlen] = L'\0';
+        }
+        fn_start = last_slash + 1;
+    }
+
+    for (const wchar_t* cur = fn_start; *cur != L'\0'; ++cur) {
+        if (*cur == L'.') {
+            ext_start = cur;
+        }
+    }
+
+    if (ext_start != nullptr) {
+        if (ext != nullptr) {
+            const std::size_t elen = std::wcslen(ext_start);
+            if (elen + 1 > ext_len) return ERANGE;
+            std::wmemcpy(ext, ext_start, elen + 1);
+        }
+        if (fname != nullptr) {
+            const std::size_t flen = static_cast<std::size_t>(ext_start - fn_start);
+            if (flen + 1 > fname_len) return ERANGE;
+            std::wmemcpy(fname, fn_start, flen);
+            fname[flen] = L'\0';
+        }
+    } else {
+        if (fname != nullptr) {
+            const std::size_t flen = std::wcslen(fn_start);
+            if (flen + 1 > fname_len) return ERANGE;
+            std::wmemcpy(fname, fn_start, flen + 1);
+        }
+    }
+
+    return 0;
+}
+
+TL_CRT_MSABI void tl__wsplitpath(const wchar_t* const path,
+                                 wchar_t* const drive,
+                                 wchar_t* const dir,
+                                 wchar_t* const fname,
+                                 wchar_t* const ext) noexcept {
+    tl__wsplitpath_s(path,
+                     drive, drive ? 1024 : 0,
+                     dir, dir ? 1024 : 0,
+                     fname, fname ? 1024 : 0,
+                     ext, ext ? 1024 : 0);
+}
+
 TL_CRT_MSABI int tl___stdio_common_vsprintf(
     const std::uint64_t options, char* const buffer, const std::size_t buffer_count,
     const char* const format, void* const locale, GuestVaList arguments) noexcept {
@@ -2483,6 +2670,11 @@ void register_msvcrt_module() {
         {"__stdio_common_vsprintf_s", 144, reinterpret_cast<std::uintptr_t>(&tl___stdio_common_vsprintf_s), ExportSupport::Full},
         {"__stdio_common_vsscanf", 145, reinterpret_cast<std::uintptr_t>(&tl___stdio_common_vsscanf), ExportSupport::Full},
         {"_set_app_type", 146, reinterpret_cast<std::uintptr_t>(&tl___set_app_type), ExportSupport::Full},
+        {"strpbrk", 147, reinterpret_cast<std::uintptr_t>(&tl_strpbrk), ExportSupport::Full},
+        {"_splitpath_s", 148, reinterpret_cast<std::uintptr_t>(&tl__splitpath_s), ExportSupport::Full},
+        {"_splitpath", 149, reinterpret_cast<std::uintptr_t>(&tl__splitpath), ExportSupport::Full},
+        {"_wsplitpath_s", 150, reinterpret_cast<std::uintptr_t>(&tl__wsplitpath_s), ExportSupport::Full},
+        {"_wsplitpath", 151, reinterpret_cast<std::uintptr_t>(&tl__wsplitpath), ExportSupport::Full},
     };
     static const InternalModule kMsvcrtModule{"msvcrt.dll", kMsvcrtExports};
     register_module(kMsvcrtModule);

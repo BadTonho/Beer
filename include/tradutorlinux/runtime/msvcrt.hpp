@@ -192,6 +192,17 @@ TL_CRT_MSABI int tl__access(const char* path, int mode) noexcept;
 TL_CRT_MSABI void* tl_memchr(const void* ptr, int ch, std::size_t count) noexcept;
 TL_CRT_MSABI int tl_strcpy_s(char* dest, std::size_t destsz, const char* src) noexcept;
 TL_CRT_MSABI int tl_strcat_s(char* dest, std::size_t destsz, const char* src) noexcept;
+TL_CRT_MSABI char* tl_strpbrk(const char* str, const char* str_charset) noexcept;
+TL_CRT_MSABI int tl__splitpath_s(const char* path, char* drive, std::size_t drive_len,
+                                char* dir, std::size_t dir_len,
+                                char* fname, std::size_t fname_len,
+                                char* ext, std::size_t ext_len) noexcept;
+TL_CRT_MSABI void tl__splitpath(const char* path, char* drive, char* dir, char* fname, char* ext) noexcept;
+TL_CRT_MSABI int tl__wsplitpath_s(const wchar_t* path, wchar_t* drive, std::size_t drive_len,
+                                 wchar_t* dir, std::size_t dir_len,
+                                 wchar_t* fname, std::size_t fname_len,
+                                 wchar_t* ext, std::size_t ext_len) noexcept;
+TL_CRT_MSABI void tl__wsplitpath(const wchar_t* path, wchar_t* drive, wchar_t* dir, wchar_t* fname, wchar_t* ext) noexcept;
 TL_CRT_MSABI int tl___stdio_common_vsprintf(std::uint64_t options, char* buffer, std::size_t buffer_count,
                                            const char* format, void* locale, GuestVaList arguments) noexcept;
 TL_CRT_MSABI int tl___stdio_common_vsprintf_s(std::uint64_t options, char* buffer, std::size_t buffer_count,

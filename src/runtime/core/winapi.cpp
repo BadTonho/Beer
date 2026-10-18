@@ -1653,6 +1653,106 @@ TL_MSABI int tl_D3DX11CompileFromMemory(const char* const src, const std::size_t
     return static_cast<int>(0x80004005);
 }
 
+// OPENGL32.dll stubs
+TL_MSABI void* tl_wglCreateContext(void* const hdc) noexcept {
+    if (hdc == nullptr) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return nullptr;
+    }
+    return reinterpret_cast<void*>(0x0000760000000001ULL);
+}
+
+TL_MSABI int tl_wglDeleteContext(void* const hglrc) noexcept {
+    (void)hglrc;
+    return 1;
+}
+
+TL_MSABI int tl_wglMakeCurrent(void* const hdc, void* const hglrc) noexcept {
+    (void)hdc;
+    (void)hglrc;
+    return 1;
+}
+
+TL_MSABI void* tl_wglGetProcAddress(const char* const proc) noexcept {
+    (void)proc;
+    return nullptr;
+}
+
+TL_MSABI void* tl_wglGetCurrentContext() noexcept {
+    return reinterpret_cast<void*>(0x0000760000000001ULL);
+}
+
+TL_MSABI void* tl_wglGetCurrentDC() noexcept {
+    return reinterpret_cast<void*>(0x0000710000000001ULL);
+}
+
+TL_MSABI int tl_wglShareLists(void* const hglrc1, void* const hglrc2) noexcept {
+    (void)hglrc1;
+    (void)hglrc2;
+    return 1;
+}
+
+TL_MSABI void tl_glViewport(const int x, const int y, const int width, const int height) noexcept {
+    (void)x; (void)y; (void)width; (void)height;
+}
+
+TL_MSABI void tl_glClearColor(const float red, const float green, const float blue, const float alpha) noexcept {
+    (void)red; (void)green; (void)blue; (void)alpha;
+}
+
+TL_MSABI void tl_glClear(const unsigned int mask) noexcept {
+    (void)mask;
+}
+
+TL_MSABI const char* tl_glGetString(const unsigned int name) noexcept {
+    (void)name;
+    static const char* const kGlVersion = "4.6.0 Compatibility";
+    return kGlVersion;
+}
+
+TL_MSABI void tl_glGetIntegerv(const unsigned int pname, int* const params) noexcept {
+    (void)pname;
+    if (params != nullptr) {
+        write_guest_value(params, 0);
+    }
+}
+
+TL_MSABI void tl_glFlush() noexcept {}
+TL_MSABI void tl_glFinish() noexcept {}
+TL_MSABI void tl_glEnable(const unsigned int cap) noexcept { (void)cap; }
+TL_MSABI void tl_glDisable(const unsigned int cap) noexcept { (void)cap; }
+
+// vulkan-1.dll stubs
+TL_MSABI int tl_vkCreateInstance(const void* const create_info, const void* const allocator, void** const instance) noexcept {
+    (void)create_info;
+    (void)allocator;
+    if (instance != nullptr) {
+        write_guest_value(instance, static_cast<void*>(nullptr));
+    }
+    return -9; // VK_ERROR_INCOMPATIBLE_DRIVER
+}
+
+TL_MSABI void* tl_vkGetInstanceProcAddr(void* const instance, const char* const name) noexcept {
+    (void)instance;
+    (void)name;
+    return nullptr;
+}
+
+TL_MSABI int tl_vkEnumeratePhysicalDevices(void* const instance, std::uint32_t* const count, void** const devices) noexcept {
+    (void)instance;
+    (void)devices;
+    if (count != nullptr) {
+        write_guest_value(count, 0u);
+    }
+    return 0; // VK_SUCCESS
+}
+
+TL_MSABI int tl_vk_generic_stub() noexcept {
+    return -9; // VK_ERROR_INCOMPATIBLE_DRIVER
+}
+
+TL_MSABI void tl_vk_void_stub() noexcept {}
+
 TL_MSABI int dummy_worker_check() noexcept {
     return 1;
 }
@@ -1943,6 +2043,69 @@ void register_winapi_stubs_module() {
     register_module(kMsfteditModule);
     static const InternalModule kRiched20Module{"riched20.dll", kMsfteditExports};
     register_module(kRiched20Module);
+
+    static const ExportedFunction kOpenGl32Exports[] = {
+        {"wglCreateContext", 1, reinterpret_cast<std::uintptr_t>(&tl_wglCreateContext), ExportSupport::Stub},
+        {"wglDeleteContext", 2, reinterpret_cast<std::uintptr_t>(&tl_wglDeleteContext), ExportSupport::Stub},
+        {"wglMakeCurrent", 3, reinterpret_cast<std::uintptr_t>(&tl_wglMakeCurrent), ExportSupport::Stub},
+        {"wglGetProcAddress", 4, reinterpret_cast<std::uintptr_t>(&tl_wglGetProcAddress), ExportSupport::Stub},
+        {"wglGetCurrentContext", 5, reinterpret_cast<std::uintptr_t>(&tl_wglGetCurrentContext), ExportSupport::Stub},
+        {"wglGetCurrentDC", 6, reinterpret_cast<std::uintptr_t>(&tl_wglGetCurrentDC), ExportSupport::Stub},
+        {"wglShareLists", 7, reinterpret_cast<std::uintptr_t>(&tl_wglShareLists), ExportSupport::Stub},
+        {"glViewport", 8, reinterpret_cast<std::uintptr_t>(&tl_glViewport), ExportSupport::Stub},
+        {"glClearColor", 9, reinterpret_cast<std::uintptr_t>(&tl_glClearColor), ExportSupport::Stub},
+        {"glClear", 10, reinterpret_cast<std::uintptr_t>(&tl_glClear), ExportSupport::Stub},
+        {"glGetString", 11, reinterpret_cast<std::uintptr_t>(&tl_glGetString), ExportSupport::Stub},
+        {"glGetIntegerv", 12, reinterpret_cast<std::uintptr_t>(&tl_glGetIntegerv), ExportSupport::Stub},
+        {"glFlush", 13, reinterpret_cast<std::uintptr_t>(&tl_glFlush), ExportSupport::Stub},
+        {"glFinish", 14, reinterpret_cast<std::uintptr_t>(&tl_glFinish), ExportSupport::Stub},
+        {"glEnable", 15, reinterpret_cast<std::uintptr_t>(&tl_glEnable), ExportSupport::Stub},
+        {"glDisable", 16, reinterpret_cast<std::uintptr_t>(&tl_glDisable), ExportSupport::Stub},
+    };
+    static const InternalModule kOpenGl32Module{"OPENGL32.dll", kOpenGl32Exports};
+    register_module(kOpenGl32Module);
+
+    static const ExportedFunction kVulkan1Exports[] = {
+        {"vkCreateInstance", 1, reinterpret_cast<std::uintptr_t>(&tl_vkCreateInstance), ExportSupport::Stub},
+        {"vkGetInstanceProcAddr", 2, reinterpret_cast<std::uintptr_t>(&tl_vkGetInstanceProcAddr), ExportSupport::Stub},
+        {"vkEnumeratePhysicalDevices", 3, reinterpret_cast<std::uintptr_t>(&tl_vkEnumeratePhysicalDevices), ExportSupport::Stub},
+        {"vkGetPhysicalDeviceProperties", 4, reinterpret_cast<std::uintptr_t>(&tl_vk_void_stub), ExportSupport::Stub},
+        {"vkCreateWin32SurfaceKHR", 5, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+        {"vkGetPhysicalDeviceSurfaceCapabilitiesKHR", 6, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+        {"vkGetPhysicalDeviceSurfaceFormatsKHR", 7, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+        {"vkGetPhysicalDeviceQueueFamilyProperties", 8, reinterpret_cast<std::uintptr_t>(&tl_vk_void_stub), ExportSupport::Stub},
+        {"vkCreateDevice", 9, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+        {"vkGetDeviceQueue", 10, reinterpret_cast<std::uintptr_t>(&tl_vk_void_stub), ExportSupport::Stub},
+        {"vkCreateSwapchainKHR", 11, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+        {"vkGetSwapchainImagesKHR", 12, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+        {"vkCreateImageView", 13, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+        {"vkCreateCommandPool", 14, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+        {"vkAllocateCommandBuffers", 15, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+        {"vkCreateSemaphore", 16, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+        {"vkCreateFence", 17, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+        {"vkWaitForFences", 18, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+        {"vkDestroyFence", 19, reinterpret_cast<std::uintptr_t>(&tl_vk_void_stub), ExportSupport::Stub},
+        {"vkDestroySemaphore", 20, reinterpret_cast<std::uintptr_t>(&tl_vk_void_stub), ExportSupport::Stub},
+        {"vkFreeCommandBuffers", 21, reinterpret_cast<std::uintptr_t>(&tl_vk_void_stub), ExportSupport::Stub},
+        {"vkDestroyCommandPool", 22, reinterpret_cast<std::uintptr_t>(&tl_vk_void_stub), ExportSupport::Stub},
+        {"vkDestroyImageView", 23, reinterpret_cast<std::uintptr_t>(&tl_vk_void_stub), ExportSupport::Stub},
+        {"vkDestroySwapchainKHR", 24, reinterpret_cast<std::uintptr_t>(&tl_vk_void_stub), ExportSupport::Stub},
+        {"vkDestroySurfaceKHR", 25, reinterpret_cast<std::uintptr_t>(&tl_vk_void_stub), ExportSupport::Stub},
+        {"vkDestroyDevice", 26, reinterpret_cast<std::uintptr_t>(&tl_vk_void_stub), ExportSupport::Stub},
+        {"vkDestroyInstance", 27, reinterpret_cast<std::uintptr_t>(&tl_vk_void_stub), ExportSupport::Stub},
+        {"vkResetFences", 28, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+        {"vkAcquireNextImageKHR", 29, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+        {"vkResetCommandBuffer", 30, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+        {"vkBeginCommandBuffer", 31, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+        {"vkCmdPipelineBarrier", 32, reinterpret_cast<std::uintptr_t>(&tl_vk_void_stub), ExportSupport::Stub},
+        {"vkCmdClearColorImage", 33, reinterpret_cast<std::uintptr_t>(&tl_vk_void_stub), ExportSupport::Stub},
+        {"vkEndCommandBuffer", 34, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+        {"vkQueueSubmit", 35, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+        {"vkQueuePresentKHR", 36, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+        {"vkGetPhysicalDeviceSurfaceSupportKHR", 37, reinterpret_cast<std::uintptr_t>(&tl_vk_generic_stub), ExportSupport::Stub},
+    };
+    static const InternalModule kVulkan1Module{"vulkan-1.dll", kVulkan1Exports};
+    register_module(kVulkan1Module);
 }
 
 }  // namespace tradutorlinux::loader

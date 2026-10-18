@@ -425,5 +425,47 @@ TEST(MsvcrtUcrtTest, ExceptionAndNarrowEnvLifecycle) {
     EXPECT_EQ(tl__initterm_e(funcs, funcs + 1), 0);
 }
 
+TEST(MsvcrtUcrtTest, StrpbrkAndSplitPath) {
+    const char* str = "hello world";
+    EXPECT_EQ(tl_strpbrk(str, " "), str + 5);
+    EXPECT_EQ(tl_strpbrk(str, "xyz"), nullptr);
+    EXPECT_EQ(tl_strpbrk(nullptr, "a"), nullptr);
+
+    char drive[8]{};
+    char dir[64]{};
+    char fname[32]{};
+    char ext[16]{};
+
+    EXPECT_EQ(tl__splitpath_s("C:\\path\\to\\file.txt",
+                              drive, sizeof(drive),
+                              dir, sizeof(dir),
+                              fname, sizeof(fname),
+                              ext, sizeof(ext)), 0);
+    EXPECT_STREQ(drive, "C:");
+    EXPECT_STREQ(dir, "\\path\\to\\");
+    EXPECT_STREQ(fname, "file");
+    EXPECT_STREQ(ext, ".txt");
+
+    // Partial extraction with nulls
+    char fname_only[32]{};
+    EXPECT_EQ(tl__splitpath_s("/tmp/test.bin", nullptr, 0, nullptr, 0, fname_only, sizeof(fname_only), nullptr, 0), 0);
+    EXPECT_STREQ(fname_only, "test");
+
+    // Wide version
+    wchar_t wdrive[8]{};
+    wchar_t wdir[64]{};
+    wchar_t wfname[32]{};
+    wchar_t wext[16]{};
+    EXPECT_EQ(tl__wsplitpath_s(L"D:\\games\\app.exe",
+                               wdrive, sizeof(wdrive) / sizeof(wchar_t),
+                               wdir, sizeof(wdir) / sizeof(wchar_t),
+                               wfname, sizeof(wfname) / sizeof(wchar_t),
+                               wext, sizeof(wext) / sizeof(wchar_t)), 0);
+    EXPECT_TRUE(std::wcscmp(wdrive, L"D:") == 0);
+    EXPECT_TRUE(std::wcscmp(wdir, L"\\games\\") == 0);
+    EXPECT_TRUE(std::wcscmp(wfname, L"app") == 0);
+    EXPECT_TRUE(std::wcscmp(wext, L".exe") == 0);
+}
+
 }  // namespace
 }  // namespace tradutorlinux
