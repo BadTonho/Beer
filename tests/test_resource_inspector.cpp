@@ -196,8 +196,59 @@ std::vector<std::byte> make_pe_with_manifest(const std::string& manifest_xml) {
     return build(spec);
 }
 
-std::vector<std::byte> make_pe_with_invalid_first_manifest(const std::string& manifest_xml) {
+// Auditoria 2026-10-18 (6.1): PE com árvore de recursos cíclica. Os offsets
+// são absolutos dentro de `.rsrc`, então um diretório que se autorefere
+// multiplicava visitas combinatorialmente na travessia sem orçamento.
+std::vector<std::byte> make_pe_with_self_referencing_rsrc() {
     constexpr std::uint32_t kRsrcRva = 0x2000;
+    constexpr std::uint32_t kL2Offset = 24;
+    constexpr std::uint32_t kLeafOffset = 48;
+    constexpr std::uint32_t kDataStart = 64;
+    std::vector<std::byte> rsrc;
+
+    // --- Root: um único tipo, RT_ICON (3) ---
+    push_u32(rsrc, 0);
+    push_u32(rsrc, 0);
+    push_u16(rsrc, 0);
+    push_u16(rsrc, 0);
+    push_u16(rsrc, 0);
+    push_u16(rsrc, 1);
+    push_u32(rsrc, 3);
+    push_u32(rsrc, 0x80000000U | kL2Offset);
+
+    // --- L2: primeira entrada é folha válida; a segunda volta ao próprio L2 (ciclo) ---
+    push_u32(rsrc, 0);
+    push_u32(rsrc, 0);
+    push_u16(rsrc, 0);
+    push_u16(rsrc, 0);
+    push_u16(rsrc, 0);
+    push_u16(rsrc, 2);
+    push_u32(rsrc, 1);
+    push_u32(rsrc, kLeafOffset);                  // folha (bit 31 = 0)
+    push_u32(rsrc, 2);
+    push_u32(rsrc, 0x80000000U | kL2Offset);      // ciclo de volta ao L2
+
+    // --- IMAGE_RESOURCE_DATA_ENTRY (16 bytes) em 48 ---
+    push_u32(rsrc, kRsrcRva + kDataStart);
+    push_u32(rsrc, 16);
+    push_u32(rsrc, 0);
+    push_u32(rsrc, 0);
+    while (rsrc.size() < kDataStart) {
+        rsrc.push_back(std::byte{0});
+    }
+    for (int i = 0; i < 16; ++i) {
+        rsrc.push_back(std::byte{0xAB});
+    }
+
+    BuildSpec spec;
+    spec.section_names = {".text", ".rsrc"};
+    spec.section_data = {std::vector<std::byte>(0x10), rsrc};
+    spec.resource_rva = kRsrcRva;
+    spec.resource_size = static_cast<std::uint32_t>(rsrc.size());
+    return build(spec);
+}
+
+std::vector<std::byte> make_pe_with_invalid_first_manifest(const std::string& manifest_xml) {    constexpr std::uint32_t kRsrcRva = 0x2000;
     constexpr std::uint32_t kL2Offset = 24;
     constexpr std::uint32_t kDataEntryOffset = 64;
     constexpr std::uint32_t kXmlOffset = 80;
@@ -442,6 +493,25 @@ TEST(ResourceInspectorTest, HandlesEmptyBytesSafely) {
     const ResourceInspectionResult result = inspect_pe_resources({}, info);
     EXPECT_FALSE(result.has_resources);
     EXPECT_TRUE(result.types.empty());
+}
+
+// Auditoria 6.1: ciclo de diretório autoreferente precisa terminar com
+// orçamento de visitas + visited-set, coletando a folha válida uma vez.
+TEST(ResourceInspectorTest, CyclicResourceDirectoryTerminatesWithinBudget) {
+    const std::vector<std::byte> pe_data = make_pe_with_self_referencing_rsrc();
+    const ParseResult parse_result = parse_pe(pe_data);
+    ASSERT_EQ(parse_result.status, ParseStatus::Success);
+
+    const ResourceInspectionResult result = inspect_pe_resources(pe_data, parse_result.info);
+    // Termina o processamento (a travessia sem limite não retornaria); o
+    // summary conta as entradas DECLARADAS do diretório L2 (2: folha + ciclo)
+    // e a folha válida continua sendo coletada uma única vez com patched XML
+    // intacto (nada é lido do ciclo).
+    EXPECT_TRUE(result.has_resources);
+    ASSERT_FALSE(result.types.empty());
+    EXPECT_EQ(result.types[0].type_name, "icon");
+    EXPECT_EQ(result.types[0].count, 2U);
+    EXPECT_FALSE(result.manifest.has_manifest);
 }
 
 TEST(ResourceInspectorTest, ParseVersionInfoFull) {

@@ -67,6 +67,12 @@ bool read_guest_file_for_process(const char* path, std::vector<std::byte>& bytes
     if (fd < 0) {
         return false;
     }
+    // Mesmo teto dos demais leitores de imagem PE (module_graph.cpp/
+    // runner.cpp): um arquivo maior que o limite não é imagem PE válida.
+    // Sem o cap, a leitura até EOF cresce o vector sem controle e um
+    // std::bad_alloc numa função noexcept termina o processo hospedeiro
+    // (auditoria 2026-10-18, 6.1).
+    constexpr std::size_t kMaxPeFileSize = 512U * 1024U * 1024U;
     std::array<std::byte, 4096> buffer{};
     std::size_t total = 0;
     while (true) {
@@ -76,6 +82,7 @@ bool read_guest_file_for_process(const char* path, std::vector<std::byte>& bytes
                 continue;
             }
             ::close(fd);
+            bytes.clear();
             return false;
         }
         if (count == 0) {
@@ -84,9 +91,15 @@ bool read_guest_file_for_process(const char* path, std::vector<std::byte>& bytes
         const auto added = static_cast<std::size_t>(count);
         if (added > std::numeric_limits<std::size_t>::max() - total) {
             ::close(fd);
+            bytes.clear();
             return false;
         }
         total += added;
+        if (total > kMaxPeFileSize) {
+            ::close(fd);
+            bytes.clear();
+            return false;
+        }
         bytes.insert(bytes.end(), buffer.begin(), buffer.begin() + static_cast<std::ptrdiff_t>(added));
     }
     ::close(fd);

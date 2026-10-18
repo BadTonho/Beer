@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <unordered_set>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -31,6 +32,63 @@ inline std::uint32_t read_u32(std::span<const std::byte> data, const std::size_t
         (static_cast<std::uint8_t>(data[offset + 1]) << 8) |
         (static_cast<std::uint8_t>(data[offset + 2]) << 16) |
         (static_cast<std::uint8_t>(data[offset + 3]) << 24));
+}
+
+using ResourceData = std::pair<std::uint32_t, std::uint32_t>;
+
+// Auditoria 2026-10-18 (6.1): travessia da árvore de recursos com orçamento
+// global de visitas e conjunto de diretórios já visitados. Os offsets são
+// absolutos dentro de `rsrc`, de modo que um loop autoreferente multiplicava
+// as visitas combinatoriamente mesmo com os limites por nível (profundidade
+// 3, ≤1024 entradas): uma tabela de ~8 KiB podia custar ≥1e12 visitas no
+// `--report` e no `GetFileVersionInfoW`. O orçamento torna o custo linear
+// e o visited-set corta ciclos.
+constexpr std::size_t kResourceVisitBudget = 8192;
+
+std::vector<ResourceData> collect_leaf_resource_nodes(
+    const std::span<const std::byte> rsrc, const std::uint32_t root_offset) {
+    std::vector<ResourceData> resources;
+    const auto has_range = [&](const std::size_t offset, const std::size_t length) {
+        return offset <= rsrc.size() && length <= rsrc.size() - offset;
+    };
+    std::size_t visits_left = kResourceVisitBudget;
+    std::unordered_set<std::uint32_t> visited;
+    std::function<void(std::uint32_t, std::size_t)> visit_directory;
+    visit_directory = [&](const std::uint32_t encoded_offset, const std::size_t depth) {
+        if (visits_left == 0) {
+            return;
+        }
+        --visits_left;
+        if (depth > 3 || (encoded_offset & 0x80000000U) == 0) {
+            if ((encoded_offset & 0x80000000U) == 0 &&
+                has_range(encoded_offset, 16)) {
+                resources.emplace_back(read_u32(rsrc, encoded_offset),
+                                       read_u32(rsrc, encoded_offset + 4));
+            }
+            return;
+        }
+
+        const std::size_t directory_offset = encoded_offset & 0x7FFFFFFFU;
+        if (!has_range(directory_offset, 16)) {
+            return;
+        }
+        if (!visited.insert(static_cast<std::uint32_t>(directory_offset)).second) {
+            return;
+        }
+        const std::uint16_t named = read_u16(rsrc, directory_offset + 12);
+        const std::uint16_t ids = read_u16(rsrc, directory_offset + 14);
+        const std::size_t entry_count = static_cast<std::size_t>(named) + ids;
+        if (entry_count == 0 || entry_count > 1024 ||
+            entry_count > (rsrc.size() - directory_offset - 16) / 8) {
+            return;
+        }
+        for (std::size_t index = 0; index < entry_count; ++index) {
+            const std::size_t entry_offset = directory_offset + 16 + index * 8;
+            visit_directory(read_u32(rsrc, entry_offset + 4), depth + 1);
+        }
+    };
+    visit_directory(root_offset, 0);
+    return resources;
 }
 
 bool contains_ci(const std::string_view haystack, const std::string_view needle) noexcept {
@@ -371,42 +429,12 @@ ResourceInspectionResult inspect_pe_resources(
 
     result.has_resources = true;
 
-    using ResourceData = std::pair<std::uint32_t, std::uint32_t>;
     const auto collect_leaf_resources = [&](const std::uint32_t root_offset) {
-        std::vector<ResourceData> resources;
-        const auto has_range = [&rsrc](const std::size_t offset, const std::size_t length) {
-            return offset <= rsrc.size() && length <= rsrc.size() - offset;
-        };
-        std::function<void(std::uint32_t, std::size_t)> visit_directory;
-        visit_directory = [&](const std::uint32_t encoded_offset, const std::size_t depth) {
-            if (depth > 3 || (encoded_offset & 0x80000000U) == 0) {
-                if ((encoded_offset & 0x80000000U) == 0 &&
-                    has_range(encoded_offset, 16)) {
-                    resources.emplace_back(read_u32(rsrc, encoded_offset),
-                                           read_u32(rsrc, encoded_offset + 4));
-                }
-                return;
-            }
-
-            const std::size_t directory_offset = encoded_offset & 0x7FFFFFFFU;
-            if (!has_range(directory_offset, 16)) {
-                return;
-            }
-            const std::uint16_t named = read_u16(rsrc, directory_offset + 12);
-            const std::uint16_t ids = read_u16(rsrc, directory_offset + 14);
-            const std::size_t entry_count = static_cast<std::size_t>(named) + ids;
-            if (entry_count == 0 || entry_count > 1024 ||
-                entry_count > (rsrc.size() - directory_offset - 16) / 8) {
-                return;
-            }
-            for (std::size_t index = 0; index < entry_count; ++index) {
-                const std::size_t entry_offset = directory_offset + 16 + index * 8;
-                visit_directory(read_u32(rsrc, entry_offset + 4), depth + 1);
-            }
-        };
-        visit_directory(root_offset, 0);
-        return resources;
+        // Auditoria 6.1: travessia delegada ao helper com orçamento
+        // global de visitas e visited-set (cortes de ciclo malformado).
+        return collect_leaf_resource_nodes(rsrc, root_offset);
     };
+
 
     auto resolve_span_from_rva = [&](const std::uint32_t rva, const std::uint32_t len) -> std::span<const std::byte> {
         for (const SectionInfo& sec : info.sections) {
@@ -537,41 +565,12 @@ std::vector<std::byte> extract_version_resource_bytes(
         return {};
     }
 
-    using ResourceData = std::pair<std::uint32_t, std::uint32_t>;
     const auto collect_leaf_resources = [&](const std::uint32_t root_offset) {
-        std::vector<ResourceData> resources;
-        const auto has_range = [&rsrc](const std::size_t offset, const std::size_t length) {
-            return offset <= rsrc.size() && length <= rsrc.size() - offset;
-        };
-        std::function<void(std::uint32_t, std::size_t)> visit_directory;
-        visit_directory = [&](const std::uint32_t encoded_offset, const std::size_t depth) {
-            if (depth > 3 || (encoded_offset & 0x80000000U) == 0) {
-                if ((encoded_offset & 0x80000000U) == 0 && has_range(encoded_offset, 16)) {
-                    resources.emplace_back(read_u32(rsrc, encoded_offset),
-                                           read_u32(rsrc, encoded_offset + 4));
-                }
-                return;
-            }
-
-            const std::size_t directory_offset = encoded_offset & 0x7FFFFFFFU;
-            if (!has_range(directory_offset, 16)) {
-                return;
-            }
-            const std::uint16_t named = read_u16(rsrc, directory_offset + 12);
-            const std::uint16_t ids = read_u16(rsrc, directory_offset + 14);
-            const std::size_t entry_count = static_cast<std::size_t>(named) + ids;
-            if (entry_count == 0 || entry_count > 1024 ||
-                entry_count > (rsrc.size() - directory_offset - 16) / 8) {
-                return;
-            }
-            for (std::size_t index = 0; index < entry_count; ++index) {
-                const std::size_t entry_offset = directory_offset + 16 + index * 8;
-                visit_directory(read_u32(rsrc, entry_offset + 4), depth + 1);
-            }
-        };
-        visit_directory(root_offset, 0);
-        return resources;
+        // Auditoria 6.1: travessia delegada ao helper com orçamento
+        // global de visitas e visited-set (cortes de ciclo malformado).
+        return collect_leaf_resource_nodes(rsrc, root_offset);
     };
+
 
     auto resolve_span_from_rva = [&](const std::uint32_t rva, const std::uint32_t len) -> std::span<const std::byte> {
         for (const SectionInfo& sec : info.sections) {
