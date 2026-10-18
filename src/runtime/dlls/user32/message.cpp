@@ -1510,21 +1510,146 @@ TL_MSABI abi::Lresult tl_SendMessageA(const void* window, const std::uint32_t me
                 if (!runtime::copy_guest_cstring(reinterpret_cast<const char*>(lparam), 65535U,
                                                  text_copy)) {
                     set_last_error(abi::kErrorInvalidParameter);
-                    return 0;
+                    return -1;
                 }
                 slot->combo_items.emplace_back(std::move(text_copy));
+                slot->combo_item_data.emplace_back(0);
                 set_last_error(abi::kErrorSuccess);
                 return static_cast<int>(slot->combo_items.size() - 1U);
+            }
+            if (message == abi::kCbInsertString && lparam != 0) {
+                std::string text_copy;
+                if (!runtime::copy_guest_cstring(reinterpret_cast<const char*>(lparam), 65535U,
+                                                 text_copy)) {
+                    set_last_error(abi::kErrorInvalidParameter);
+                    return -1;
+                }
+                const auto idx = static_cast<std::size_t>(wparam);
+                if (idx >= slot->combo_items.size()) {
+                    slot->combo_items.emplace_back(std::move(text_copy));
+                    slot->combo_item_data.emplace_back(0);
+                    set_last_error(abi::kErrorSuccess);
+                    return static_cast<int>(slot->combo_items.size() - 1U);
+                }
+                const auto offset = static_cast<std::ptrdiff_t>(idx);
+                slot->combo_items.insert(slot->combo_items.begin() + offset, std::move(text_copy));
+                slot->combo_item_data.insert(slot->combo_item_data.begin() + offset, 0);
+                set_last_error(abi::kErrorSuccess);
+                return static_cast<int>(idx);
+            }
+            if (message == abi::kCbDeleteString) {
+                const auto idx = static_cast<std::size_t>(wparam);
+                if (idx < slot->combo_items.size()) {
+                    const auto offset = static_cast<std::ptrdiff_t>(idx);
+                    slot->combo_items.erase(slot->combo_items.begin() + offset);
+                    if (idx < slot->combo_item_data.size()) {
+                        slot->combo_item_data.erase(slot->combo_item_data.begin() + offset);
+                    }
+                    if (slot->combo_selection == static_cast<int>(idx)) {
+                        slot->combo_selection = -1;
+                    } else if (slot->combo_selection > static_cast<int>(idx)) {
+                        --slot->combo_selection;
+                    }
+                    set_last_error(abi::kErrorSuccess);
+                    return static_cast<int>(slot->combo_items.size());
+                }
+                set_last_error(abi::kErrorInvalidParameter);
+                return -1;
+            }
+            if (message == abi::kCbResetContent) {
+                slot->combo_items.clear();
+                slot->combo_item_data.clear();
+                slot->combo_selection = -1;
+                if (slot->parent != nullptr) {
+                    request_dialog_render(*slot->parent);
+                }
+                set_last_error(abi::kErrorSuccess);
+                return 0;
+            }
+            if (message == abi::kCbGetCount) {
+                set_last_error(abi::kErrorSuccess);
+                return static_cast<int>(slot->combo_items.size());
             }
             if (message == abi::kCbSetCurSel) {
                 slot->combo_selection = static_cast<int>(wparam);
                 if (slot->parent != nullptr) {
                     request_dialog_render(*slot->parent);
                 }
+                set_last_error(abi::kErrorSuccess);
                 return slot->combo_selection;
             }
             if (message == abi::kCbGetCurSel) {
+                set_last_error(abi::kErrorSuccess);
                 return slot->combo_selection;
+            }
+            if (message == abi::kCbSetItemData) {
+                const auto idx = static_cast<std::size_t>(wparam);
+                if (idx < slot->combo_items.size()) {
+                    if (slot->combo_item_data.size() < slot->combo_items.size()) {
+                        slot->combo_item_data.resize(slot->combo_items.size(), 0);
+                    }
+                    slot->combo_item_data[idx] = static_cast<std::uintptr_t>(lparam);
+                    set_last_error(abi::kErrorSuccess);
+                    return 1;
+                }
+                set_last_error(abi::kErrorInvalidParameter);
+                return -1;
+            }
+            if (message == abi::kCbGetItemData) {
+                const auto idx = static_cast<std::size_t>(wparam);
+                if (idx < slot->combo_items.size()) {
+                    set_last_error(abi::kErrorSuccess);
+                    if (idx < slot->combo_item_data.size()) {
+                        return static_cast<abi::Lresult>(slot->combo_item_data[idx]);
+                    }
+                    return 0;
+                }
+                set_last_error(abi::kErrorInvalidParameter);
+                return -1;
+            }
+            if (message == abi::kCbGetLbText) {
+                const auto idx = static_cast<std::size_t>(wparam);
+                if (idx < slot->combo_items.size() && lparam != 0) {
+                    const std::string& item_text = slot->combo_items[idx];
+                    if (runtime::write_guest_memory(reinterpret_cast<void*>(lparam), item_text.c_str(),
+                                                   item_text.size() + 1).status ==
+                        runtime::GuestMemoryAccessStatus::Success) {
+                        set_last_error(abi::kErrorSuccess);
+                        return static_cast<int>(item_text.size());
+                    }
+                }
+                set_last_error(abi::kErrorInvalidParameter);
+                return -1;
+            }
+            if (message == abi::kCbGetLbTextLen) {
+                const auto idx = static_cast<std::size_t>(wparam);
+                if (idx < slot->combo_items.size()) {
+                    set_last_error(abi::kErrorSuccess);
+                    return static_cast<int>(slot->combo_items[idx].size());
+                }
+                set_last_error(abi::kErrorInvalidParameter);
+                return -1;
+            }
+            if ((message == abi::kCbFindString || message == abi::kCbFindStringExact) && lparam != 0) {
+                std::string search_str;
+                if (runtime::copy_guest_cstring(reinterpret_cast<const char*>(lparam), 65535U, search_str)) {
+                    for (std::size_t i = 0; i < slot->combo_items.size(); ++i) {
+                        if (message == abi::kCbFindStringExact) {
+                            if (util::ascii_iequals(slot->combo_items[i], search_str)) {
+                                set_last_error(abi::kErrorSuccess);
+                                return static_cast<int>(i);
+                            }
+                        } else {
+                            if (slot->combo_items[i].size() >= search_str.size() &&
+                                util::ascii_iequals(slot->combo_items[i].substr(0, search_str.size()), search_str)) {
+                                set_last_error(abi::kErrorSuccess);
+                                return static_cast<int>(i);
+                            }
+                        }
+                    }
+                }
+                set_last_error(abi::kErrorFileNotFound);
+                return -1;
             }
         }
         if (slot->control_kind == ControlKind::ListView ||
@@ -1595,12 +1720,47 @@ TL_MSABI abi::Lresult tl_SendMessageW(const void* window, const std::uint32_t me
                 reinterpret_cast<const std::uint16_t*>(wide_text.data()), wide_text.size());
             return tl_SendMessageA(window, message, wparam, reinterpret_cast<abi::Lparam>(utf8.c_str()));
         }
-        if (message == abi::kCbAddString && lparam != 0) {
+        if ((message == abi::kCbAddString || message == abi::kCbInsertString) && lparam != 0) {
             std::u16string wide_text;
             if (!runtime::copy_guest_wstring(reinterpret_cast<const std::uint16_t*>(lparam), 65535U,
                                               wide_text)) {
                 set_last_error(abi::kErrorInvalidParameter);
-                return 0;
+                return -1;
+            }
+            const std::string utf8 = util::wide_to_utf8(
+                reinterpret_cast<const std::uint16_t*>(wide_text.data()), wide_text.size());
+            return tl_SendMessageA(window, message, wparam, reinterpret_cast<abi::Lparam>(utf8.c_str()));
+        }
+        if (message == abi::kCbGetLbText && lparam != 0) {
+            const auto idx = static_cast<std::size_t>(wparam);
+            if (idx < slot->combo_items.size()) {
+                const std::u16string wide = util::utf8_to_wide(slot->combo_items[idx]);
+                if (runtime::write_guest_memory(reinterpret_cast<void*>(lparam), wide.c_str(),
+                                               (wide.size() + 1) * sizeof(std::uint16_t)).status ==
+                    runtime::GuestMemoryAccessStatus::Success) {
+                    set_last_error(abi::kErrorSuccess);
+                    return static_cast<int>(wide.size());
+                }
+            }
+            set_last_error(abi::kErrorInvalidParameter);
+            return -1;
+        }
+        if (message == abi::kCbGetLbTextLen) {
+            const auto idx = static_cast<std::size_t>(wparam);
+            if (idx < slot->combo_items.size()) {
+                const std::u16string wide = util::utf8_to_wide(slot->combo_items[idx]);
+                set_last_error(abi::kErrorSuccess);
+                return static_cast<int>(wide.size());
+            }
+            set_last_error(abi::kErrorInvalidParameter);
+            return -1;
+        }
+        if ((message == abi::kCbFindString || message == abi::kCbFindStringExact) && lparam != 0) {
+            std::u16string wide_text;
+            if (!runtime::copy_guest_wstring(reinterpret_cast<const std::uint16_t*>(lparam), 65535U,
+                                              wide_text)) {
+                set_last_error(abi::kErrorInvalidParameter);
+                return -1;
             }
             const std::string utf8 = util::wide_to_utf8(
                 reinterpret_cast<const std::uint16_t*>(wide_text.data()), wide_text.size());

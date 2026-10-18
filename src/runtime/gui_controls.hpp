@@ -82,6 +82,7 @@ struct WindowSlot {
     const void* menu_handle{nullptr};
     int open_menu_index{-1};
     std::vector<std::string> combo_items;
+    std::vector<std::uintptr_t> combo_item_data;
     int combo_selection{-1};
     std::vector<ToolbarButton> toolbar_buttons;
     int toolbar_button_width{0};

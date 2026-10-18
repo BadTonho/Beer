@@ -820,5 +820,68 @@ TEST(CommonControls, TabControlManagesItemsSelectionAndQueries) {
     g_windows = {};
 }
 
+TEST(GuiControlsTest, ComboBoxFullMessageSupport) {
+    g_windows = {};
+    WindowSlot& parent = g_windows[0];
+    parent.used = true;
+    parent.is_dialog = true;
+
+    WindowSlot& combo = g_windows[1];
+    combo.used = true;
+    combo.is_control = true;
+    combo.parent = &parent;
+    combo.control_kind = ControlKind::ComboBox;
+    combo.combo_selection = -1;
+
+    // AddString A & W
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbAddString, 0, reinterpret_cast<abi::Lparam>("32 MB")), 0);
+    const std::u16string str64 = u"64 MB";
+    EXPECT_EQ(tl_SendMessageW(&combo, abi::kCbAddString, 0, reinterpret_cast<abi::Lparam>(str64.c_str())), 1);
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbGetCount, 0, 0), 2);
+
+    // SetItemData & GetItemData
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbSetItemData, 0, 33554432), 1);
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbSetItemData, 1, 67108864), 1);
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbGetItemData, 0, 0), 33554432);
+    EXPECT_EQ(tl_SendMessageW(&combo, abi::kCbGetItemData, 1, 0), 67108864);
+
+    // InsertString
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbInsertString, 0, reinterpret_cast<abi::Lparam>("16 MB")), 0);
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbGetCount, 0, 0), 3);
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbGetItemData, 0, 0), 0);
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbGetItemData, 1, 0), 33554432);
+
+    // SetCurSel & GetCurSel
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbSetCurSel, 1, 0), 1);
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbGetCurSel, 0, 0), 1);
+
+    // GetLbText & GetLbTextLen
+    char text_buf[32]{};
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbGetLbText, 1, reinterpret_cast<abi::Lparam>(text_buf)), 5);
+    EXPECT_STREQ(text_buf, "32 MB");
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbGetLbTextLen, 1, 0), 5);
+
+    std::uint16_t wide_buf[32]{};
+    EXPECT_EQ(tl_SendMessageW(&combo, abi::kCbGetLbText, 2, reinterpret_cast<abi::Lparam>(wide_buf)), 5);
+    EXPECT_EQ(wide_buf[0], '6');
+    EXPECT_EQ(wide_buf[1], '4');
+
+    // FindString
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbFindString, 0, reinterpret_cast<abi::Lparam>("32")), 1);
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbFindStringExact, 0, reinterpret_cast<abi::Lparam>("32 MB")), 1);
+
+    // DeleteString
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbDeleteString, 0, 0), 2);
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbGetCount, 0, 0), 2);
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbGetItemData, 0, 0), 33554432);
+
+    // ResetContent
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbResetContent, 0, 0), 0);
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbGetCount, 0, 0), 0);
+    EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbGetCurSel, 0, 0), -1);
+
+    g_windows = {};
+}
+
 }  // namespace
 }  // namespace tradutorlinux::runtime_gui
