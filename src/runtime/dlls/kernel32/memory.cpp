@@ -271,7 +271,14 @@ TL_MSABI int tl_HeapFree(void* heap, std::uint32_t flags, void* memory) noexcept
         header->canary = 0;
         std::free(static_cast<void*>(header));
     } else {
-        std::free(memory);
+        // Bloco registrado por HeapAlloc cujo header foi corrompido pelo
+        // convidado (overrun). A base de malloc é determinística:
+        // user_ptr - kHeapHeaderSize. Liberar `memory` (user_ptr) entregaria
+        // um ponteiro desalinhado ao glibc e abortaria o processo hospedeiro
+        // inteiro (auditoria 2026-10-18, achado A1).
+        trace_process_console("heap", "free-corrupted-header",
+                              "canário inválido; base de malloc liberada");
+        std::free(static_cast<void*>(static_cast<std::byte*>(memory) - kHeapHeaderSize));
     }
     bump_guest_allocation_generation();
     set_last_error(abi::kErrorSuccess);

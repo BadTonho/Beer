@@ -1346,6 +1346,18 @@ TEST(Win32HeapTest, HeapFreeForeignPointerRejectedSafely) {
     EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
 }
 
+TEST(Win32HeapTest, HeapFreeCorruptHeaderDoesNotAbort) {
+    void* heap = tl_GetProcessHeap();
+    auto* block = static_cast<unsigned char*>(tl_HeapAlloc(heap, 0, 96));
+    ASSERT_NE(block, nullptr);
+    // Um overrun do convidado corrompe o header (kHeapHeaderSize == 48 bytes
+    // antes do ponteiro do usuário). HeapFree não pode liberar o ponteiro do
+    // usuário (desalinhado do malloc) — isso abortaria o processo hospedeiro;
+    // deve liberar a base real de malloc e retornar com sucesso.
+    std::memset(block - 48, 0x5A, 48);
+    EXPECT_EQ(tl_HeapFree(heap, 0, block), 1);
+}
+
 TEST(Win32HeapTest, HeapSizeAndValidateTrackAllocations) {
     void* heap = tl_GetProcessHeap();
     void* block = tl_HeapAlloc(heap, 0, 96);
