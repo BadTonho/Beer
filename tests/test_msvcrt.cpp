@@ -382,5 +382,48 @@ TEST(MsvcrtIoTest, Stat64MissingFileReturnsError) {
     EXPECT_EQ(tl__stat64(path.c_str(), buffer.data()), -1);
 }
 
+TEST(MsvcrtUcrtTest, MemchrFindsByte) {
+    const char text[] = "abcdef";
+    EXPECT_EQ(tl_memchr(text, 'c', 6), text + 2);
+    EXPECT_EQ(tl_memchr(text, 'z', 6), nullptr);
+    EXPECT_EQ(tl_memchr(nullptr, 'a', 1), nullptr);
+}
+
+TEST(MsvcrtUcrtTest, StringSafeCopies) {
+    char dst[16]{};
+    EXPECT_EQ(tl_strcpy_s(dst, sizeof(dst), "hello"), 0);
+    EXPECT_STREQ(dst, "hello");
+
+    EXPECT_EQ(tl_strcat_s(dst, sizeof(dst), " world"), 0);
+    EXPECT_STREQ(dst, "hello world");
+
+    // Overflow check
+    char small_dst[4]{};
+    EXPECT_EQ(tl_strcpy_s(small_dst, sizeof(small_dst), "overflow"), ERANGE);
+}
+
+TEST(MsvcrtUcrtTest, ExceptionAndNarrowEnvLifecycle) {
+    EXPECT_EQ(tl__initialize_narrow_environment(), 0);
+    EXPECT_EQ(tl__configure_narrow_argv(0), 0);
+    EXPECT_EQ(tl__set_fmode(0x8000), 0);
+    EXPECT_NE(tl___p__commode(), nullptr);
+
+    // Exception copy and destroy
+    GuestStdExceptionData src{"test exception", true};
+    GuestStdExceptionData dst{};
+    tl___std_exception_copy(&src, &dst);
+    ASSERT_NE(dst.what, nullptr);
+    EXPECT_STREQ(dst.what, "test exception");
+    EXPECT_TRUE(dst.do_free);
+    tl___std_exception_destroy(&dst);
+    EXPECT_EQ(dst.what, nullptr);
+    EXPECT_FALSE(dst.do_free);
+
+    // Initterm_e
+    auto func_ok = []() -> int { return 0; };
+    int (*funcs[])(void) = {func_ok, nullptr};
+    EXPECT_EQ(tl__initterm_e(funcs, funcs + 1), 0);
+}
+
 }  // namespace
 }  // namespace tradutorlinux

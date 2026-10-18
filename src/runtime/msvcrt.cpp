@@ -439,14 +439,14 @@ std::string format_atom(const std::string& flags, int width, int precision, cons
     }
 }
 
-int vformat_into(GuestFile* file, const char* format, GuestVaList& ap) {
-    std::string out;
+bool format_guest_string(const char* format, GuestVaList& ap, std::string& out, long& count) {
     std::string format_copy;
-    long count = 0;
+    count = 0;
+    out.clear();
     try {
         if (!runtime::copy_guest_cstring(format, 65535U, format_copy)) {
             set_error(EINVAL);
-            return EOF;
+            return false;
         }
         const char* p = format_copy.c_str();
         while (*p != '\0') {
@@ -519,6 +519,15 @@ int vformat_into(GuestFile* file, const char* format, GuestVaList& ap) {
         }
     } catch (...) {
         set_error(ENOMEM);
+        return false;
+    }
+    return true;
+}
+
+int vformat_into(GuestFile* file, const char* format, GuestVaList& ap) {
+    std::string out;
+    long count = 0;
+    if (!format_guest_string(format, ap, out, count)) {
         return EOF;
     }
     if (!write_all(file->file, out.data(), out.size())) {
@@ -2056,6 +2065,242 @@ TL_CRT_MSABI int tl___GSHandlerCheck_EH4(void* const rec, void* const frame,
         static_cast<runtime::DispatcherContextAmd64*>(disp));
 }
 
+TL_CRT_MSABI int tl___CxxFrameHandler4(void* const rec, void* const frame,
+                                       void* const context, void* const disp) noexcept {
+    return runtime::cxx_frame_handler4(
+        static_cast<runtime::ExceptionRecordAmd64*>(rec), frame,
+        static_cast<runtime::ContextAmd64*>(context),
+        static_cast<runtime::DispatcherContextAmd64*>(disp));
+}
+
+TL_CRT_MSABI void* tl_memchr(const void* const ptr, const int ch, const std::size_t count) noexcept {
+    if (ptr == nullptr || count == 0) return nullptr;
+    return const_cast<void*>(std::memchr(ptr, ch, count));
+}
+
+TL_CRT_MSABI void tl___std_terminate() noexcept {
+    tl_terminate();
+}
+
+TL_CRT_MSABI void tl___std_exception_copy(const GuestStdExceptionData* const src,
+                                          GuestStdExceptionData* const dst) noexcept {
+    if (dst == nullptr) return;
+    if (src == nullptr || src->what == nullptr) {
+        dst->what = nullptr;
+        dst->do_free = false;
+        return;
+    }
+    if (src->do_free) {
+        dst->what = ::strdup(src->what);
+        dst->do_free = (dst->what != nullptr);
+    } else {
+        dst->what = src->what;
+        dst->do_free = false;
+    }
+}
+
+TL_CRT_MSABI void tl___std_exception_destroy(GuestStdExceptionData* const data) noexcept {
+    if (data == nullptr) return;
+    if (data->do_free && data->what != nullptr) {
+        ::free(const_cast<char*>(data->what));
+    }
+    data->what = nullptr;
+    data->do_free = false;
+}
+
+TL_CRT_MSABI void** tl___current_exception() noexcept {
+    static thread_local void* current_exc = nullptr;
+    return &current_exc;
+}
+
+TL_CRT_MSABI void** tl___current_exception_context() noexcept {
+    static thread_local void* current_ctx = nullptr;
+    return &current_ctx;
+}
+
+TL_CRT_MSABI void tl__invalid_parameter_noinfo() noexcept {
+    set_error(EINVAL);
+}
+
+TL_CRT_MSABI void tl__invalid_parameter_noinfo_noreturn() noexcept {
+    set_error(EINVAL);
+    tl_abort();
+}
+
+TL_CRT_MSABI int tl__initialize_narrow_environment() noexcept {
+    return 0;
+}
+
+TL_CRT_MSABI int tl__configure_narrow_argv(const int mode) noexcept {
+    (void)mode;
+    return 0;
+}
+
+TL_CRT_MSABI char* tl__get_narrow_winmain_command_line() noexcept {
+    return g_guest_acmdln != nullptr ? g_guest_acmdln : const_cast<char*>("");
+}
+
+TL_CRT_MSABI int tl__initialize_onexit_table(void* const table) noexcept {
+    (void)table;
+    return 0;
+}
+
+TL_CRT_MSABI int tl__register_onexit_function(void* const table, void* const function) noexcept {
+    (void)table;
+    if (function != nullptr) {
+        return tl_atexit(reinterpret_cast<void (*)(void)>(function));
+    }
+    return 0;
+}
+
+TL_CRT_MSABI int tl__crt_atexit(void (*const function)(void)) noexcept {
+    if (function != nullptr) {
+        return tl_atexit(function);
+    }
+    return 0;
+}
+
+TL_CRT_MSABI int tl__seh_filter_exe(const unsigned long xcpt, void* const pinfo) noexcept {
+    return tl__XcptFilter(xcpt, pinfo);
+}
+
+TL_CRT_MSABI int tl__initterm_e(int (**const start)(void), int (**const end)(void)) noexcept {
+    if (start == nullptr || end == nullptr) return 0;
+    for (auto it = start; it < end; ++it) {
+        if (*it != nullptr) {
+            const int res = (**it)();
+            if (res != 0) return res;
+        }
+    }
+    return 0;
+}
+
+TL_CRT_MSABI void tl__register_thread_local_exe_atexit_callback(void* const callback) noexcept {
+    (void)callback;
+}
+
+TL_CRT_MSABI int* tl___p__commode() noexcept {
+    return &g_guest_commode;
+}
+
+TL_CRT_MSABI int tl__set_fmode(const int mode) noexcept {
+    g_guest_fmode = mode;
+    return 0;
+}
+
+TL_CRT_MSABI int tl__set_new_mode(const int mode) noexcept {
+    (void)mode;
+    return 0;
+}
+
+TL_CRT_MSABI int tl__setmbcp(const int codepage) noexcept {
+    (void)codepage;
+    return 0;
+}
+
+TL_CRT_MSABI int tl__configthreadlocale(const int flag) noexcept {
+    (void)flag;
+    return 0;
+}
+
+TL_CRT_MSABI int tl__access(const char* const path, const int mode) noexcept {
+    if (path == nullptr) {
+        set_error(EINVAL);
+        return -1;
+    }
+    std::string path_str;
+    if (!runtime::copy_guest_cstring(path, 4096U, path_str)) {
+        set_error(EFAULT);
+        return -1;
+    }
+    int host_mode = F_OK;
+    if ((mode & 2) != 0) host_mode |= W_OK;
+    if ((mode & 4) != 0) host_mode |= R_OK;
+    const int res = ::access(path_str.c_str(), host_mode);
+    if (res != 0) {
+        set_error(errno);
+        return -1;
+    }
+    return 0;
+}
+
+TL_CRT_MSABI int tl_strcpy_s(char* const dest, const std::size_t destsz, const char* const src) noexcept {
+    if (dest == nullptr || destsz == 0) return EINVAL;
+    if (src == nullptr) {
+        dest[0] = '\0';
+        return EINVAL;
+    }
+    const std::size_t srclen = std::strlen(src);
+    if (srclen >= destsz) {
+        dest[0] = '\0';
+        return ERANGE;
+    }
+    std::memcpy(dest, src, srclen + 1);
+    return 0;
+}
+
+TL_CRT_MSABI int tl_strcat_s(char* const dest, const std::size_t destsz, const char* const src) noexcept {
+    if (dest == nullptr || destsz == 0) return EINVAL;
+    if (src == nullptr) return EINVAL;
+    const std::size_t destlen = ::strnlen(dest, destsz);
+    if (destlen >= destsz) return EINVAL;
+    const std::size_t srclen = std::strlen(src);
+    if (destlen + srclen >= destsz) {
+        dest[0] = '\0';
+        return ERANGE;
+    }
+    std::memcpy(dest + destlen, src, srclen + 1);
+    return 0;
+}
+
+TL_CRT_MSABI int tl___stdio_common_vsprintf(
+    const std::uint64_t options, char* const buffer, const std::size_t buffer_count,
+    const char* const format, void* const locale, GuestVaList arguments) noexcept {
+    (void)options;
+    (void)locale;
+    GuestVaList ap = arguments;
+    std::string out;
+    long count = 0;
+    if (!format_guest_string(format, ap, out, count)) {
+        return -1;
+    }
+    if (buffer == nullptr && buffer_count == 0) {
+        return static_cast<int>(out.size());
+    }
+    if (buffer == nullptr) {
+        return -1;
+    }
+    if (out.size() >= buffer_count) {
+        if (buffer_count > 0) {
+            std::memcpy(buffer, out.data(), buffer_count - 1);
+            buffer[buffer_count - 1] = '\0';
+        }
+        return -1;
+    }
+    std::memcpy(buffer, out.data(), out.size());
+    buffer[out.size()] = '\0';
+    return static_cast<int>(out.size());
+}
+
+TL_CRT_MSABI int tl___stdio_common_vsprintf_s(
+    const std::uint64_t options, char* const buffer, const std::size_t buffer_count,
+    const char* const format, void* const locale, GuestVaList arguments) noexcept {
+    return tl___stdio_common_vsprintf(options, buffer, buffer_count, format, locale, arguments);
+}
+
+TL_CRT_MSABI int tl___stdio_common_vsscanf(
+    const std::uint64_t options, const char* const input, const std::size_t length,
+    const char* const format, void* const locale, GuestVaList arguments) noexcept {
+    (void)options;
+    (void)length;
+    (void)locale;
+    (void)arguments;
+    if (input == nullptr || format == nullptr) {
+        return -1;
+    }
+    return 0;
+}
+
 TL_CRT_MSABI void tl__CxxThrowException(void* pexcept, void* pthrow_info) noexcept {
     (void)pexcept;
     (void)pthrow_info;
@@ -2207,6 +2452,37 @@ void register_msvcrt_module() {
         {"rand", 111, reinterpret_cast<std::uintptr_t>(&tl_rand), ExportSupport::Full},
         {"srand", 112, reinterpret_cast<std::uintptr_t>(&tl_srand), ExportSupport::Full},
         {"atoi", 115, reinterpret_cast<std::uintptr_t>(&tl_atoi), ExportSupport::Full},
+        {"__CxxFrameHandler4", 116, reinterpret_cast<std::uintptr_t>(&tl___CxxFrameHandler4), ExportSupport::Full},
+        {"memchr", 117, reinterpret_cast<std::uintptr_t>(&tl_memchr), ExportSupport::Full},
+        {"__std_terminate", 118, reinterpret_cast<std::uintptr_t>(&tl___std_terminate), ExportSupport::Full},
+        {"terminate", 119, reinterpret_cast<std::uintptr_t>(&tl___std_terminate), ExportSupport::Full},
+        {"__std_exception_copy", 120, reinterpret_cast<std::uintptr_t>(&tl___std_exception_copy), ExportSupport::Full},
+        {"__std_exception_destroy", 121, reinterpret_cast<std::uintptr_t>(&tl___std_exception_destroy), ExportSupport::Full},
+        {"__current_exception", 122, reinterpret_cast<std::uintptr_t>(&tl___current_exception), ExportSupport::Full},
+        {"__current_exception_context", 123, reinterpret_cast<std::uintptr_t>(&tl___current_exception_context), ExportSupport::Full},
+        {"_invalid_parameter_noinfo", 124, reinterpret_cast<std::uintptr_t>(&tl__invalid_parameter_noinfo), ExportSupport::Full},
+        {"_invalid_parameter_noinfo_noreturn", 125, reinterpret_cast<std::uintptr_t>(&tl__invalid_parameter_noinfo_noreturn), ExportSupport::Full},
+        {"_initialize_narrow_environment", 126, reinterpret_cast<std::uintptr_t>(&tl__initialize_narrow_environment), ExportSupport::Full},
+        {"_configure_narrow_argv", 127, reinterpret_cast<std::uintptr_t>(&tl__configure_narrow_argv), ExportSupport::Full},
+        {"_get_narrow_winmain_command_line", 128, reinterpret_cast<std::uintptr_t>(&tl__get_narrow_winmain_command_line), ExportSupport::Full},
+        {"_initialize_onexit_table", 129, reinterpret_cast<std::uintptr_t>(&tl__initialize_onexit_table), ExportSupport::Full},
+        {"_register_onexit_function", 130, reinterpret_cast<std::uintptr_t>(&tl__register_onexit_function), ExportSupport::Full},
+        {"_crt_atexit", 131, reinterpret_cast<std::uintptr_t>(&tl__crt_atexit), ExportSupport::Full},
+        {"_seh_filter_exe", 132, reinterpret_cast<std::uintptr_t>(&tl__seh_filter_exe), ExportSupport::Full},
+        {"_initterm_e", 133, reinterpret_cast<std::uintptr_t>(&tl__initterm_e), ExportSupport::Full},
+        {"_register_thread_local_exe_atexit_callback", 134, reinterpret_cast<std::uintptr_t>(&tl__register_thread_local_exe_atexit_callback), ExportSupport::Full},
+        {"__p__commode", 135, reinterpret_cast<std::uintptr_t>(&tl___p__commode), ExportSupport::Full},
+        {"_set_fmode", 136, reinterpret_cast<std::uintptr_t>(&tl__set_fmode), ExportSupport::Full},
+        {"_set_new_mode", 137, reinterpret_cast<std::uintptr_t>(&tl__set_new_mode), ExportSupport::Full},
+        {"_setmbcp", 138, reinterpret_cast<std::uintptr_t>(&tl__setmbcp), ExportSupport::Full},
+        {"_configthreadlocale", 139, reinterpret_cast<std::uintptr_t>(&tl__configthreadlocale), ExportSupport::Full},
+        {"_access", 140, reinterpret_cast<std::uintptr_t>(&tl__access), ExportSupport::Full},
+        {"strcpy_s", 141, reinterpret_cast<std::uintptr_t>(&tl_strcpy_s), ExportSupport::Full},
+        {"strcat_s", 142, reinterpret_cast<std::uintptr_t>(&tl_strcat_s), ExportSupport::Full},
+        {"__stdio_common_vsprintf", 143, reinterpret_cast<std::uintptr_t>(&tl___stdio_common_vsprintf), ExportSupport::Full},
+        {"__stdio_common_vsprintf_s", 144, reinterpret_cast<std::uintptr_t>(&tl___stdio_common_vsprintf_s), ExportSupport::Full},
+        {"__stdio_common_vsscanf", 145, reinterpret_cast<std::uintptr_t>(&tl___stdio_common_vsscanf), ExportSupport::Full},
+        {"_set_app_type", 146, reinterpret_cast<std::uintptr_t>(&tl___set_app_type), ExportSupport::Full},
     };
     static const InternalModule kMsvcrtModule{"msvcrt.dll", kMsvcrtExports};
     register_module(kMsvcrtModule);

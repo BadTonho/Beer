@@ -158,10 +158,46 @@ TL_CRT_MSABI int tl_wcscmp(const std::uint16_t* string1, const std::uint16_t* st
 TL_CRT_MSABI std::uint16_t* tl_wcsstr(const std::uint16_t* string, const std::uint16_t* str_char_set) noexcept;
 TL_CRT_MSABI int tl___CxxFrameHandler(void* rec, void* frame, void* context, void* disp) noexcept;
 TL_CRT_MSABI int tl___CxxFrameHandler3(void* rec, void* frame, void* context, void* disp) noexcept;
+TL_CRT_MSABI int tl___CxxFrameHandler4(void* rec, void* frame, void* context, void* disp) noexcept;
 TL_CRT_MSABI int tl___GSHandlerCheck_EH4(void* rec, void* frame, void* context, void* disp) noexcept;
 TL_CRT_MSABI void tl__CxxThrowException(void* pexcept, void* pthrow_info) noexcept;
 TL_CRT_MSABI void tl__purecall() noexcept;
 TL_CRT_MSABI void tl_terminate() noexcept;
+TL_CRT_MSABI void tl___std_terminate() noexcept;
+struct GuestStdExceptionData {
+    const char* what{nullptr};
+    bool do_free{false};
+};
+TL_CRT_MSABI void tl___std_exception_copy(const GuestStdExceptionData* src, GuestStdExceptionData* dst) noexcept;
+TL_CRT_MSABI void tl___std_exception_destroy(GuestStdExceptionData* data) noexcept;
+TL_CRT_MSABI void** tl___current_exception() noexcept;
+TL_CRT_MSABI void** tl___current_exception_context() noexcept;
+TL_CRT_MSABI void tl__invalid_parameter_noinfo() noexcept;
+TL_CRT_MSABI void tl__invalid_parameter_noinfo_noreturn() noexcept;
+TL_CRT_MSABI int tl__initialize_narrow_environment() noexcept;
+TL_CRT_MSABI int tl__configure_narrow_argv(int mode) noexcept;
+TL_CRT_MSABI char* tl__get_narrow_winmain_command_line() noexcept;
+TL_CRT_MSABI int tl__initialize_onexit_table(void* table) noexcept;
+TL_CRT_MSABI int tl__register_onexit_function(void* table, void* function) noexcept;
+TL_CRT_MSABI int tl__crt_atexit(void (*function)(void)) noexcept;
+TL_CRT_MSABI int tl__seh_filter_exe(unsigned long xcpt, void* pinfo) noexcept;
+TL_CRT_MSABI int tl__initterm_e(int (**start)(void), int (**end)(void)) noexcept;
+TL_CRT_MSABI void tl__register_thread_local_exe_atexit_callback(void* callback) noexcept;
+TL_CRT_MSABI int* tl___p__commode() noexcept;
+TL_CRT_MSABI int tl__set_fmode(int mode) noexcept;
+TL_CRT_MSABI int tl__set_new_mode(int mode) noexcept;
+TL_CRT_MSABI int tl__setmbcp(int codepage) noexcept;
+TL_CRT_MSABI int tl__configthreadlocale(int flag) noexcept;
+TL_CRT_MSABI int tl__access(const char* path, int mode) noexcept;
+TL_CRT_MSABI void* tl_memchr(const void* ptr, int ch, std::size_t count) noexcept;
+TL_CRT_MSABI int tl_strcpy_s(char* dest, std::size_t destsz, const char* src) noexcept;
+TL_CRT_MSABI int tl_strcat_s(char* dest, std::size_t destsz, const char* src) noexcept;
+TL_CRT_MSABI int tl___stdio_common_vsprintf(std::uint64_t options, char* buffer, std::size_t buffer_count,
+                                           const char* format, void* locale, GuestVaList arguments) noexcept;
+TL_CRT_MSABI int tl___stdio_common_vsprintf_s(std::uint64_t options, char* buffer, std::size_t buffer_count,
+                                             const char* format, void* locale, GuestVaList arguments) noexcept;
+TL_CRT_MSABI int tl___stdio_common_vsscanf(std::uint64_t options, const char* input, std::size_t length,
+                                          const char* format, void* locale, GuestVaList arguments) noexcept;
 TL_CRT_MSABI int tl_rand() noexcept;
 TL_CRT_MSABI void tl_srand(unsigned int seed) noexcept;
 
