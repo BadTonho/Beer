@@ -134,6 +134,9 @@ TL_MSABI void* tl_CreateDCA(const char* driver, const char* device, const char* 
 TL_MSABI int tl_GetTextFaceW(void* hdc, int count, std::uint16_t* face_name) noexcept;
 TL_MSABI int tl_TextOutW(const void* dc, int x, int y, const std::uint16_t* text, int length) noexcept;
 TL_MSABI int tl_GetMapMode(void* hdc) noexcept;
+TL_MSABI int tl_ChoosePixelFormat(const void* dc, const void* pfd) noexcept;
+TL_MSABI int tl_SetPixelFormat(const void* dc, int format, const void* pfd) noexcept;
+TL_MSABI int tl_SwapBuffers(const void* dc) noexcept;
 
 }  // extern "C"
 }  // namespace tradutorlinux

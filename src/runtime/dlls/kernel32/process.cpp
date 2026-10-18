@@ -250,6 +250,20 @@ TL_MSABI void* tl_GetCurrentProcess() noexcept {
     return reinterpret_cast<void*>(static_cast<std::uintptr_t>(-1));
 }
 
+TL_MSABI int tl_IsWow64Process(const void* const process, int* const wow64_process) noexcept {
+    (void)process;
+    if (wow64_process == nullptr) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    if (!write_guest_value(wow64_process, 0)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 TL_MSABI void* tl_OpenProcess(std::uint32_t desired_access, int inherit_handle, std::uint32_t process_id) noexcept {
     (void)desired_access;
     (void)inherit_handle;

@@ -281,6 +281,23 @@ TL_MSABI std::uint32_t tl_WaitForMultipleObjects(std::uint32_t count, const void
 TL_MSABI std::uint32_t tl_GetCurrentThreadId() noexcept;
 TL_MSABI std::uint32_t tl_GetCurrentProcessId() noexcept;
 TL_MSABI void* tl_GetCurrentProcess() noexcept;
+TL_MSABI int tl_IsWow64Process(const void* process, int* wow64_process) noexcept;
+TL_MSABI int tl_GetNamedPipeInfo(const void* named_pipe, std::uint32_t* flags,
+                                 std::uint32_t* out_buffer_size,
+                                 std::uint32_t* in_buffer_size,
+                                 std::uint32_t* max_instances) noexcept;
+TL_MSABI void* tl_CreateIoCompletionPort(const void* file_handle, void* existing_completion_port,
+                                         std::uintptr_t completion_key,
+                                         std::uint32_t number_of_concurrent_threads) noexcept;
+TL_MSABI int tl_GetQueuedCompletionStatus(void* completion_port,
+                                          std::uint32_t* number_of_bytes_transferred,
+                                          std::uintptr_t* completion_key,
+                                          void** overlapped,
+                                          std::uint32_t milliseconds) noexcept;
+TL_MSABI int tl_PostQueuedCompletionStatus(void* completion_port,
+                                           std::uint32_t number_of_bytes_transferred,
+                                           std::uintptr_t completion_key,
+                                           const void* overlapped) noexcept;
 TL_MSABI std::uint32_t tl_TlsAlloc() noexcept;
 TL_MSABI int tl_TlsSetValue(std::uint32_t tls_index, void* tls_value) noexcept;
 TL_MSABI int tl_TlsFree(std::uint32_t tls_index) noexcept;

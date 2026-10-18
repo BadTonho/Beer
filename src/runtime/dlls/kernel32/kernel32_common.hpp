@@ -21,6 +21,8 @@ using runtime::errno_to_win32;
 
 inline void* const kInvalidHandleValue = reinterpret_cast<void*>(~static_cast<std::uintptr_t>(0));
 
+bool close_iocp_handle(const void* handle) noexcept;
+
 inline void trace_process_console(const char* const event, const char* const operation,
                                   const std::string& detail) noexcept {
     const std::array<diagnostics::TraceField, 4> fields{

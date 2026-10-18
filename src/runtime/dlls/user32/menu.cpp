@@ -831,6 +831,15 @@ TL_MSABI int tl_ModifyMenuW(void* const hMnu, const std::uint32_t uPosition, con
     return 1;
 }
 
+TL_MSABI int tl_ModifyMenuA(void* const hMnu, const std::uint32_t uPosition, const std::uint32_t uFlags, const std::uintptr_t uIDNewItem, const char* const lpNewItem) noexcept {
+    (void)hMnu;
+    (void)uPosition;
+    (void)uFlags;
+    (void)uIDNewItem;
+    (void)lpNewItem;
+    return 1;
+}
+
 TL_MSABI int tl_GetMenuBarInfo(void* const hwnd, const std::int32_t idObject, const std::int32_t idItem, void* const pmbi) noexcept {
     (void)hwnd;
     (void)idObject;

@@ -350,6 +350,7 @@ TL_MSABI int tl_IsCharLowerW(wchar_t ch) noexcept;
 TL_MSABI int tl_IsCharAlphaNumericW(wchar_t ch) noexcept;
 TL_MSABI int tl_IsCharAlphaW(wchar_t ch) noexcept;
 TL_MSABI int tl_ModifyMenuW(void* hMnu, std::uint32_t uPosition, std::uint32_t uFlags, std::uintptr_t uIDNewItem, const wchar_t* lpNewItem) noexcept;
+TL_MSABI int tl_ModifyMenuA(void* hMnu, std::uint32_t uPosition, std::uint32_t uFlags, std::uintptr_t uIDNewItem, const char* lpNewItem) noexcept;
 TL_MSABI int tl_InflateRect(void* lprc, int dx, int dy) noexcept;
 TL_MSABI int tl_IntersectRect(void* lprcDst, const void* lprcSrc1, const void* lprcSrc2) noexcept;
 TL_MSABI int tl_SetRectEmpty(void* lprc) noexcept;

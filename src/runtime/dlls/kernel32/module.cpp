@@ -487,6 +487,11 @@ void register_kernel32_module() {
         {"GetPrivateProfileSectionNamesW", 477, reinterpret_cast<std::uintptr_t>(&tl_GetPrivateProfileSectionNamesW), ExportSupport::Full},
         {"GetThreadPreferredUILanguages", 478, reinterpret_cast<std::uintptr_t>(&tl_GetThreadPreferredUILanguages), ExportSupport::Full},
         {"SetThreadPreferredUILanguages", 479, reinterpret_cast<std::uintptr_t>(&tl_SetThreadPreferredUILanguages), ExportSupport::Full},
+        {"IsWow64Process", 480, reinterpret_cast<std::uintptr_t>(&tl_IsWow64Process), ExportSupport::Full},
+        {"GetNamedPipeInfo", 481, reinterpret_cast<std::uintptr_t>(&tl_GetNamedPipeInfo), ExportSupport::Full},
+        {"CreateIoCompletionPort", 482, reinterpret_cast<std::uintptr_t>(&tl_CreateIoCompletionPort), ExportSupport::Full},
+        {"GetQueuedCompletionStatus", 483, reinterpret_cast<std::uintptr_t>(&tl_GetQueuedCompletionStatus), ExportSupport::Full},
+        {"PostQueuedCompletionStatus", 484, reinterpret_cast<std::uintptr_t>(&tl_PostQueuedCompletionStatus), ExportSupport::Full},
     };
     static const InternalModule kKernel32Module{"KERNEL32.dll", kKernel32Exports};
     register_module(kKernel32Module);

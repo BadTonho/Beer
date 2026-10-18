@@ -156,6 +156,8 @@ TL_ADVAPI_MSABI int tl_QueryServiceStatusEx(void* service, std::uint32_t info_le
 TL_ADVAPI_MSABI int tl_QueryServiceConfigW(void* service, void* service_config, std::uint32_t buf_size, std::uint32_t* bytes_needed) noexcept;
 TL_ADVAPI_MSABI void* tl_RegisterServiceCtrlHandlerW(const std::uint16_t* service_name, void* handler_proc) noexcept;
 TL_ADVAPI_MSABI int tl_StartServiceCtrlDispatcherW(const void* service_table) noexcept;
+TL_ADVAPI_MSABI int tl_ImpersonateNamedPipeClient(void* named_pipe) noexcept;
+TL_ADVAPI_MSABI int tl_RevertToSelf() noexcept;
 
 }  // extern "C"
 

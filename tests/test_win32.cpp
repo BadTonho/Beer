@@ -3280,5 +3280,63 @@ TEST(Win32BackupTest, BackupReadAndSeekBehaveCorrectly) {
     EXPECT_EQ(tl_GetLastError(), abi::kErrorNotSupported);
 }
 
+TEST(Win32ProcessTest, IsWow64ProcessReturnsFalseFor64Bit) {
+    int wow64 = 1;
+    EXPECT_EQ(tl_IsWow64Process(tl_GetCurrentProcess(), &wow64), 1);
+    EXPECT_EQ(wow64, 0);
+    EXPECT_EQ(tl_IsWow64Process(tl_GetCurrentProcess(), nullptr), 0);
+}
+
+TEST(Win32PipeTest, GetNamedPipeInfoAndImpersonatePipe) {
+    std::uint32_t flags = 99;
+    std::uint32_t out_buf = 0;
+    std::uint32_t in_buf = 0;
+    std::uint32_t max_inst = 0;
+    EXPECT_EQ(tl_GetNamedPipeInfo(nullptr, &flags, &out_buf, &in_buf, &max_inst), 1);
+    EXPECT_EQ(flags, 0U);
+    EXPECT_EQ(out_buf, 4096U);
+    EXPECT_EQ(in_buf, 4096U);
+    EXPECT_EQ(max_inst, 255U);
+
+    EXPECT_EQ(tl_ImpersonateNamedPipeClient(nullptr), 1);
+    EXPECT_EQ(tl_RevertToSelf(), 1);
+}
+
+TEST(Win32IocpTest, CreatePostAndGetQueuedCompletionStatus) {
+    void* iocp = tl_CreateIoCompletionPort(nullptr, nullptr, 0, 0);
+    ASSERT_NE(iocp, nullptr);
+
+    // Post a packet
+    const std::uint32_t bytes = 1024;
+    const std::uintptr_t key = 0xDEADBEEF;
+    void* const ov = reinterpret_cast<void*>(0xCAFE);
+    EXPECT_EQ(tl_PostQueuedCompletionStatus(iocp, bytes, key, ov), 1);
+
+    // Retrieve the packet
+    std::uint32_t out_bytes = 0;
+    std::uintptr_t out_key = 0;
+    void* out_ov = nullptr;
+    EXPECT_EQ(tl_GetQueuedCompletionStatus(iocp, &out_bytes, &out_key, &out_ov, 100), 1);
+    EXPECT_EQ(out_bytes, bytes);
+    EXPECT_EQ(out_key, key);
+    EXPECT_EQ(out_ov, ov);
+
+    // Queue empty, wait with 0 timeout should fail with WAIT_TIMEOUT
+    EXPECT_EQ(tl_GetQueuedCompletionStatus(iocp, &out_bytes, &out_key, &out_ov, 0), 0);
+    EXPECT_EQ(tl_GetLastError(), 258U);
+
+    EXPECT_EQ(tl_CloseHandle(iocp), 1);
+}
+
+TEST(Win32GdiPixelFormatTest, ChooseSetAndSwapBuffers) {
+    EXPECT_EQ(tl_ChoosePixelFormat(nullptr, nullptr), 1);
+    EXPECT_EQ(tl_SetPixelFormat(nullptr, 1, nullptr), 1);
+    EXPECT_EQ(tl_SwapBuffers(nullptr), 1);
+}
+
+TEST(Win32UserMenuTest, ModifyMenuAWorks) {
+    EXPECT_EQ(tl_ModifyMenuA(nullptr, 0, 0, 0, "Test"), 1);
+}
+
 }  // namespace
 }  // namespace tradutorlinux

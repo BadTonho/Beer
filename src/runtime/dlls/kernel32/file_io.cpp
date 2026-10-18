@@ -396,6 +396,10 @@ TL_MSABI int tl_CloseHandle(const void* const handle) noexcept {
         set_last_error(abi::kErrorSuccess);
         return 1;
     }
+    if (close_iocp_handle(handle)) {
+        set_last_error(abi::kErrorSuccess);
+        return 1;
+    }
     {
         std::lock_guard<std::mutex> lock(g_mapping_mutex);
         if (FileMappingSlot* slot = find_file_mapping_slot_locked(handle); slot != nullptr) {

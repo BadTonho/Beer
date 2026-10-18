@@ -38,6 +38,7 @@ enum class HandleObjectType : std::uint8_t {
     Find,
     Snapshot,
     Resource,
+    IoCompletionPort,
 };
 
 struct ObjectHeader {

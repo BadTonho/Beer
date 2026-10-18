@@ -294,6 +294,7 @@ void register_user32_module() {
         {"IsCharAlphaNumericW", 284, reinterpret_cast<std::uintptr_t>(&tl_IsCharAlphaNumericW), ExportSupport::Full},
         {"IsCharAlphaW", 285, reinterpret_cast<std::uintptr_t>(&tl_IsCharAlphaW), ExportSupport::Full},
         {"ModifyMenuW", 286, reinterpret_cast<std::uintptr_t>(&tl_ModifyMenuW), ExportSupport::Full},
+        {"ModifyMenuA", 350, reinterpret_cast<std::uintptr_t>(&tl_ModifyMenuA), ExportSupport::Full},
         {"InflateRect", 287, reinterpret_cast<std::uintptr_t>(&tl_InflateRect), ExportSupport::Full},
         {"IntersectRect", 288, reinterpret_cast<std::uintptr_t>(&tl_IntersectRect), ExportSupport::Full},
         {"SetRectEmpty", 289, reinterpret_cast<std::uintptr_t>(&tl_SetRectEmpty), ExportSupport::Full},

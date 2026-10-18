@@ -2,13 +2,44 @@
 #include "../../core/runtime_handle_state.hpp"
 #include "../../core/runtime_thread_state.hpp"
 
+#include <chrono>
 #include <cstring>
+#include <deque>
 #include <shared_mutex>
 #include <string>
 
 namespace tradutorlinux {
 
 namespace {
+
+constexpr std::uintptr_t kIocpHandleBase = 0x0000750000000000ULL;
+
+struct IoCompletionPacket {
+    std::uint32_t bytes_transferred{0};
+    std::uintptr_t completion_key{0};
+    void* overlapped{nullptr};
+};
+
+struct IoCompletionPortSlot {
+    runtime::ObjectHeader header{runtime::HandleObjectType::IoCompletionPort, 1};
+    bool used{false};
+    std::mutex mutex;
+    std::condition_variable cv;
+    std::deque<IoCompletionPacket> queue;
+};
+
+std::array<IoCompletionPortSlot, 64> g_iocp_slots;
+std::mutex g_iocp_mutex;
+
+[[nodiscard]] IoCompletionPortSlot* find_iocp_slot(const void* handle) noexcept {
+    const auto addr = reinterpret_cast<std::uintptr_t>(handle);
+    if (addr < kIocpHandleBase || addr >= kIocpHandleBase + g_iocp_slots.size()) {
+        return nullptr;
+    }
+    const auto index = static_cast<std::size_t>(addr - kIocpHandleBase);
+    IoCompletionPortSlot& slot = g_iocp_slots[index];
+    return slot.used ? &slot : nullptr;
+}
 
 [[nodiscard]] bool sync_is_signaled(SyncSlot& slot) noexcept {
     if (slot.kind == SyncKind::Event) {
@@ -918,5 +949,130 @@ TL_MSABI int tl_InitOnceComplete(void* const init_once, const std::uint32_t flag
     return 1;
 }
 
+TL_MSABI void* tl_CreateIoCompletionPort(const void* const file_handle, void* const existing_completion_port,
+                                         const std::uintptr_t completion_key,
+                                         const std::uint32_t number_of_concurrent_threads) noexcept {
+    (void)file_handle;
+    (void)completion_key;
+    (void)number_of_concurrent_threads;
+
+    if (existing_completion_port != nullptr) {
+        IoCompletionPortSlot* slot = find_iocp_slot(existing_completion_port);
+        if (slot == nullptr) {
+            set_last_error(abi::kErrorInvalidHandle);
+            return nullptr;
+        }
+        set_last_error(abi::kErrorSuccess);
+        return existing_completion_port;
+    }
+
+    std::lock_guard<std::mutex> lock(g_iocp_mutex);
+    for (std::size_t i = 0; i < g_iocp_slots.size(); ++i) {
+        if (!g_iocp_slots[i].used) {
+            g_iocp_slots[i].used = true;
+            g_iocp_slots[i].header = {runtime::HandleObjectType::IoCompletionPort, 1};
+            g_iocp_slots[i].queue.clear();
+            set_last_error(abi::kErrorSuccess);
+            return reinterpret_cast<void*>(kIocpHandleBase + i);
+        }
+    }
+
+    set_last_error(abi::kErrorNotEnoughMemory);
+    return nullptr;
+}
+
+TL_MSABI int tl_PostQueuedCompletionStatus(void* const completion_port,
+                                           const std::uint32_t number_of_bytes_transferred,
+                                           const std::uintptr_t completion_key,
+                                           const void* const overlapped) noexcept {
+    IoCompletionPortSlot* slot = find_iocp_slot(completion_port);
+    if (slot == nullptr) {
+        set_last_error(abi::kErrorInvalidHandle);
+        return 0;
+    }
+    {
+        std::lock_guard<std::mutex> lock(slot->mutex);
+        slot->queue.push_back(IoCompletionPacket{
+            number_of_bytes_transferred,
+            completion_key,
+            const_cast<void*>(overlapped)
+        });
+    }
+    slot->cv.notify_one();
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI int tl_GetQueuedCompletionStatus(void* const completion_port,
+                                          std::uint32_t* const number_of_bytes_transferred,
+                                          std::uintptr_t* const completion_key,
+                                          void** const overlapped,
+                                          const std::uint32_t milliseconds) noexcept {
+    IoCompletionPortSlot* slot = find_iocp_slot(completion_port);
+    if (slot == nullptr) {
+        set_last_error(abi::kErrorInvalidHandle);
+        return 0;
+    }
+
+    std::unique_lock<std::mutex> lock(slot->mutex);
+    auto predicate = [&slot]() { return !slot->queue.empty(); };
+
+    if (milliseconds == 0) {
+        if (!predicate()) {
+            set_last_error(258 /* WAIT_TIMEOUT */);
+            return 0;
+        }
+    } else if (milliseconds == 0xFFFFFFFFU /* INFINITE */) {
+        slot->cv.wait(lock, predicate);
+    } else {
+        if (!slot->cv.wait_for(lock, std::chrono::milliseconds(milliseconds), predicate)) {
+            set_last_error(258 /* WAIT_TIMEOUT */);
+            return 0;
+        }
+    }
+
+    if (slot->queue.empty()) {
+        set_last_error(258 /* WAIT_TIMEOUT */);
+        return 0;
+    }
+
+    IoCompletionPacket packet = slot->queue.front();
+    slot->queue.pop_front();
+    lock.unlock();
+
+    if (number_of_bytes_transferred != nullptr) {
+        static_cast<void>(write_guest_value(number_of_bytes_transferred, packet.bytes_transferred));
+    }
+    if (completion_key != nullptr) {
+        static_cast<void>(write_guest_value(completion_key, packet.completion_key));
+    }
+    if (overlapped != nullptr) {
+        static_cast<void>(write_guest_value(overlapped, packet.overlapped));
+    }
+
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 }  // extern "C"
+
+bool close_iocp_handle(const void* handle) noexcept {
+    const auto addr = reinterpret_cast<std::uintptr_t>(handle);
+    if (addr < kIocpHandleBase || addr >= kIocpHandleBase + g_iocp_slots.size()) {
+        return false;
+    }
+    const auto index = static_cast<std::size_t>(addr - kIocpHandleBase);
+    std::lock_guard<std::mutex> lock(g_iocp_mutex);
+    if (!g_iocp_slots[index].used) {
+        return false;
+    }
+    {
+        std::lock_guard<std::mutex> slot_lock(g_iocp_slots[index].mutex);
+        g_iocp_slots[index].queue.clear();
+        g_iocp_slots[index].used = false;
+    }
+    g_iocp_slots[index].cv.notify_all();
+    return true;
+}
+
 }  // namespace tradutorlinux

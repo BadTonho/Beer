@@ -1717,6 +1717,24 @@ TL_MSABI void* tl_CreateBitmapIndirect(const void* const pbm) noexcept {
     return &g_bitmap_token_indirect;
 }
 
+TL_MSABI int tl_ChoosePixelFormat(const void* const dc, const void* const pfd) noexcept {
+    (void)dc;
+    (void)pfd;
+    return 1;
+}
+
+TL_MSABI int tl_SetPixelFormat(const void* const dc, const int format, const void* const pfd) noexcept {
+    (void)dc;
+    (void)format;
+    (void)pfd;
+    return 1;
+}
+
+TL_MSABI int tl_SwapBuffers(const void* const dc) noexcept {
+    (void)dc;
+    return 1;
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux
 
@@ -1848,6 +1866,9 @@ void register_gdi32_module() {
         {"GetNearestColor", 122, reinterpret_cast<std::uintptr_t>(&tl_GetNearestColor), ExportSupport::Full},
         {"RectVisible", 123, reinterpret_cast<std::uintptr_t>(&tl_RectVisible), ExportSupport::Full},
         {"CreateBitmapIndirect", 124, reinterpret_cast<std::uintptr_t>(&tl_CreateBitmapIndirect), ExportSupport::Full},
+        {"ChoosePixelFormat", 125, reinterpret_cast<std::uintptr_t>(&tl_ChoosePixelFormat), ExportSupport::Full},
+        {"SetPixelFormat", 126, reinterpret_cast<std::uintptr_t>(&tl_SetPixelFormat), ExportSupport::Full},
+        {"SwapBuffers", 127, reinterpret_cast<std::uintptr_t>(&tl_SwapBuffers), ExportSupport::Full},
     };
     static const InternalModule kGdi32Module{"GDI32.dll", kGdi32Exports};
     register_module(kGdi32Module);

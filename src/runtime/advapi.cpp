@@ -1660,6 +1660,17 @@ TL_ADVAPI_MSABI int tl_StartServiceCtrlDispatcherW(const void* const service_tab
     return 0;
 }
 
+TL_ADVAPI_MSABI int tl_ImpersonateNamedPipeClient(void* const named_pipe) noexcept {
+    (void)named_pipe;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_ADVAPI_MSABI int tl_RevertToSelf() noexcept {
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 }  // namespace tradutorlinux
 
 namespace tradutorlinux::loader {
@@ -1764,6 +1775,8 @@ void register_advapi32_module() {
         {"RegisterServiceCtrlHandlerW", 96, reinterpret_cast<std::uintptr_t>(&tl_RegisterServiceCtrlHandlerW), ExportSupport::Full},
         {"StartServiceCtrlDispatcherW", 97, reinterpret_cast<std::uintptr_t>(&tl_StartServiceCtrlDispatcherW), ExportSupport::Full},
         {"InitializeAcl", 98, reinterpret_cast<std::uintptr_t>(&tl_InitializeAcl), ExportSupport::Full},
+        {"ImpersonateNamedPipeClient", 99, reinterpret_cast<std::uintptr_t>(&tl_ImpersonateNamedPipeClient), ExportSupport::Full},
+        {"RevertToSelf", 100, reinterpret_cast<std::uintptr_t>(&tl_RevertToSelf), ExportSupport::Full},
     };
     static const InternalModule kAdvapi32Module{"ADVAPI32.dll", kAdvapi32Exports};
     register_module(kAdvapi32Module);

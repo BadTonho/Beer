@@ -1867,6 +1867,7 @@ void register_winapi_stubs_module() {
     register_module(kD3d12Module);
     static const ExportedFunction kDxgiExports[] = {
         {"CreateDXGIFactory1", 1, reinterpret_cast<std::uintptr_t>(&tl_CreateDXGIFactory1), ExportSupport::Stub},
+        {"CreateDXGIFactory2", 2, reinterpret_cast<std::uintptr_t>(&tl_CreateDXGIFactory1), ExportSupport::Stub},
     };
     static const InternalModule kDxgiModule{"dxgi.dll", kDxgiExports};
     register_module(kDxgiModule);
