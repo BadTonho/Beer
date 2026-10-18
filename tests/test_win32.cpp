@@ -3369,5 +3369,102 @@ TEST(Win32UserMenuTest, ModifyMenuAWorks) {
     EXPECT_EQ(tl_ModifyMenuA(nullptr, 0, 0, 0, "Test"), 1);
 }
 
+// ------------------------------------------------------------------
+// Threadpool: submissão inline de callbacks do convidado (auditoria A3)
+// ------------------------------------------------------------------
+
+std::atomic<int> g_tp_cb_calls{0};
+
+TL_MSABI void win32_tp_test_callback(void* instance, void* context, void* overlapped) noexcept {
+    (void)instance;
+    (void)overlapped;
+    ++g_tp_cb_calls;
+    if (context != nullptr) {
+        *static_cast<int*>(context) = 42;
+    }
+}
+
+// O runtime só aceita callbacks do convidado dentro da imagem registrada
+// (guest_executable_address exige intervalo da imagem + página RX). O teste
+// registra a própria função de teste como imagem e restaura no fim.
+struct TpGuestImageScope final {
+    explicit TpGuestImageScope(const void* base) noexcept {
+        set_guest_image_view(base, 4096, 0, 0);
+    }
+    TpGuestImageScope(const TpGuestImageScope&) = delete;
+    TpGuestImageScope& operator=(const TpGuestImageScope&) = delete;
+    ~TpGuestImageScope() { set_guest_image_view(nullptr, 0, 0, 0); }
+};
+
+TEST(Win32ThreadpoolTest, SubmitWorkExecutesCallbackSynchronously) {
+    g_tp_cb_calls = 0;
+    int marker = 0;
+    TpGuestImageScope image_scope(reinterpret_cast<const void*>(&win32_tp_test_callback));
+    void* work = tl_CreateThreadpoolWork(reinterpret_cast<void*>(&win32_tp_test_callback),
+                                         &marker, nullptr);
+    ASSERT_NE(work, nullptr);
+    tl_SubmitThreadpoolWork(work);
+    // Submissão inline: o callback roda antes do retorno da chamada.
+    EXPECT_EQ(g_tp_cb_calls.load(), 1);
+    EXPECT_EQ(marker, 42);
+    tl_CloseThreadpoolWork(work);
+}
+
+TEST(Win32ThreadpoolTest, CreateWorkRejectsNonExecutableCallback) {
+    int local = 0;
+    // Sem imagem registrada, qualquer endereço é rejeitado na criação.
+    EXPECT_EQ(tl_CreateThreadpoolWork(&local, nullptr, nullptr), nullptr);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
+    TpGuestImageScope image_scope(reinterpret_cast<const void*>(&local));
+    EXPECT_EQ(tl_CreateThreadpoolWork(&local, nullptr, nullptr), nullptr);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
+    EXPECT_EQ(tl_CreateThreadpoolWork(nullptr, nullptr, nullptr), nullptr);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
+}
+
+TEST(Win32ThreadpoolTest, SubmitWorkWithForeignSlotDoesNotExecute) {
+    g_tp_cb_calls = 0;
+    int local_work_slot = 0;
+    tl_SubmitThreadpoolWork(&local_work_slot);
+    EXPECT_EQ(g_tp_cb_calls.load(), 0);
+}
+
+TEST(Win32ThreadpoolTest, TimerDueNowFiresInlineOnce) {
+    g_tp_cb_calls = 0;
+    TpGuestImageScope image_scope(reinterpret_cast<const void*>(&win32_tp_test_callback));
+    void* timer = tl_CreateThreadpoolTimer(reinterpret_cast<void*>(&win32_tp_test_callback),
+                                           nullptr, nullptr);
+    ASSERT_NE(timer, nullptr);
+    // FILETIME relativo -1 == vencimento imediato.
+    const std::uint64_t due = static_cast<std::uint64_t>(static_cast<std::int64_t>(-1));
+    tl_SetThreadpoolTimer(timer, &due, 0, 0);
+    EXPECT_EQ(g_tp_cb_calls.load(), 1);
+    tl_CloseThreadpoolTimer(timer);
+}
+
+TEST(Win32ThreadpoolTest, TimerNullDueCancelsWithoutFiring) {
+    g_tp_cb_calls = 0;
+    TpGuestImageScope image_scope(reinterpret_cast<const void*>(&win32_tp_test_callback));
+    void* timer = tl_CreateThreadpoolTimer(reinterpret_cast<void*>(&win32_tp_test_callback),
+                                           nullptr, nullptr);
+    ASSERT_NE(timer, nullptr);
+    tl_SetThreadpoolTimer(timer, nullptr, 0, 0);
+    EXPECT_EQ(g_tp_cb_calls.load(), 0);
+    tl_CloseThreadpoolTimer(timer);
+}
+
+TEST(Win32ThreadpoolTest, TimerInvalidDuePointerTraceable) {
+    g_tp_cb_calls = 0;
+    TpGuestImageScope image_scope(reinterpret_cast<const void*>(&win32_tp_test_callback));
+    void* timer = tl_CreateThreadpoolTimer(reinterpret_cast<void*>(&win32_tp_test_callback),
+                                           nullptr, nullptr);
+    ASSERT_NE(timer, nullptr);
+    // Ponteiro ilegível do convidado: leitura controlada, sem desreferência.
+    const void* bad_due = reinterpret_cast<const void*>(static_cast<std::uintptr_t>(1));
+    tl_SetThreadpoolTimer(timer, bad_due, 0, 0);
+    EXPECT_EQ(g_tp_cb_calls.load(), 0);
+    tl_CloseThreadpoolTimer(timer);
+}
+
 }  // namespace
 }  // namespace tradutorlinux

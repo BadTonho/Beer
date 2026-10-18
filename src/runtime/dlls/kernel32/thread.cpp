@@ -1,5 +1,6 @@
 #include "kernel32_thread_internal.hpp"
 
+#include <chrono>
 #include <cstring>
 namespace tradutorlinux {
 
@@ -103,6 +104,7 @@ struct InternalTpWork {
     void* context{nullptr};
 };
 std::array<InternalTpWork, 32> g_tp_works{};
+std::mutex g_tp_works_mutex;
 
 struct InternalTpTimer {
     bool used{false};
@@ -110,6 +112,26 @@ struct InternalTpTimer {
     void* context{nullptr};
 };
 std::array<InternalTpTimer, 32> g_tp_timers{};
+std::mutex g_tp_timers_mutex;
+
+// O callback do threadpool é código do convidado (Microsoft x64). Ele só pode
+// ser executado com a ABI correta (TL_MSABI) e, no runtime real, a thread
+// chamadora já possui TEB/GS/unwind view do convidado. Spawar uma
+// std::thread nativa sem esse contexto trocava os registradores de argumentos
+// (ABI SysV) e dava SIGSEGV em qualquer acesso gs-relative (auditoria
+// 2026-10-18, achado A3). Por isso o despachante roda inline na thread
+// chamadora e valida a origem executável do callback.
+bool run_threadpool_callback_validated(const char* api, void* callback,
+                                       void* context) noexcept {
+    const std::uintptr_t address = reinterpret_cast<std::uintptr_t>(callback);
+    if (!is_guest_executable_address(address)) {
+        trace_guest_failure(api, "callback", "callback fora de página executável");
+        return false;
+    }
+    using PoolCallbackFn = void (TL_MSABI (*)(void*, void*, void*));
+    reinterpret_cast<PoolCallbackFn>(callback)(nullptr, context, nullptr);
+    return true;
+}
 
 thread_local void* g_current_fiber_data = nullptr;
 
@@ -481,67 +503,170 @@ TL_MSABI std::uint32_t tl_RemoveVectoredExceptionHandler(void* handle) noexcept 
 
 TL_MSABI void* tl_CreateThreadpoolWork(void* callback, void* context, void* environment) noexcept {
     (void)environment;
+    if (callback == nullptr) {
+        trace_guest_failure("CreateThreadpoolWork", "callback", "callback nulo");
+        set_last_error(abi::kErrorInvalidParameter);
+        return nullptr;
+    }
+    if (!is_guest_executable_address(reinterpret_cast<std::uintptr_t>(callback))) {
+        trace_guest_failure("CreateThreadpoolWork", "callback", "callback fora de página executável");
+        set_last_error(abi::kErrorInvalidParameter);
+        return nullptr;
+    }
+    std::lock_guard<std::mutex> lock(g_tp_works_mutex);
     for (auto& w : g_tp_works) {
         if (!w.used) {
             w.used = true;
             w.callback = callback;
             w.context = context;
+            set_last_error(abi::kErrorSuccess);
             return &w;
         }
     }
+    set_last_error(abi::kErrorNotEnoughMemory);
     return nullptr;
 }
 
 TL_MSABI void tl_SubmitThreadpoolWork(void* work) noexcept {
-    if (work == nullptr) return;
-    auto* w = static_cast<InternalTpWork*>(work);
-    if (!w->used || w->callback == nullptr) return;
-    std::thread([cb = w->callback, ctx = w->context]() {
-        using CallbackFn = void (*)(void*, void*, void*);
-        reinterpret_cast<CallbackFn>(cb)(nullptr, ctx, nullptr);
-    }).detach();
+    InternalTpWork* w = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(g_tp_works_mutex);
+        if (work == nullptr) {
+            return;
+        }
+        w = static_cast<InternalTpWork*>(work);
+        if (!w->used || w->callback == nullptr) {
+            trace_guest_failure("SubmitThreadpoolWork", "work", "slot inválido");
+            return;
+        }
+    }
+    trace_process_console("threadpool", "submit-work", "inline");
+    run_threadpool_callback_validated("SubmitThreadpoolWork", w->callback, w->context);
 }
 
 TL_MSABI void tl_WaitForThreadpoolWorkCallbacks(void* work, const int cancel_pending) noexcept {
     (void)work;
     (void)cancel_pending;
+    // Com submissão inline, os callbacks terminam antes do retorno de
+    // SubmitThreadpoolWork: a espera é trivialmente satisfeita e não há
+    // corrida com um worker detach() sobre o contexto do convidado.
+    trace_process_console("threadpool", "wait-work", "inline-submission");
 }
 
 TL_MSABI void tl_CloseThreadpoolWork(void* work) noexcept {
-    if (work != nullptr) {
-        static_cast<InternalTpWork*>(work)->used = false;
+    if (work == nullptr) {
+        return;
     }
+    std::lock_guard<std::mutex> lock(g_tp_works_mutex);
+    static_cast<InternalTpWork*>(work)->used = false;
 }
 
 TL_MSABI void* tl_CreateThreadpoolTimer(void* callback, void* context, void* environment) noexcept {
     (void)environment;
+    if (callback == nullptr) {
+        trace_guest_failure("CreateThreadpoolTimer", "callback", "callback nulo");
+        set_last_error(abi::kErrorInvalidParameter);
+        return nullptr;
+    }
+    if (!is_guest_executable_address(reinterpret_cast<std::uintptr_t>(callback))) {
+        trace_guest_failure("CreateThreadpoolTimer", "callback", "callback fora de página executável");
+        set_last_error(abi::kErrorInvalidParameter);
+        return nullptr;
+    }
+    std::lock_guard<std::mutex> lock(g_tp_timers_mutex);
     for (auto& t : g_tp_timers) {
         if (!t.used) {
             t.used = true;
             t.callback = callback;
             t.context = context;
+            set_last_error(abi::kErrorSuccess);
             return &t;
         }
     }
+    set_last_error(abi::kErrorNotEnoughMemory);
     return nullptr;
 }
 
-TL_MSABI void tl_SetThreadpoolTimer(void* timer, const void* due_time, const std::uint32_t period, const std::uint32_t window_length) noexcept {
-    (void)timer;
-    (void)due_time;
-    (void)period;
+TL_MSABI void tl_SetThreadpoolTimer(void* timer, const void* due_time, const std::uint32_t period,
+                                    const std::uint32_t window_length) noexcept {
     (void)window_length;
+    if (timer == nullptr) {
+        return;
+    }
+    if (due_time == nullptr) {
+        // Windows: due_time == nullptr cancela o agendamento pendente.
+        trace_process_console("threadpool", "set-timer", "cancel-requested");
+        return;
+    }
+    // due_time aponta para um FILETIME (64 bits) na memória do convidado;
+    // leitura pela primitiva do runtime, nunca desreferência direta.
+    std::uint64_t filetime{};
+    if (runtime::read_guest_memory(due_time, &filetime, sizeof(filetime)).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        trace_guest_failure("SetThreadpoolTimer", "due-time", "FILETIME ilegível no convidado");
+        return;
+    }
+    const auto signed_due = static_cast<std::int64_t>(filetime);
+    bool due_now = false;
+    if (signed_due < 0) {
+        // FILETIME relativo: delta = -valor (em tiques de 100 ns).
+        const auto delta_ticks = -signed_due;
+        due_now = delta_ticks <= 1000; // ~100 µs de tolerância.
+    } else {
+        // FILETIME absoluto: epoch Windows (1601) - epoch Unix (1970).
+        constexpr std::int64_t kWindowsEpochDiffTicks = 116444736000000000LL;
+        const int64_t unix_us =
+            static_cast<std::int64_t>(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::system_clock::now().time_since_epoch())
+                    .count());
+        const int64_t now_filetime = unix_us * 10 + kWindowsEpochDiffTicks;
+        due_now = signed_due <= now_filetime;
+    }
+    if (due_now) {
+        // Tempo relativo (negativo) ou zero: vencimento imediato. Dispara
+        // inline, uma vez. Repetição periódica (period > 0) exige scheduler
+        // de atendimento assíncrono e é registrada como limitação.
+        void* callback = nullptr;
+        void* context = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(g_tp_timers_mutex);
+            auto* t = static_cast<InternalTpTimer*>(timer);
+            if (!t->used) {
+                trace_guest_failure("SetThreadpoolTimer", "timer", "slot inválido");
+                return;
+            }
+            callback = t->callback;
+            context = t->context;
+        }
+        trace_process_console("threadpool", "set-timer", "due-now inline");
+        if (!run_threadpool_callback_validated("SetThreadpoolTimer", callback, context)) {
+            return;
+        }
+        if (period > 0) {
+            trace_process_console("threadpool", "timer-limitation",
+                                  "threadpool-timer-period-unsigned-unsupported");
+        }
+        return;
+    }
+    // Vencimento no futuro: sem worker de agendamento assíncrono, o runtime
+    // registra a limitação em vez de fingir o agendamento.
+    trace_process_console("threadpool", "timer-limitation",
+                          "threadpool-timer-async-unsupported");
 }
 
 TL_MSABI void tl_WaitForThreadpoolTimerCallbacks(void* timer, const int cancel_pending) noexcept {
     (void)timer;
     (void)cancel_pending;
+    trace_process_console("threadpool", "wait-timer", "inline-submission");
 }
 
 TL_MSABI void tl_CloseThreadpoolTimer(void* timer) noexcept {
-    if (timer != nullptr) {
-        static_cast<InternalTpTimer*>(timer)->used = false;
+    if (timer == nullptr) {
+        return;
     }
+    std::lock_guard<std::mutex> lock(g_tp_timers_mutex);
+    static_cast<InternalTpTimer*>(timer)->used = false;
 }
 
 TL_MSABI void* tl_ConvertThreadToFiber(void* parameter) noexcept {
