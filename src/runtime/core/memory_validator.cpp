@@ -32,6 +32,10 @@ struct MemoryRegion {
 
 std::shared_mutex g_map_mutex;
 std::vector<MemoryRegion> g_map_regions;
+// Auditoria 2026-10-18 (6.2): o fast path de ensure_cache_valid não pode
+// tocar g_map_regions sem o lock (rebuild em outra thread é UB formal).
+// Este flag é publicado sob o write lock e lido sem lock no fast path.
+std::atomic<bool> g_map_cache_populated{false};
 std::atomic<std::size_t> g_allocation_generation{1};
 std::atomic<std::size_t> g_cached_generation{0};
 
@@ -70,12 +74,14 @@ void rebuild_cache_locked() noexcept {
     }
     g_cached_generation.store(g_allocation_generation.load(std::memory_order_relaxed),
                               std::memory_order_release);
+    g_map_cache_populated.store(!g_map_regions.empty(), std::memory_order_release);
 }
 
 void ensure_cache_valid() noexcept {
+    // Auditoria 6.2: fast path sem tocar g_map_regions fora do lock.
     if (g_cached_generation.load(std::memory_order_acquire) ==
             g_allocation_generation.load(std::memory_order_acquire) &&
-        !g_map_regions.empty()) {
+        g_map_cache_populated.load(std::memory_order_acquire)) {
         return;
     }
     std::unique_lock<std::shared_mutex> write_lock(g_map_mutex);

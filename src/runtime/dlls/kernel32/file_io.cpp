@@ -632,6 +632,19 @@ TL_MSABI int tl_DuplicateHandle(void* const src_process, void* const src_handle,
         }
     }
     if (runtime::ObjectHeader* header = runtime::get_object_header(src_handle); header != nullptr) {
+        if (header->type == runtime::HandleObjectType::Find) {
+            // Auditoria 6.2: o ref_count dos slots de enumeração é
+            // incrementado sob a mesma trava do ciclo de vida que
+            // FindClose usa para decrementar.
+            std::lock_guard<std::recursive_mutex> lock(g_find_slots_mutex);
+            if (!write_guest_value(target_handle, const_cast<void*>(src_handle))) {
+                set_last_error(abi::kErrorInvalidParameter);
+                return 0;
+            }
+            ++header->ref_count;
+            set_last_error(abi::kErrorSuccess);
+            return 1;
+        }
         if (!write_guest_value(target_handle, const_cast<void*>(src_handle))) {
             set_last_error(abi::kErrorInvalidParameter);
             return 0;

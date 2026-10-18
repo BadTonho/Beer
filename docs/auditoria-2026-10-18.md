@@ -210,6 +210,10 @@ recebe "sucesso" onde não há implementação — violando a regra do projeto
 - **`g_tp_works`/`g_tp_timers` sem mutex** — ver A3/4.2.
 - **Escrita global TLS:** `g_guest_tls_slots[i]=value` (`thread.cpp:361`) —
   array compartilhado por todas as threads.
+  > **Errata (2026-10-18, varredura de correção):** falso positvo —
+  > `g_guest_tls_slots` é `thread_local` (`runtime_thread_state.hpp:50`,
+  > definido em `winapi.cpp:92`): cada thread hospedeira tem seu array.
+  > Nenhuma escrita global de TLS existe; sem correção necessária.
 - **`wininet`: `g_internet_mutex` travado durante `easy_perform`** (até 60 s)
   — serializa toda a API para o processo (`wininet.cpp:861-897`; projeção,
   não crash).

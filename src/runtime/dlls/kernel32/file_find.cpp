@@ -67,20 +67,29 @@ void convert_find_data(const Win32FindDataA& source, LegacyFindDataW& target) no
         set_last_error(errno_to_win32(errno));
         return kInvalidHandleValue;
     }
-    auto it = std::find_if(g_find_slots.begin(), g_find_slots.end(),
-                           [](const FindSlot& slot) { return !slot.used; });
-    if (it == g_find_slots.end()) {
-        closedir(dir);
-        set_last_error(abi::kErrorNotEnoughMemory);
-        return kInvalidHandleValue;
+    FindSlot* slot = nullptr;
+    {
+        // Auditoria 6.2: alocação de slot e publicação do estado sob a
+        // trava do ciclo de vida (g_find_slots_mutex é recursivo; a
+        // chamada a FindNext/FindClose abaixo re-adquire no mesmo fluxo).
+        std::lock_guard<std::recursive_mutex> lock(g_find_slots_mutex);
+        auto it = std::find_if(g_find_slots.begin(), g_find_slots.end(),
+                               [](const FindSlot& item) { return !item.used; });
+        if (it == g_find_slots.end()) {
+            closedir(dir);
+            set_last_error(abi::kErrorNotEnoughMemory);
+            return kInvalidHandleValue;
+        }
+        it->used = true;
+        it->header = {runtime::HandleObjectType::Find, 1};
+        it->dir = dir;
+        it->pattern = pattern;
+        it->directory = directory;
+        slot = &*it;
     }
-    it->used = true;
-    it->header = {runtime::HandleObjectType::Find, 1};
-    it->dir = dir;
-    it->pattern = pattern;
-    it->directory = directory;
     const void* handle = reinterpret_cast<const void*>(
-        kFindHandleBase + static_cast<std::uintptr_t>(it - g_find_slots.begin()));
+        kFindHandleBase +
+        static_cast<std::uintptr_t>(slot - g_find_slots.begin()));
     if (tl_FindNextFileA(handle, find_data) == 0) {
         auto err = tl_GetLastError();
         if (err == abi::kErrorNoMoreFiles) {
@@ -103,6 +112,7 @@ TL_MSABI void* tl_FindFirstFileA(const char* file_name, void* find_data) noexcep
     return find_first_file_a_impl(file_name, find_data);
 }
 TL_MSABI int tl_FindNextFileA(const void* handle, void* find_data) noexcept {
+    std::lock_guard<std::recursive_mutex> lock(g_find_slots_mutex);
     FindSlot* slot = find_slot_for_handle(handle);
     if (slot == nullptr || !slot->used || find_data == nullptr) {
         set_last_error(abi::kErrorInvalidHandle);
@@ -146,6 +156,7 @@ TL_MSABI int tl_FindNextFileA(const void* handle, void* find_data) noexcept {
     return 0;
 }
 TL_MSABI int tl_FindClose(const void* handle) noexcept {
+    std::lock_guard<std::recursive_mutex> lock(g_find_slots_mutex);
     FindSlot* slot = find_slot_for_handle(handle);
     if (slot == nullptr || !slot->used) {
         set_last_error(abi::kErrorInvalidHandle);

@@ -145,6 +145,7 @@ bool write_guest_zeroes(void* const destination, const std::size_t size) noexcep
 
 std::array<MenuSlot, 256> g_menus{};
 std::array<FindSlot, 16> g_find_slots{};
+std::recursive_mutex g_find_slots_mutex;
 std::array<SnapshotSlot, 16> g_snapshots{};
 std::mutex g_snapshot_mutex;
 
@@ -448,8 +449,10 @@ ObjectHeader* get_object_header(const void* handle) noexcept {
         return slot.used ? &slot.header : nullptr;
     }
 
-    // 3. Find handles (kFindHandleBase)
+    // 3. Find handles (kFindHandleBase): resolução sempre sob a trava do
+    // ciclo de vida (auditoria 6.2).
     if (addr >= kFindHandleBase && addr < kFindHandleBase + g_find_slots.size()) {
+        std::lock_guard<std::recursive_mutex> lock(g_find_slots_mutex);
         const auto index = static_cast<std::size_t>(addr - kFindHandleBase);
         FindSlot& slot = g_find_slots[index];
         return slot.used ? &slot.header : nullptr;
@@ -855,6 +858,12 @@ WindowSlot* create_logical_control(WindowSlot& parent, const std::string_view cl
                                    const std::string_view title, const std::uint32_t style,
                                    const std::uintptr_t control_id, const int x, const int y,
                                    const int width, const int height) noexcept {
+    // Auditoria 2026-10-18 (6.2): a mutação de g_windows aqui não tinha
+    // trava — outra thread em CreateWindowEx/DestroyWindow podia pegar o
+    // mesmo slot livre ou invalidar `parent` no meio da construção. O
+    // mutex é recursivo: find_window_slot/register_window_handle
+    // re-adquirem no mesmo fluxo.
+    std::lock_guard lock(g_gui_state_mutex);
     if (find_window_slot(&parent) != &parent || class_name.empty()) {
         return nullptr;
     }

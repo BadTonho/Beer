@@ -46,6 +46,27 @@ constexpr int kWsaEAddressInUse = 10048;
 constexpr int kWsaEWouldBlock = 10035;
 constexpr int kWsaEConnectionRefused = 10061;
 constexpr int kWsaENetUnreachable = 10051;
+constexpr int kWsaEInterrupted = 10004;
+constexpr int kWsaEBadf = 10009;
+constexpr int kWsaEMFile = 10024;
+constexpr int kWsaEDestAddrReq = 10039;
+constexpr int kWsaEMsgSize = 10040;
+constexpr int kWsaEPrototype = 10041;
+constexpr int kWsaENoProtoOpt = 10042;
+constexpr int kWsaEProtoNoSupport = 10043;
+constexpr int kWsaEOpNotSupported = 10045;
+constexpr int kWsaEAfNoSupport = 10047;
+constexpr int kWsaEAddrNotAvail = 10049;
+constexpr int kWsaENetDown = 10050;
+constexpr int kWsaENetReset = 10052;
+constexpr int kWsaEConnAborted = 10053;
+constexpr int kWsaEConnReset = 10054;
+constexpr int kWsaENoBufs = 10055;
+constexpr int kWsaEIsConn = 10056;
+constexpr int kWsaENotConn = 10057;
+constexpr int kWsaEShutDown = 10058;
+constexpr int kWsaETimedOut = 10060;
+constexpr int kWsaEHostUnreach = 10065;
 constexpr int kWsaENoData = 11004;
 constexpr int kWsaEAIFlags = 10022;
 constexpr std::uintptr_t kSocketHandleBase = 0x0000B00000000000ULL;
@@ -78,6 +99,10 @@ struct SocketSlot {
     bool used{false};
     int fd{-1};
     int type{0};
+    // Auditoria 2026-10-18 (6.2): a geração identifica a vida do slot; as
+    // I/O bloqueantes guardam fd+geração sob trava, executam o syscall fora
+    // do mutex e só publicam estado se o slot não foi reutilizado.
+    std::uint32_t generation{0};
     bool listening{false};
     bool connecting{false};
     void* event_handle{nullptr};
@@ -91,6 +116,7 @@ struct SocketSlot {
 };
 std::array<SocketSlot, 256> g_sockets{};
 std::mutex g_sockets_mutex;
+std::uint32_t g_socket_generation{0};
 
 struct WsaEventSlot {
     bool used{false};
@@ -231,6 +257,32 @@ SocketSlot* find_socket(const std::uintptr_t handle) noexcept {
     return slot.used ? &slot : nullptr;
 }
 
+// Auditoria 2026-10-18 (6.2): resolve fd+geração sob trava. Syscalls
+// bloqueantes (send/recv/accept/connect) rodam fora do mutex para não
+// serializar o I/O da família nem bloquear closesocket.
+bool snapshot_socket_fd(const std::uintptr_t handle, int& fd,
+                        std::uint32_t& generation) noexcept {
+    std::lock_guard<std::mutex> lock(g_sockets_mutex);
+    const SocketSlot* slot = find_socket(handle);
+    if (slot == nullptr) {
+        return false;
+    }
+    fd = slot->fd;
+    generation = slot->generation;
+    return true;
+}
+
+// Pré-condição: chamador segura g_sockets_mutex. Só devolve o slot se ele
+// continua vivo e na mesma geração (não houve closesocket + reuso).
+SocketSlot* resolve_if_current_locked(const std::uintptr_t handle,
+                                      const std::uint32_t generation) noexcept {
+    SocketSlot* slot = find_socket(handle);
+    if (slot == nullptr || slot->generation != generation) {
+        return nullptr;
+    }
+    return slot;
+}
+
 std::uintptr_t socket_handle(const SocketSlot& slot) noexcept {
     return kSocketHandleBase + static_cast<std::uintptr_t>(&slot - g_sockets.data());
 }
@@ -327,12 +379,25 @@ void refresh_wsa_events_locked() noexcept {
 }
 
 int errno_to_wsa(const int error) noexcept {
+    // Auditoria 2026-10-18 (6.2): mapeamento errno\u2192Winsock conforme os
+    // pares oficiais; o default gen\u00e9rico n\u00e3o pode alegar ENOTSOCK para
+    // qualquer errno inesperado.
     switch (error) {
+        case EINTR:
+            return kWsaEInterrupted;
+        case EBADF:
+            return kWsaEBadf;
         case EACCES:
         case EPERM:
             return kWsaEAccess;
+        case EMFILE:
+            return kWsaEMFile;
         case EADDRINUSE:
             return kWsaEAddressInUse;
+        case EADDRNOTAVAIL:
+            return kWsaEAddrNotAvail;
+        case EAFNOSUPPORT:
+            return kWsaEAfNoSupport;
         case EAGAIN:
 #if EWOULDBLOCK != EAGAIN
         case EWOULDBLOCK:
@@ -340,14 +405,49 @@ int errno_to_wsa(const int error) noexcept {
         case EINPROGRESS:
         case EALREADY:
             return kWsaEWouldBlock;
+        case ECONNABORTED:
+            return kWsaEConnAborted;
         case ECONNREFUSED:
             return kWsaEConnectionRefused;
-        case ENETUNREACH:
-            return kWsaENetUnreachable;
+        case ECONNRESET:
+            return kWsaEConnReset;
+        case EDESTADDRREQ:
+            return kWsaEDestAddrReq;
+        case EHOSTUNREACH:
+            return kWsaEHostUnreach;
+        case EISCONN:
+            return kWsaEIsConn;
         case EINVAL:
             return kWsaEInvalidArgument;
+        case EMSGSIZE:
+            return kWsaEMsgSize;
+        case ENETDOWN:
+            return kWsaENetDown;
+        case ENETRESET:
+            return kWsaENetReset;
+        case ENETUNREACH:
+            return kWsaENetUnreachable;
+        case ENOBUFS:
+            return kWsaENoBufs;
+        case ENOPROTOOPT:
+            return kWsaENoProtoOpt;
+        case EPROTONOSUPPORT:
+            return kWsaEProtoNoSupport;
+        case ENOTCONN:
+            return kWsaENotConn;
+        case EOPNOTSUPP:
+#if ENOTSUP != EOPNOTSUPP
+        case ENOTSUP:
+#endif
+            return kWsaEOpNotSupported;
+        case EPROTOTYPE:
+            return kWsaEPrototype;
+        case ESHUTDOWN:
+            return kWsaEShutDown;
+        case ETIMEDOUT:
+            return kWsaETimedOut;
         default:
-            return kWsaENotSocket;
+            return kWsaEInvalidArgument;
     }
 }
 
@@ -465,12 +565,13 @@ TL_MSABI std::uintptr_t tl_socket(const int address_family, const int type,
                                 [](const SocketSlot& slot) { return !slot.used; });
     if (free_it == g_sockets.end()) {
         ::close(fd);
-        g_wsa_last_error = ENOBUFS;
+        g_wsa_last_error = kWsaENoBufs;
         return kInvalidSocket;
     }
     free_it->used = true;
     free_it->fd = fd;
     free_it->type = type;
+    free_it->generation = ++g_socket_generation;
     free_it->async_window = nullptr;
     free_it->async_message = 0;
     free_it->async_events = 0;
@@ -498,16 +599,18 @@ TL_MSABI int tl_closesocket(const std::uintptr_t socket) noexcept {
 }
 
 TL_MSABI int tl_bind(const std::uintptr_t socket, const void* name, const int name_length) noexcept {
-    SocketSlot* slot = find_socket(socket);
-    sockaddr_in address{};
-    if (slot == nullptr) {
+    int fd = -1;
+    std::uint32_t generation = 0;
+    // Auditoria 6.2: syscall roda com cópia local do fd; a trava sai antes.
+    if (!snapshot_socket_fd(socket, fd, generation)) {
         g_wsa_last_error = kWsaENotSocket;
         return -1;
     }
+    sockaddr_in address{};
     if (!copy_guest_sockaddr(name, name_length, address)) {
         return -1;
     }
-    if (::bind(slot->fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) != 0) {
+    if (::bind(fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) != 0) {
         g_wsa_last_error = errno_to_wsa(errno);
         return -1;
     }
@@ -516,82 +619,133 @@ TL_MSABI int tl_bind(const std::uintptr_t socket, const void* name, const int na
 }
 
 TL_MSABI int tl_listen(const std::uintptr_t socket, const int backlog) noexcept {
-    SocketSlot* slot = find_socket(socket);
-    if (slot == nullptr || slot->type != kSockStream || backlog < 0 || ::listen(slot->fd, backlog) != 0) {
-        g_wsa_last_error = slot == nullptr ? kWsaENotSocket : errno_to_wsa(errno);
+    int fd = -1;
+    std::uint32_t generation = 0;
+    {
+        std::lock_guard<std::mutex> lock(g_sockets_mutex);
+        SocketSlot* slot = find_socket(socket);
+        if (slot == nullptr || slot->type != kSockStream) {
+            g_wsa_last_error = slot == nullptr ? kWsaENotSocket : kWsaEInvalidArgument;
+            return -1;
+        }
+        fd = slot->fd;
+        generation = slot->generation;
+    }
+    if (backlog < 0 || ::listen(fd, backlog) != 0) {
+        g_wsa_last_error = errno_to_wsa(errno);
         return -1;
     }
-    slot->listening = true;
+    {
+        std::lock_guard<std::mutex> lock(g_sockets_mutex);
+        if (SocketSlot* slot = resolve_if_current_locked(socket, generation)) {
+            slot->listening = true;
+        }
+    }
     g_wsa_last_error = 0;
     return 0;
 }
 
 TL_MSABI std::uintptr_t tl_accept(const std::uintptr_t socket, void* name,
                                   int* name_length) noexcept {
-    SocketSlot* listener = find_socket(socket);
-    if (listener == nullptr || listener->type != kSockStream) {
-        g_wsa_last_error = kWsaENotSocket;
-        return kInvalidSocket;
+    int listen_fd = -1;
+    std::uint32_t listener_generation = 0;
+    {
+        std::lock_guard<std::mutex> lock(g_sockets_mutex);
+        SocketSlot* listener = find_socket(socket);
+        if (listener == nullptr || listener->type != kSockStream) {
+            g_wsa_last_error = kWsaENotSocket;
+            return kInvalidSocket;
+        }
+        listen_fd = listener->fd;
+        listener_generation = listener->generation;
     }
     sockaddr_in address{};
     socklen_t length = sizeof(address);
-    const int fd = ::accept(listener->fd, reinterpret_cast<sockaddr*>(&address), &length);
+    // Auditoria 6.2: accept bloqueia fora do mutex, com fd copiado.
+    const int fd = ::accept(listen_fd, reinterpret_cast<sockaddr*>(&address), &length);
     if (fd < 0) {
         g_wsa_last_error = errno_to_wsa(errno);
-        clear_async_notification(*listener, kFdAccept);
+        std::lock_guard<std::mutex> lock(g_sockets_mutex);
+        if (SocketSlot* listener = resolve_if_current_locked(socket, listener_generation)) {
+            clear_async_notification(*listener, kFdAccept);
+        }
         return kInvalidSocket;
     }
-    auto free_it = std::find_if(g_sockets.begin(), g_sockets.end(),
-                                [](const SocketSlot& slot) { return !slot.used; });
-    if (free_it == g_sockets.end()) {
-        ::close(fd);
-        g_wsa_last_error = ENOBUFS;
-        clear_async_notification(*listener, kFdAccept);
-        return kInvalidSocket;
-    }
+    // Cópia do endereço para o convidado fora da trava (cópia de memória
+    // convidada pode paginar sob locks próprios).
     if (!copy_host_sockaddr(address, name, name_length)) {
         ::close(fd);
         g_wsa_last_error = kWsaEFault;
-        clear_async_notification(*listener, kFdAccept);
+        std::lock_guard<std::mutex> lock(g_sockets_mutex);
+        if (SocketSlot* listener = resolve_if_current_locked(socket, listener_generation)) {
+            clear_async_notification(*listener, kFdAccept);
+        }
         return kInvalidSocket;
     }
-    free_it->used = true;
-    free_it->fd = fd;
-    free_it->type = kSockStream;
-    free_it->async_window = nullptr;
-    free_it->async_message = 0;
-    free_it->async_events = 0;
-    free_it->async_notified_events = 0;
-    clear_async_notification(*listener, kFdAccept);
-    g_wsa_last_error = 0;
-    return socket_handle(*free_it);
+    {
+        std::lock_guard<std::mutex> lock(g_sockets_mutex);
+        auto free_it = std::find_if(g_sockets.begin(), g_sockets.end(),
+                                    [](const SocketSlot& slot) { return !slot.used; });
+        if (free_it == g_sockets.end()) {
+            ::close(fd);
+            g_wsa_last_error = kWsaENoBufs;
+        } else {
+            free_it->used = true;
+            free_it->fd = fd;
+            free_it->type = kSockStream;
+            free_it->generation = ++g_socket_generation;
+            free_it->async_window = nullptr;
+            free_it->async_message = 0;
+            free_it->async_events = 0;
+            free_it->async_notified_events = 0;
+            g_wsa_last_error = 0;
+        }
+        if (SocketSlot* listener = resolve_if_current_locked(socket, listener_generation)) {
+            clear_async_notification(*listener, kFdAccept);
+        }
+        if (free_it == g_sockets.end()) {
+            return kInvalidSocket;
+        }
+        return socket_handle(*free_it);
+    }
 }
 
 TL_MSABI int tl_connect(const std::uintptr_t socket, const void* name,
                         const int name_length) noexcept {
     trace_ws2_call("connect", "socket=" + std::to_string(socket) +
                                 ",name-length=" + std::to_string(name_length));
-    SocketSlot* slot = find_socket(socket);
-    sockaddr_in address{};
-    if (slot == nullptr) {
+    int fd = -1;
+    std::uint32_t generation = 0;
+    // Auditoria 6.2: connect bloqueia fora do mutex, com fd copiado.
+    if (!snapshot_socket_fd(socket, fd, generation)) {
         g_wsa_last_error = kWsaENotSocket;
         return -1;
     }
+    sockaddr_in address{};
     if (!copy_guest_sockaddr(name, name_length, address)) {
         return -1;
     }
-    if (::connect(slot->fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) != 0) {
-        if (errno == EINPROGRESS || errno == EALREADY) {
-            slot->connecting = true;
-        }
+    if (::connect(fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) != 0) {
+        const bool in_progress = errno == EINPROGRESS || errno == EALREADY;
         if (g_wsa_last_error == 0) {
             g_wsa_last_error = errno_to_wsa(errno);
         }
-        clear_async_notification(*slot, kFdConnect);
+        std::lock_guard<std::mutex> lock(g_sockets_mutex);
+        if (SocketSlot* slot = resolve_if_current_locked(socket, generation)) {
+            if (in_progress) {
+                slot->connecting = true;
+            }
+            clear_async_notification(*slot, kFdConnect);
+        }
         return -1;
     }
-    slot->connecting = false;
-    clear_async_notification(*slot, kFdConnect);
+    {
+        std::lock_guard<std::mutex> lock(g_sockets_mutex);
+        if (SocketSlot* slot = resolve_if_current_locked(socket, generation)) {
+            slot->connecting = false;
+            clear_async_notification(*slot, kFdConnect);
+        }
+    }
     g_wsa_last_error = 0;
     return 0;
 }
@@ -600,16 +754,22 @@ TL_MSABI int tl_send(const std::uintptr_t socket, const char* buffer, const int 
                      const int flags) noexcept {
     trace_ws2_call("send", "socket=" + std::to_string(socket) +
                             ",length=" + std::to_string(length));
-    SocketSlot* slot = find_socket(socket);
-    if (slot == nullptr || buffer == nullptr || length < 0 || flags != 0) {
-        g_wsa_last_error = slot == nullptr ? kWsaENotSocket : kWsaEInvalidArgument;
+    if (buffer == nullptr || length < 0 || flags != 0) {
+        g_wsa_last_error = kWsaEInvalidArgument;
+        return -1;
+    }
+    int fd = -1;
+    std::uint32_t generation = 0;
+    // Auditoria 6.2: send bloqueia fora do mutex, com fd copiado.
+    if (!snapshot_socket_fd(socket, fd, generation)) {
+        g_wsa_last_error = kWsaENotSocket;
         return -1;
     }
     std::vector<char> host_buffer;
     try {
         host_buffer.resize(static_cast<std::size_t>(length));
     } catch (const std::bad_alloc&) {
-        g_wsa_last_error = ENOBUFS;
+        g_wsa_last_error = kWsaENoBufs;
         return -1;
     }
     if (length > 0 && runtime::read_guest_memory(buffer, host_buffer.data(), host_buffer.size()).status !=
@@ -617,13 +777,19 @@ TL_MSABI int tl_send(const std::uintptr_t socket, const char* buffer, const int 
         g_wsa_last_error = kWsaEFault;
         return -1;
     }
-    const ssize_t result = ::send(slot->fd, host_buffer.data(), host_buffer.size(), 0);
+    const ssize_t result = ::send(fd, host_buffer.data(), host_buffer.size(), 0);
     if (result < 0) {
         g_wsa_last_error = errno_to_wsa(errno);
-        clear_async_notification(*slot, kFdWrite);
+    }
+    {
+        std::lock_guard<std::mutex> lock(g_sockets_mutex);
+        if (SocketSlot* slot = resolve_if_current_locked(socket, generation)) {
+            clear_async_notification(*slot, kFdWrite);
+        }
+    }
+    if (result < 0) {
         return -1;
     }
-    clear_async_notification(*slot, kFdWrite);
     g_wsa_last_error = 0;
     return static_cast<int>(result);
 }
@@ -632,25 +798,37 @@ TL_MSABI int tl_recv(const std::uintptr_t socket, char* buffer, const int length
                      const int flags) noexcept {
     trace_ws2_call("recv", "socket=" + std::to_string(socket) +
                             ",length=" + std::to_string(length));
-    SocketSlot* slot = find_socket(socket);
-    if (slot == nullptr || buffer == nullptr || length < 0 || flags != 0) {
-        g_wsa_last_error = slot == nullptr ? kWsaENotSocket : kWsaEInvalidArgument;
+    if (buffer == nullptr || length < 0 || flags != 0) {
+        g_wsa_last_error = kWsaEInvalidArgument;
+        return -1;
+    }
+    int fd = -1;
+    std::uint32_t generation = 0;
+    // Auditoria 6.2: recv bloqueia fora do mutex, com fd copiado.
+    if (!snapshot_socket_fd(socket, fd, generation)) {
+        g_wsa_last_error = kWsaENotSocket;
         return -1;
     }
     std::vector<char> host_buffer;
     try {
         host_buffer.resize(static_cast<std::size_t>(length));
     } catch (const std::bad_alloc&) {
-        g_wsa_last_error = ENOBUFS;
+        g_wsa_last_error = kWsaENoBufs;
         return -1;
     }
-    const ssize_t result = ::recv(slot->fd, host_buffer.data(), host_buffer.size(), 0);
+    const ssize_t result = ::recv(fd, host_buffer.data(), host_buffer.size(), 0);
     if (result < 0) {
         g_wsa_last_error = errno_to_wsa(errno);
-        clear_async_notification(*slot, kFdRead | kFdClose);
+    }
+    {
+        std::lock_guard<std::mutex> lock(g_sockets_mutex);
+        if (SocketSlot* slot = resolve_if_current_locked(socket, generation)) {
+            clear_async_notification(*slot, kFdRead | kFdClose);
+        }
+    }
+    if (result < 0) {
         return -1;
     }
-    clear_async_notification(*slot, kFdRead | kFdClose);
     if (result > 0 && runtime::write_guest_memory(buffer, host_buffer.data(),
                                                   static_cast<std::size_t>(result)).status !=
                             runtime::GuestMemoryAccessStatus::Success) {
@@ -663,18 +841,27 @@ TL_MSABI int tl_recv(const std::uintptr_t socket, char* buffer, const int length
 
 TL_MSABI int tl_sendto(const std::uintptr_t socket, const char* buffer, const int length,
                        const int flags, const void* to, const int to_length) noexcept {
-    SocketSlot* slot = find_socket(socket);
+    if (buffer == nullptr || length < 0 || flags != 0) {
+        g_wsa_last_error = kWsaEInvalidArgument;
+        return -1;
+    }
     sockaddr_in address{};
-    if (slot == nullptr || buffer == nullptr || length < 0 || flags != 0 ||
-        !copy_guest_sockaddr(to, to_length, address)) {
-        g_wsa_last_error = slot == nullptr ? kWsaENotSocket : kWsaEInvalidArgument;
+    if (!copy_guest_sockaddr(to, to_length, address)) {
+        g_wsa_last_error = kWsaEInvalidArgument;
+        return -1;
+    }
+    int fd = -1;
+    std::uint32_t generation = 0;
+    // Auditoria 6.2: sendto bloqueia fora do mutex, com fd copiado.
+    if (!snapshot_socket_fd(socket, fd, generation)) {
+        g_wsa_last_error = kWsaENotSocket;
         return -1;
     }
     std::vector<char> host_buffer;
     try {
         host_buffer.resize(static_cast<std::size_t>(length));
     } catch (const std::bad_alloc&) {
-        g_wsa_last_error = ENOBUFS;
+        g_wsa_last_error = kWsaENoBufs;
         return -1;
     }
     if (length > 0 && runtime::read_guest_memory(buffer, host_buffer.data(), host_buffer.size()).status !=
@@ -682,7 +869,7 @@ TL_MSABI int tl_sendto(const std::uintptr_t socket, const char* buffer, const in
         g_wsa_last_error = kWsaEFault;
         return -1;
     }
-    const ssize_t result = ::sendto(slot->fd, host_buffer.data(), host_buffer.size(), 0,
+    const ssize_t result = ::sendto(fd, host_buffer.data(), host_buffer.size(), 0,
                                     reinterpret_cast<const sockaddr*>(&address), sizeof(address));
     if (result < 0) {
         g_wsa_last_error = errno_to_wsa(errno);
@@ -694,10 +881,16 @@ TL_MSABI int tl_sendto(const std::uintptr_t socket, const char* buffer, const in
 
 TL_MSABI int tl_recvfrom(const std::uintptr_t socket, char* buffer, const int length,
                          const int flags, void* from, int* from_length) noexcept {
-    SocketSlot* slot = find_socket(socket);
-    if (slot == nullptr || buffer == nullptr || length < 0 || flags != 0 ||
+    if (buffer == nullptr || length < 0 || flags != 0 ||
         (from == nullptr) != (from_length == nullptr)) {
-        g_wsa_last_error = slot == nullptr ? kWsaENotSocket : kWsaEInvalidArgument;
+        g_wsa_last_error = kWsaEInvalidArgument;
+        return -1;
+    }
+    int fd = -1;
+    std::uint32_t generation = 0;
+    // Auditoria 6.2: recvfrom bloqueia fora do mutex, com fd copiado.
+    if (!snapshot_socket_fd(socket, fd, generation)) {
+        g_wsa_last_error = kWsaENotSocket;
         return -1;
     }
     sockaddr_in address{};
@@ -706,10 +899,10 @@ TL_MSABI int tl_recvfrom(const std::uintptr_t socket, char* buffer, const int le
     try {
         host_buffer.resize(static_cast<std::size_t>(length));
     } catch (const std::bad_alloc&) {
-        g_wsa_last_error = ENOBUFS;
+        g_wsa_last_error = kWsaENoBufs;
         return -1;
     }
-    const ssize_t result = ::recvfrom(slot->fd, host_buffer.data(), host_buffer.size(), 0,
+    const ssize_t result = ::recvfrom(fd, host_buffer.data(), host_buffer.size(), 0,
                                       reinterpret_cast<sockaddr*>(&address), &host_length);
     if (result < 0) {
         g_wsa_last_error = errno_to_wsa(errno);
@@ -727,17 +920,23 @@ TL_MSABI int tl_recvfrom(const std::uintptr_t socket, char* buffer, const int le
 }
 
 TL_MSABI int tl_getsockname(const std::uintptr_t socket, void* name, int* name_length) noexcept {
-    SocketSlot* slot = find_socket(socket);
     int capacity = 0;
-    if (slot == nullptr || name == nullptr || name_length == nullptr ||
+    if (name == nullptr || name_length == nullptr ||
         !read_guest_value(name_length, capacity) ||
         capacity < static_cast<int>(sizeof(sockaddr_in))) {
-        g_wsa_last_error = slot == nullptr ? kWsaENotSocket : kWsaEInvalidArgument;
+        g_wsa_last_error = kWsaEInvalidArgument;
+        return -1;
+    }
+    int fd = -1;
+    std::uint32_t generation = 0;
+    // Auditoria 6.2: syscall roda com cópia local do fd, fora do mutex.
+    if (!snapshot_socket_fd(socket, fd, generation)) {
+        g_wsa_last_error = kWsaENotSocket;
         return -1;
     }
     sockaddr_in address{};
     socklen_t length = sizeof(address);
-    if (::getsockname(slot->fd, reinterpret_cast<sockaddr*>(&address), &length) != 0) {
+    if (::getsockname(fd, reinterpret_cast<sockaddr*>(&address), &length) != 0) {
         g_wsa_last_error = errno_to_wsa(errno);
         return -1;
     }
@@ -752,9 +951,19 @@ TL_MSABI int tl_getsockname(const std::uintptr_t socket, void* name, int* name_l
 }
 
 TL_MSABI int tl_shutdown(const std::uintptr_t socket, const int how) noexcept {
-    SocketSlot* slot = find_socket(socket);
-    if (slot == nullptr || (how != 0 && how != 1 && how != 2) || ::shutdown(slot->fd, how) != 0) {
-        g_wsa_last_error = slot == nullptr ? kWsaENotSocket : errno_to_wsa(errno);
+    if (how != 0 && how != 1 && how != 2) {
+        g_wsa_last_error = kWsaEInvalidArgument;
+        return -1;
+    }
+    int fd = -1;
+    std::uint32_t generation = 0;
+    // Auditoria 6.2: syscall roda com cópia local do fd, fora do mutex.
+    if (!snapshot_socket_fd(socket, fd, generation)) {
+        g_wsa_last_error = kWsaENotSocket;
+        return -1;
+    }
+    if (::shutdown(fd, how) != 0) {
+        g_wsa_last_error = errno_to_wsa(errno);
         return -1;
     }
     g_wsa_last_error = 0;
@@ -834,7 +1043,7 @@ TL_MSABI int tl_getaddrinfo(const char* node, const char* service, const void* h
     auto free_it = std::find_if(g_addrinfos.begin(), g_addrinfos.end(),
                                 [](const GuestAddrInfo& info) { return info.address == nullptr; });
     if (free_it == g_addrinfos.end()) {
-        g_wsa_last_error = ENOBUFS;
+        g_wsa_last_error = kWsaENoBufs;
         return ENOBUFS;
     }
     GuestAddrInfo& info = *free_it;
@@ -918,15 +1127,20 @@ TL_MSABI int tl_WSAPoll(void* descriptors, const std::uint32_t count,
         return -1;
     }
     std::array<pollfd, 64> host_descriptors{};
-    for (std::uint32_t index = 0; index < count; ++index) {
-        SocketSlot* slot = find_socket(guest_descriptors[index].socket);
-        if (slot == nullptr) {
-            g_wsa_last_error = kWsaENotSocket;
-            return -1;
+    {
+        // Auditoria 6.2: o mapeamento handle→fd acontece sob a trava,
+        // uma vez; o poll bloqueia depois, fora do mutex.
+        std::lock_guard<std::mutex> lock(g_sockets_mutex);
+        for (std::uint32_t index = 0; index < count; ++index) {
+            SocketSlot* slot = find_socket(guest_descriptors[index].socket);
+            if (slot == nullptr) {
+                g_wsa_last_error = kWsaENotSocket;
+                return -1;
+            }
+            host_descriptors[index].fd = slot->fd;
+            host_descriptors[index].events = static_cast<short>(guest_descriptors[index].events);
+            host_descriptors[index].revents = 0;
         }
-        host_descriptors[index].fd = slot->fd;
-        host_descriptors[index].events = static_cast<short>(guest_descriptors[index].events);
-        host_descriptors[index].revents = 0;
     }
     const int result = ::poll(host_descriptors.data(), count, timeout);
     if (result < 0) {
@@ -981,27 +1195,32 @@ TL_MSABI int tl_select(const int nfds, void* readfds, void* writefds, void* exce
         return -1;
     }
 
-    if (readfds != nullptr) {
-        for (std::uint32_t i = 0; i < std::min<std::uint32_t>(r_win.fd_count, 64); ++i) {
-            if (SocketSlot* slot = find_socket(r_win.fd_array[i])) {
-                FD_SET(slot->fd, &rset);
-                max_fd = std::max(max_fd, slot->fd);
+    {
+        // Auditoria 6.2: mapeamento handle→fd dos três conjuntos sob a
+        // trava, uma vez; select bloqueia depois, fora do mutex.
+        std::lock_guard<std::mutex> lock(g_sockets_mutex);
+        if (readfds != nullptr) {
+            for (std::uint32_t i = 0; i < std::min<std::uint32_t>(r_win.fd_count, 64); ++i) {
+                if (SocketSlot* slot = find_socket(r_win.fd_array[i])) {
+                    FD_SET(slot->fd, &rset);
+                    max_fd = std::max(max_fd, slot->fd);
+                }
             }
         }
-    }
-    if (writefds != nullptr) {
-        for (std::uint32_t i = 0; i < std::min<std::uint32_t>(w_win.fd_count, 64); ++i) {
-            if (SocketSlot* slot = find_socket(w_win.fd_array[i])) {
-                FD_SET(slot->fd, &wset);
-                max_fd = std::max(max_fd, slot->fd);
+        if (writefds != nullptr) {
+            for (std::uint32_t i = 0; i < std::min<std::uint32_t>(w_win.fd_count, 64); ++i) {
+                if (SocketSlot* slot = find_socket(w_win.fd_array[i])) {
+                    FD_SET(slot->fd, &wset);
+                    max_fd = std::max(max_fd, slot->fd);
+                }
             }
         }
-    }
-    if (exceptfds != nullptr) {
-        for (std::uint32_t i = 0; i < std::min<std::uint32_t>(e_win.fd_count, 64); ++i) {
-            if (SocketSlot* slot = find_socket(e_win.fd_array[i])) {
-                FD_SET(slot->fd, &eset);
-                max_fd = std::max(max_fd, slot->fd);
+        if (exceptfds != nullptr) {
+            for (std::uint32_t i = 0; i < std::min<std::uint32_t>(e_win.fd_count, 64); ++i) {
+                if (SocketSlot* slot = find_socket(e_win.fd_array[i])) {
+                    FD_SET(slot->fd, &eset);
+                    max_fd = std::max(max_fd, slot->fd);
+                }
             }
         }
     }
@@ -1031,11 +1250,16 @@ TL_MSABI int tl_select(const int nfds, void* readfds, void* writefds, void* exce
                              const fd_set& ready) noexcept {
         if (guest == nullptr) return true;
         Win32FdSet output{};
-        for (std::uint32_t i = 0; i < std::min<std::uint32_t>(source.fd_count, 64); ++i) {
-            if (SocketSlot* slot = find_socket(source.fd_array[i])) {
-                if (!FD_ISSET(slot->fd, &ready)) continue;
-                if (output.fd_count < 64) {
-                    output.fd_array[output.fd_count++] = source.fd_array[i];
+        {
+            // Auditoria 6.2: resolução handle→fd sob a trava; a cópia para
+            // o convidado acontece fora dela.
+            std::lock_guard<std::mutex> lock(g_sockets_mutex);
+            for (std::uint32_t i = 0; i < std::min<std::uint32_t>(source.fd_count, 64); ++i) {
+                if (SocketSlot* slot = find_socket(source.fd_array[i])) {
+                    if (!FD_ISSET(slot->fd, &ready)) continue;
+                    if (output.fd_count < 64) {
+                        output.fd_array[output.fd_count++] = source.fd_array[i];
+                    }
                 }
             }
         }
@@ -1053,15 +1277,21 @@ TL_MSABI int tl_select(const int nfds, void* readfds, void* writefds, void* exce
 }
 
 TL_MSABI int tl_ioctlsocket(const std::uintptr_t socket, const std::int32_t cmd, std::uint32_t* argp) noexcept {
-    SocketSlot* slot = find_socket(socket);
     std::uint32_t argument = 0;
-    if (slot == nullptr || argp == nullptr || !read_guest_value(argp, argument)) {
-        g_wsa_last_error = slot == nullptr ? kWsaENotSocket : kWsaEInvalidArgument;
+    if (argp == nullptr || !read_guest_value(argp, argument)) {
+        g_wsa_last_error = kWsaEInvalidArgument;
+        return -1;
+    }
+    int fd = -1;
+    std::uint32_t generation = 0;
+    // Auditoria 6.2: syscall roda com cópia local do fd, fora do mutex.
+    if (!snapshot_socket_fd(socket, fd, generation)) {
+        g_wsa_last_error = kWsaENotSocket;
         return -1;
     }
     // FIONBIO = 0x8004667EU
     if (static_cast<std::uint32_t>(cmd) == 0x8004667EU) {
-        int flags = fcntl(slot->fd, F_GETFL, 0);
+        int flags = fcntl(fd, F_GETFL, 0);
         if (flags < 0) {
             g_wsa_last_error = errno_to_wsa(errno);
             return -1;
@@ -1071,12 +1301,10 @@ TL_MSABI int tl_ioctlsocket(const std::uintptr_t socket, const std::int32_t cmd,
         } else {
             flags &= ~O_NONBLOCK;
         }
-        if (fcntl(slot->fd, F_SETFL, flags) < 0) {
+        if (fcntl(fd, F_SETFL, flags) < 0) {
             g_wsa_last_error = errno_to_wsa(errno);
             return -1;
         }
-        g_wsa_last_error = 0;
-        return 0;
     }
     g_wsa_last_error = 0;
     return 0;
@@ -1215,14 +1443,16 @@ TL_MSABI int tl_getpeername(const std::uintptr_t socket, void* const name, int* 
         g_wsa_last_error = kWsaEFault;
         return -1;
     }
-    const SocketSlot* const slot = find_socket(socket);
-    if (slot == nullptr) {
+    int fd = -1;
+    std::uint32_t generation = 0;
+    // Auditoria 6.2: syscall roda com cópia local do fd, fora do mutex.
+    if (!snapshot_socket_fd(socket, fd, generation)) {
         g_wsa_last_error = kWsaENotSocket;
         return -1;
     }
     sockaddr_storage ss{};
     socklen_t slen = sizeof(ss);
-    if (::getpeername(slot->fd, reinterpret_cast<sockaddr*>(&ss), &slen) != 0) {
+    if (::getpeername(fd, reinterpret_cast<sockaddr*>(&ss), &slen) != 0) {
         g_wsa_last_error = errno_to_wsa(errno);
         return -1;
     }
@@ -1249,8 +1479,10 @@ TL_MSABI int tl_getpeername(const std::uintptr_t socket, void* const name, int* 
 
 TL_MSABI int tl_setsockopt(const std::uintptr_t socket, const int level, const int optname,
                           const char* const optval, const int optlen) noexcept {
-    const SocketSlot* const slot = find_socket(socket);
-    if (slot == nullptr) {
+    int fd = -1;
+    std::uint32_t generation = 0;
+    // Auditoria 6.2: syscall roda com cópia local do fd, fora do mutex.
+    if (!snapshot_socket_fd(socket, fd, generation)) {
         g_wsa_last_error = kWsaENotSocket;
         return -1;
     }
@@ -1266,7 +1498,7 @@ TL_MSABI int tl_setsockopt(const std::uintptr_t socket, const int level, const i
     try {
         host_option.resize(static_cast<std::size_t>(optlen));
     } catch (const std::bad_alloc&) {
-        g_wsa_last_error = ENOBUFS;
+        g_wsa_last_error = kWsaENoBufs;
         return -1;
     }
     if (optlen > 0 && runtime::read_guest_memory(optval, host_option.data(), host_option.size()).status !=
@@ -1274,7 +1506,7 @@ TL_MSABI int tl_setsockopt(const std::uintptr_t socket, const int level, const i
         g_wsa_last_error = kWsaEFault;
         return -1;
     }
-    if (::setsockopt(slot->fd, host_level, optname, host_option.data(),
+    if (::setsockopt(fd, host_level, optname, host_option.data(),
                      static_cast<socklen_t>(optlen)) != 0) {
         g_wsa_last_error = errno_to_wsa(errno);
         return -1;
@@ -1285,8 +1517,10 @@ TL_MSABI int tl_setsockopt(const std::uintptr_t socket, const int level, const i
 
 TL_MSABI int tl_getsockopt(const std::uintptr_t socket, const int level, const int optname,
                           char* const optval, int* const optlen) noexcept {
-    const SocketSlot* const slot = find_socket(socket);
-    if (slot == nullptr) {
+    int fd = -1;
+    std::uint32_t generation = 0;
+    // Auditoria 6.2: syscall roda com cópia local do fd, fora do mutex.
+    if (!snapshot_socket_fd(socket, fd, generation)) {
         g_wsa_last_error = kWsaENotSocket;
         return -1;
     }
@@ -1304,11 +1538,11 @@ TL_MSABI int tl_getsockopt(const std::uintptr_t socket, const int level, const i
     try {
         host_option.resize(static_cast<std::size_t>(capacity));
     } catch (const std::bad_alloc&) {
-        g_wsa_last_error = ENOBUFS;
+        g_wsa_last_error = kWsaENoBufs;
         return -1;
     }
     socklen_t slen = static_cast<socklen_t>(capacity);
-    if (::getsockopt(slot->fd, host_level, optname, host_option.data(), &slen) != 0) {
+    if (::getsockopt(fd, host_level, optname, host_option.data(), &slen) != 0) {
         g_wsa_last_error = errno_to_wsa(errno);
         return -1;
     }
@@ -1395,7 +1629,7 @@ TL_MSABI void* tl_WSACreateEvent() noexcept {
     auto free_it = std::find_if(g_wsa_events.begin(), g_wsa_events.end(),
                                 [](const WsaEventSlot& event) { return !event.used; });
     if (free_it == g_wsa_events.end()) {
-        g_wsa_last_error = ENOBUFS;
+        g_wsa_last_error = kWsaENoBufs;
         return nullptr;
     }
     free_it->used = true;

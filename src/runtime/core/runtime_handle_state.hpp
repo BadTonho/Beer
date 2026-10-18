@@ -28,6 +28,11 @@ struct FindSlot {
 };
 
 extern std::array<FindSlot, 16> g_find_slots;
+// Auditoria 2026-10-18 (6.2): o ciclo de vida dos slots de enumeração era
+// mutado sem trava — FindClose de uma thread apagava slot em uso por outra
+// (UAF/dup-free) e ref_counts trocavam com get_object_header. Recursivo
+// porque find_first_file_a_impl chama FindNext/FindClose internamente.
+extern std::recursive_mutex g_find_slots_mutex;
 
 #define g_files (::tradutorlinux::runtime::guest_context().files)
 #define g_files_mutex (::tradutorlinux::runtime::guest_context().files_mutex)
