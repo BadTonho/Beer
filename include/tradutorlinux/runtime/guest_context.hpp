@@ -4,6 +4,7 @@
 
 #include <array>
 #include <atomic>
+#include <thread>
 #include <csetjmp>
 #include <condition_variable>
 #include <cstddef>
@@ -61,6 +62,14 @@ struct GuestContext {
     bool execution_active{false};
     std::uint32_t exit_code{0};
     std::uint32_t last_error{0};
+
+    // Auditoria A2 (2026-10-18): longjmp cross-thread é comportamento
+    // indefinido. Somente a thread que capturou `exit_context` (a thread
+    // principal) pode desempilhar para ele; threads secundárias do convidado
+    // registram o pedido e terminam pelo próprio jmp_buf.
+    std::thread::id exit_context_owner{};
+    std::atomic<bool> process_exit_requested{false};
+    std::atomic<std::uint32_t> requested_exit_code{0};
 
     GuestTeb* current_teb{nullptr};
     GuestPeb peb{};

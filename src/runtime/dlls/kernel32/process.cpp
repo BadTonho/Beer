@@ -1,4 +1,5 @@
 #include "kernel32_process_internal.hpp"
+#include "kernel32_thread_internal.hpp"
 
 namespace tradutorlinux {
 
@@ -224,11 +225,13 @@ TL_MSABI void tl_ExitProcess(const std::uint32_t exit_code) noexcept {
         set_last_error(abi::kErrorInvalidParameter);
         return;
     }
+    const bool on_owner_thread = guest_process_exit_owned_by_current_thread();
     {
         const void* caller = __builtin_return_address(0);
-        char mechanism_buf[64];
-        std::snprintf(mechanism_buf, sizeof(mechanism_buf), "guest-transfer caller=0x%lx",
-                      reinterpret_cast<unsigned long>(caller));
+        char mechanism_buf[96];
+        std::snprintf(mechanism_buf, sizeof(mechanism_buf), "guest-transfer caller=0x%lx%s",
+                      reinterpret_cast<unsigned long>(caller),
+                      on_owner_thread ? "" : ";cross-thread");
         const std::array<diagnostics::TraceField, 4> fields{
             diagnostics::TraceField{"symbol", "ExitProcess"},
             diagnostics::TraceField{"exit-code", std::to_string(exit_code)},
@@ -236,6 +239,19 @@ TL_MSABI void tl_ExitProcess(const std::uint32_t exit_code) noexcept {
             diagnostics::TraceField{"mechanism", std::string(mechanism_buf)},
         };
         runtime_trace("ExitProcess", fields, 4);
+    }
+    if (!on_owner_thread) {
+        // Auditoria A2: uma thread secundária do convidado não pode longjmp
+        // para o jmp_buf capturado na thread principal (UB). Registra o
+        // pedido de encerramento do processo e termina a própria thread pelo
+        // jmp_buf dela; a thread principal observará o pedido e desempilhará.
+        guest_process_request_exit(exit_code);
+        terminate_guest_thread_for_process_exit();
+        if (t_thread_exit_context == nullptr) {
+            trace_guest_failure("ExitProcess", "cross-thread",
+                                "thread sem jmp_buf: apenas pedido registrado");
+        }
+        return;
     }
     g_guest_exit_code = exit_code;
     cleanup_current_fls_values();

@@ -1,4 +1,5 @@
 #include "kernel32_common.hpp"
+#include "kernel32_thread_internal.hpp"
 #include "../../core/runtime_handle_state.hpp"
 #include "../../core/runtime_thread_state.hpp"
 
@@ -158,6 +159,19 @@ InternalCondVar* get_or_create_cond(void* ptr) {
     return nullptr;
 }
 
+// Auditoria A2: observação do pedido de saída do processo em pontos de
+// espera bloqueantes. Uma thread secundária termina pelo próprio jmp_buf;
+// a thread dona do jmp_buf do processo desempilha para ele.
+void observe_process_exit_after_wait() noexcept {
+    if (guest_process_exit_pending()) {
+        terminate_guest_thread_for_process_exit();
+        if (!guest_process_exit_owned_by_current_thread()) {
+            trace_guest_failure("wait", "process-exit",
+                                "pedido observado sem caminho de terminação");
+        }
+    }
+}
+
 } // namespace
 
 extern "C" {
@@ -188,10 +202,13 @@ TL_MSABI std::uint32_t tl_WaitForSingleObject(const void* const handle,
             "kind=thread;handle=" + std::to_string(reinterpret_cast<std::uintptr_t>(handle)) +
                 ";timeout-ms=" + std::to_string(milliseconds));
         std::unique_lock<std::mutex> lock(thread->join_mutex);
-        const auto predicate = [&]() { return thread->finished; };
+        const auto predicate = [&]() {
+            return thread->finished || guest_process_exit_pending();
+        };
         if (milliseconds == abi::kInfinite) {
             thread->finish_cv.wait(lock, predicate);
         } else if (!thread->finish_cv.wait_for(lock, std::chrono::milliseconds(milliseconds), predicate)) {
+            observe_process_exit_after_wait();
             set_last_error(abi::kErrorSuccess);
             trace_process_console(
                 "wait-single-end", "single-object",
@@ -199,6 +216,7 @@ TL_MSABI std::uint32_t tl_WaitForSingleObject(const void* const handle,
                     ";result=timeout");
             return abi::kWaitTimeout;
         }
+        observe_process_exit_after_wait();
         set_last_error(abi::kErrorSuccess);
         trace_process_console(
             "wait-single-end", "single-object",
@@ -212,6 +230,7 @@ TL_MSABI std::uint32_t tl_WaitForSingleObject(const void* const handle,
             "kind=sync;handle=" + std::to_string(reinterpret_cast<std::uintptr_t>(handle)) +
                 ";timeout-ms=" + std::to_string(milliseconds));
         const std::uint32_t result = wait_sync_slot(*sync, milliseconds);
+        observe_process_exit_after_wait();
         set_last_error(result == abi::kWaitFailed ? abi::kErrorInvalidHandle : abi::kErrorSuccess);
         trace_process_console(
             "wait-single-end", "single-object",
@@ -248,6 +267,7 @@ TL_MSABI std::uint32_t tl_WaitForMultipleObjects(const std::uint32_t count,
     }
     const auto started = std::chrono::steady_clock::now();
     while (true) {
+        observe_process_exit_after_wait();
         if (wait_all != 0) {
             bool ready = true;
             for (std::uint32_t index = 0; index < count; ++index) {
@@ -652,6 +672,7 @@ TL_MSABI int tl_WaitOnAddress(void* address, void* compare_address, std::size_t 
     }
     if (milliseconds == abi::kInfinite) {
         g_wait_address_cv.wait(lock, pred);
+        observe_process_exit_after_wait();
         if (memory_invalid) {
             set_last_error(abi::kErrorInvalidParameter);
             return 0;
@@ -660,9 +681,11 @@ TL_MSABI int tl_WaitOnAddress(void* address, void* compare_address, std::size_t 
         return 1;
     }
     if (!g_wait_address_cv.wait_for(lock, std::chrono::milliseconds(milliseconds), pred)) {
+        observe_process_exit_after_wait();
         set_last_error(abi::kErrorTimeout);
         return 0;
     }
+    observe_process_exit_after_wait();
     if (memory_invalid) {
         set_last_error(abi::kErrorInvalidParameter);
         return 0;
@@ -741,12 +764,14 @@ TL_MSABI int tl_SleepConditionVariableSRW(void* cond, void* srw_lock,
     bool ok = true;
     if (milliseconds == abi::kInfinite) {
         cv->cv.wait(lock->mutex);
+        observe_process_exit_after_wait();
     } else {
         auto status = cv->cv.wait_for(lock->mutex, std::chrono::milliseconds(milliseconds));
         if (status == std::cv_status::timeout) {
             set_last_error(abi::kErrorTimeout);
             ok = false;
         }
+        observe_process_exit_after_wait();
     }
     if (ok) {
         set_last_error(abi::kErrorSuccess);
@@ -1015,20 +1040,26 @@ TL_MSABI int tl_GetQueuedCompletionStatus(void* const completion_port,
     }
 
     std::unique_lock<std::mutex> lock(slot->mutex);
-    auto predicate = [&slot]() { return !slot->queue.empty(); };
+    auto predicate = [&slot]() {
+        return !slot->queue.empty() || guest_process_exit_pending();
+    };
 
     if (milliseconds == 0) {
+        observe_process_exit_after_wait();
         if (!predicate()) {
             set_last_error(258 /* WAIT_TIMEOUT */);
             return 0;
         }
     } else if (milliseconds == 0xFFFFFFFFU /* INFINITE */) {
         slot->cv.wait(lock, predicate);
+        observe_process_exit_after_wait();
     } else {
         if (!slot->cv.wait_for(lock, std::chrono::milliseconds(milliseconds), predicate)) {
+            observe_process_exit_after_wait();
             set_last_error(258 /* WAIT_TIMEOUT */);
             return 0;
         }
+        observe_process_exit_after_wait();
     }
 
     if (slot->queue.empty()) {

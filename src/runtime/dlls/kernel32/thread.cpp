@@ -8,10 +8,12 @@ extern "C" std::uint32_t tl_call_guest_thread_on_stack(std::uintptr_t entry,
                                                        const void* parameter,
                                                        std::uintptr_t stack_top) noexcept;
 
-namespace {
-
+// Contexto de saída da thread convidada atual (definidos abaixo, declarados
+// em kernel32_thread_internal.hpp para uso de ExitProcess/sincronização).
 thread_local std::jmp_buf* t_thread_exit_context = nullptr;
 thread_local ThreadSlot* t_thread_exit_slot = nullptr;
+
+namespace {
 
 void clear_unstarted_thread_slot(ThreadSlot& slot) noexcept {
     if (slot.teb != nullptr) {
@@ -183,6 +185,25 @@ void reset_fls_process_state() noexcept {
     g_fls_slots = {};
     g_fls_threads.clear();
     g_current_fls_values.reset();
+}
+
+// Auditoria A2: termina a thread atual respeitando a propriedade do
+// jmp_buf de saída. Windows encerra todas as threads no ExitProcess; aqui
+// cada thread usa o próprio jmp_buf — nunca um longjmp cross-thread.
+void terminate_guest_thread_for_process_exit() noexcept {
+    if (std::jmp_buf* context = t_thread_exit_context; context != nullptr) {
+        if (ThreadSlot* slot = t_thread_exit_slot; slot != nullptr) {
+            slot->exit_code = static_cast<int>(
+                runtime::guest_context().requested_exit_code.load(std::memory_order_relaxed));
+        }
+        cleanup_current_fls_values();
+        guest_longjmp(*context, 1);
+    }
+    if (guest_process_exit_owned_by_current_thread()) {
+        guest_process_exit_now(); // [[noreturn]]
+    }
+    // Thread sem jmp_buf e sem ser dona: apenas o pedido registrado fica
+    // observável; não há caminho controlado de terminação aqui.
 }
 
 extern "C" {

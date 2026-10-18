@@ -339,4 +339,18 @@ void invoke_thread_tls_callbacks(std::uint32_t reason) noexcept;
 [[nodiscard]] GuestExecutionResult execute_guest_entry(std::uintptr_t entry_point,
                                                        std::uintptr_t stack_top) noexcept;
 
+// Auditoria A2 (2026-10-18): encerramento de processo solicitado pelo
+// convidado. `ExitProcess` de uma thread secundária registra o pedido
+// (`guest_process_request_exit`) e termina a própria thread; a thread
+// dona do jmp_buf desempilha (`guest_process_exit_now`) no próximo
+// ponto de observação. As threads do kernel32 exportam os próprios
+// jmp_bufs; o resto do runtime consulta por estas funções.
+void guest_process_request_exit(std::uint32_t exit_code) noexcept;
+[[nodiscard]] bool guest_process_exit_pending() noexcept;
+[[nodiscard]] bool guest_process_exit_owned_by_current_thread() noexcept;
+[[noreturn]] void guest_process_exit_now() noexcept;
+// Observa o pedido em pontos de espera do core: desempilha somente se a
+// thread atual é a dona do jmp_buf do processo.
+void guest_process_exit_if_owner_pending() noexcept;
+
 }  // namespace tradutorlinux

@@ -1,8 +1,12 @@
 #include "test_win32_common.hpp"
 #include "tradutorlinux/diagnostics/trace.hpp"
+#include "tradutorlinux/runtime/guest_context.hpp"
+#include "tradutorlinux/runtime/winapi.hpp"
 #include "../src/runtime/core/environment_internal.hpp"
 #include "../src/runtime/core/runtime_handle_state.hpp"
 #include "../src/runtime/core/runtime_thread_state.hpp"
+
+#include <thread>
 
 namespace tradutorlinux {
 namespace {
@@ -3464,6 +3468,60 @@ TEST(Win32ThreadpoolTest, TimerInvalidDuePointerTraceable) {
     tl_SetThreadpoolTimer(timer, bad_due, 0, 0);
     EXPECT_EQ(g_tp_cb_calls.load(), 0);
     tl_CloseThreadpoolTimer(timer);
+}
+
+// ------------------------------------------------------------
+// ExitProcess cross-thread (auditoria A2): thread secundária
+// registra o pedido e termina pelo próprio jmp_buf; nunca faz
+// longjmp para o contexto capturado em outra thread.
+// ------------------------------------------------------------
+
+struct ProcessExitStateScope final {
+    ProcessExitStateScope() noexcept {
+        auto& ctx = runtime::guest_context();
+        previous_active_ = ctx.execution_active;
+        previous_owner_ = ctx.exit_context_owner;
+        ctx.execution_active = true;
+        ctx.exit_context_owner = {};  // nenhum dono registrado no runtime de teste
+        ctx.process_exit_requested.store(false, std::memory_order_release);
+    }
+    ProcessExitStateScope(const ProcessExitStateScope&) = delete;
+    ProcessExitStateScope& operator=(const ProcessExitStateScope&) = delete;
+    ~ProcessExitStateScope() {
+        auto& ctx = runtime::guest_context();
+        ctx.execution_active = previous_active_;
+        ctx.exit_context_owner = previous_owner_;
+        ctx.process_exit_requested.store(false, std::memory_order_release);
+        ctx.requested_exit_code.store(0, std::memory_order_relaxed);
+    }
+    bool previous_active_{false};
+    std::thread::id previous_owner_{};
+};
+
+TEST(Win32ProcessExitTest, ExitProcessFromSecondaryThreadRecordsRequestWithoutLongjmp) {
+    ProcessExitStateScope state_scope;
+    std::atomic<bool> worker_done{false};
+    std::atomic<int> worker_result{0};  // 1 = retorno controlado sem longjmp
+    std::thread worker([&]() {
+        // Esta thread não possui jmp_buf de thread convidada e não é a dona
+        // do jmp_buf do processo: ExitProcess não pode desempilhar para o
+        // contexto de outra thread — registra o pedido e retorna controlado.
+        tl_ExitProcess(42);
+        worker_result.store(1, std::memory_order_relaxed);
+        worker_done.store(true, std::memory_order_release);
+    });
+    worker.join();
+    EXPECT_EQ(worker_done.load(), true);
+    EXPECT_EQ(worker_result.load(), 1);
+    EXPECT_TRUE(guest_process_exit_pending());
+    EXPECT_EQ(runtime::guest_context().requested_exit_code.load(std::memory_order_relaxed), 42U);
+}
+
+TEST(Win32ProcessExitTest, OwnershipAppliesToCapturingThreadOnly) {
+    ProcessExitStateScope state_scope;
+    EXPECT_FALSE(guest_process_exit_owned_by_current_thread());
+    runtime::guest_context().exit_context_owner = std::this_thread::get_id();
+    EXPECT_TRUE(guest_process_exit_owned_by_current_thread());
 }
 
 }  // namespace

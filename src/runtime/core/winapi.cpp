@@ -156,6 +156,48 @@ extern "C" TL_MSABI int dummy_worker_check() noexcept;
 // Helpers compartilhados do runtime
 // ---------------------------------------------------------------------------
 
+// Auditoria A2: gerência do pedido de encerramento do processo.
+void guest_process_request_exit(const std::uint32_t exit_code) noexcept {
+    auto& context = runtime::guest_context();
+    context.requested_exit_code.store(exit_code, std::memory_order_relaxed);
+    context.process_exit_requested.store(true, std::memory_order_release);
+    const std::array<diagnostics::TraceField, 4> fields{
+        diagnostics::TraceField{"symbol", "ExitProcess"},
+        diagnostics::TraceField{"exit-code", std::to_string(exit_code)},
+        diagnostics::TraceField{"mechanism", "cross-thread-deferred"},
+        diagnostics::TraceField{"status", "request-registered"},
+    };
+    runtime_trace("ExitProcess", fields, 4);
+}
+
+bool guest_process_exit_pending() noexcept {
+    return runtime::guest_context().process_exit_requested.load(std::memory_order_acquire);
+}
+
+bool guest_process_exit_owned_by_current_thread() noexcept {
+    return runtime::guest_context().exit_context_owner == std::this_thread::get_id();
+}
+
+void guest_process_exit_now() noexcept {
+    auto& context = runtime::guest_context();
+    g_guest_exit_code = context.requested_exit_code.load(std::memory_order_relaxed);
+    const std::array<diagnostics::TraceField, 4> fields{
+        diagnostics::TraceField{"symbol", "ExitProcess"},
+        diagnostics::TraceField{"exit-code", std::to_string(g_guest_exit_code)},
+        diagnostics::TraceField{"mechanism", "deferred-owner-thread"},
+        diagnostics::TraceField{"status", "success"},
+    };
+    runtime_trace("ExitProcess", fields, 4);
+    cleanup_current_fls_values();
+    guest_longjmp(g_guest_exit_context, 1);
+}
+
+void guest_process_exit_if_owner_pending() noexcept {
+    if (guest_process_exit_pending() && guest_process_exit_owned_by_current_thread()) {
+        guest_process_exit_now();
+    }
+}
+
 [[nodiscard]] bool guest_executable_address(const std::uintptr_t address) noexcept {
     if (g_guest_image_base == nullptr || address == 0) {
         return false;
@@ -538,6 +580,9 @@ std::uint32_t wait_process_slot(SyncSlot& slot, const std::uint32_t milliseconds
     }
     const auto started = std::chrono::steady_clock::now();
     while (slot.process_running) {
+        // Auditoria A2: se o pedido de saída existe e a thread atual é a
+        // dona do jmp_buf, desempilha o processo; caso contrário segue.
+        guest_process_exit_if_owner_pending();
         int status = 0;
         const pid_t result = ::waitpid(slot.child_pid, &status, WNOHANG);
         if (result == slot.child_pid) {
@@ -630,6 +675,10 @@ std::uint32_t wait_sync_slot(SyncSlot& slot, const std::uint32_t milliseconds) n
     if (!slot.used) {
         return abi::kWaitFailed;
     }
+    // Auditoria A2: o despertar pode ter sido o pedido de saída do processo.
+    // Desempilha SOMENTE se a thread atual é a dona do jmp_buf; não consome
+    // o estado do objeto.
+    guest_process_exit_if_owner_pending();
     if (slot.kind == SyncKind::Event) {
         if (!slot.manual_reset) {
             slot.signaled = false;
@@ -1181,6 +1230,11 @@ GuestExecutionResult execute_guest_entry(const std::uintptr_t entry_point,
     g_quit_code = 0;
     g_guest_execution_active = true;
     g_current_thread_id = kMainThreadId;
+    // Auditoria A2: esta thread é a dona do jmp_buf de saída do processo;
+    // limpa qualquer pedido residual antes de capturar o contexto.
+    runtime::guest_context().exit_context_owner = std::this_thread::get_id();
+    runtime::guest_context().process_exit_requested.store(false, std::memory_order_release);
+    runtime::guest_context().requested_exit_code.store(0, std::memory_order_relaxed);
     static_cast<void>(ensure_fls_thread_values());
     if (setjmp(g_guest_exit_context) == 0) {
         if (runtime::guest_context().module_graph != nullptr &&
