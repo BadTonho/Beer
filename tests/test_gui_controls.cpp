@@ -532,10 +532,10 @@ TEST(CommonControls, ControlMessagesRejectUnmappedNestedBuffers) {
     combo.control_kind = ControlKind::ComboBox;
     EXPECT_EQ(tl_SendMessageA(&combo, abi::kCbAddString, 0,
                               reinterpret_cast<abi::Lparam>(invalid)),
-              0);
+              -1);
     EXPECT_EQ(tl_SendMessageW(&combo, abi::kCbAddString, 0,
                               reinterpret_cast<abi::Lparam>(invalid)),
-              0);
+              -1);
 
     WindowSlot& list = g_windows[5];
     list.used = true;
@@ -883,5 +883,74 @@ TEST(GuiControlsTest, ComboBoxFullMessageSupport) {
     g_windows = {};
 }
 
+TEST(CommonControls, ListViewSupportsTruncatedBufferAndExtendedColumns) {
+    g_windows = {};
+    WindowSlot& parent = g_windows[0];
+    parent.used = true;
+    WindowSlot& list = g_windows[1];
+    list.used = true;
+    list.is_control = true;
+    list.parent = &parent;
+    list.control_kind = ControlKind::ListView;
+
+    std::u16string name = u"Item0";
+    abi::GuestLvItemW item{};
+    item.mask = abi::kLvifText | abi::kLvifParam | abi::kLvifState;
+    item.item = 0;
+    item.param = 0xABCD;
+    item.state = abi::kLvisSelected;
+    item.state_mask = abi::kLvisSelected;
+    item.text = reinterpret_cast<std::uint16_t*>(name.data());
+    EXPECT_EQ(tl_SendMessageW(&list, abi::kLvmInsertItemW, 0, reinterpret_cast<abi::Lparam>(&item)), 0);
+
+    // Verify subitems beyond column 6 (e.g. column 7)
+    std::u16string col7_text = u"Column 7 text";
+    abi::GuestLvItemW text_item{};
+    text_item.item = 0;
+    text_item.subitem = 7;
+    text_item.text = reinterpret_cast<std::uint16_t*>(col7_text.data());
+    EXPECT_EQ(tl_SendMessageW(&list, abi::kLvmSetItemTextW, 0, reinterpret_cast<abi::Lparam>(&text_item)), 1);
+
+    char16_t col7_buf[32]{};
+    abi::GuestLvItemW col7_query{};
+    col7_query.subitem = 7;
+    col7_query.text = reinterpret_cast<std::uint16_t*>(col7_buf);
+    col7_query.text_capacity = 32;
+    EXPECT_EQ(tl_SendMessageW(&list, abi::kLvmGetItemTextW, 0, reinterpret_cast<abi::Lparam>(&col7_query)), 13);
+    EXPECT_EQ(std::u16string(col7_buf), u"Column 7 text");
+
+    // Test a truncated 48-byte LVITEM structure (ends at lParam) with canary bytes after it
+    #pragma pack(push, 8)
+    struct TruncatedLvItemW {
+        std::uint32_t mask{};
+        std::int32_t item{};
+        std::int32_t subitem{};
+        std::uint32_t state{};
+        std::uint32_t state_mask{};
+        std::uint16_t* text{};
+        std::int32_t text_capacity{};
+        std::int32_t image{};
+        std::intptr_t param{};
+        // Canary bytes that must NOT be overwritten
+        std::uint64_t canary{0xDEADBEEFCAFEBABEULL};
+    } truncated{};
+    #pragma pack(pop)
+    static_assert(offsetof(TruncatedLvItemW, param) == 40);
+    static_assert(offsetof(TruncatedLvItemW, canary) == 48);
+
+    truncated.mask = abi::kLvifParam | abi::kLvifState;
+    truncated.item = 0;
+    truncated.state_mask = abi::kLvisSelected;
+
+    // Send LVM_GETITEMW passing only the 48-byte buffer
+    EXPECT_EQ(tl_SendMessageW(&list, abi::kLvmGetItemW, 0, reinterpret_cast<abi::Lparam>(&truncated)), 1);
+    EXPECT_EQ(truncated.param, 0xABCD);
+    EXPECT_EQ(truncated.state, abi::kLvisSelected);
+    EXPECT_EQ(truncated.canary, 0xDEADBEEFCAFEBABEULL);
+
+    g_windows = {};
+}
+
 }  // namespace
 }  // namespace tradutorlinux::runtime_gui
+

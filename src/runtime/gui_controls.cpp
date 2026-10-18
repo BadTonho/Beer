@@ -180,6 +180,38 @@ void queue_list_notification(WindowSlot& list, const std::int32_t code, const in
                          reinterpret_cast<abi::Lparam>(&notification));
 }
 
+constexpr int kMaxListViewColumns = 64;
+
+bool read_guest_lvitem_a(const abi::Lparam lparam, abi::GuestLvItemA& item) noexcept {
+    if (lparam == 0) {
+        return false;
+    }
+    item = {};
+    if (runtime::read_guest_memory(reinterpret_cast<const void*>(lparam), &item, sizeof(item)).status ==
+        runtime::GuestMemoryAccessStatus::Success) {
+        return true;
+    }
+    constexpr std::size_t kBaseLvItemSize =
+        offsetof(abi::GuestLvItemA, param) + sizeof(std::intptr_t);
+    return runtime::read_guest_memory(reinterpret_cast<const void*>(lparam), &item, kBaseLvItemSize).status ==
+           runtime::GuestMemoryAccessStatus::Success;
+}
+
+bool read_guest_lvitem_w(const abi::Lparam lparam, abi::GuestLvItemW& item) noexcept {
+    if (lparam == 0) {
+        return false;
+    }
+    item = {};
+    if (runtime::read_guest_memory(reinterpret_cast<const void*>(lparam), &item, sizeof(item)).status ==
+        runtime::GuestMemoryAccessStatus::Success) {
+        return true;
+    }
+    constexpr std::size_t kBaseLvItemSize =
+        offsetof(abi::GuestLvItemW, param) + sizeof(std::intptr_t);
+    return runtime::read_guest_memory(reinterpret_cast<const void*>(lparam), &item, kBaseLvItemSize).status ==
+           runtime::GuestMemoryAccessStatus::Success;
+}
+
 int handle_listview_message(WindowSlot& slot, const std::uint32_t message,
                             const abi::Wparam wparam, const abi::Lparam lparam,
                             [[maybe_unused]] const bool wide) noexcept {
@@ -217,7 +249,7 @@ int handle_listview_message(WindowSlot& slot, const std::uint32_t message,
         }
         if (message == abi::kLvmInsertItemA) {
             abi::GuestLvItemA item{};
-            if (lparam == 0 || !read_guest_value(reinterpret_cast<const void*>(lparam), item)) {
+            if (!read_guest_lvitem_a(lparam, item)) {
                 set_last_error(abi::kErrorInvalidParameter);
                 return 0;
             }
@@ -249,7 +281,7 @@ int handle_listview_message(WindowSlot& slot, const std::uint32_t message,
         }
         if (message == abi::kLvmInsertItemW) {
             abi::GuestLvItemW item{};
-            if (lparam == 0 || !read_guest_value(reinterpret_cast<const void*>(lparam), item)) {
+            if (!read_guest_lvitem_w(lparam, item)) {
                 set_last_error(abi::kErrorInvalidParameter);
                 return 0;
             }
@@ -283,7 +315,7 @@ int handle_listview_message(WindowSlot& slot, const std::uint32_t message,
         if (message == abi::kLvmSetItemA || message == abi::kLvmSetItemTextA) {
             const int param_index = static_cast<int>(wparam);
             abi::GuestLvItemA item{};
-            if (lparam == 0 || !read_guest_value(reinterpret_cast<const void*>(lparam), item)) {
+            if (!read_guest_lvitem_a(lparam, item)) {
                 set_last_error(abi::kErrorInvalidParameter);
                 return 0;
             }
@@ -314,7 +346,7 @@ int handle_listview_message(WindowSlot& slot, const std::uint32_t message,
                     set_last_error(abi::kErrorInvalidParameter);
                     return 0;
                 }
-                if (item.subitem >= 0 && item.subitem < 6) {
+                if (item.subitem >= 0 && item.subitem < kMaxListViewColumns) {
                     if (row.columns.size() <= static_cast<std::size_t>(item.subitem)) {
                         row.columns.resize(static_cast<std::size_t>(item.subitem + 1));
                     }
@@ -330,7 +362,7 @@ int handle_listview_message(WindowSlot& slot, const std::uint32_t message,
         if (message == abi::kLvmSetItemW || message == abi::kLvmSetItemTextW) {
             const int param_index = static_cast<int>(wparam);
             abi::GuestLvItemW item{};
-            if (lparam == 0 || !read_guest_value(reinterpret_cast<const void*>(lparam), item)) {
+            if (!read_guest_lvitem_w(lparam, item)) {
                 set_last_error(abi::kErrorInvalidParameter);
                 return 0;
             }
@@ -361,7 +393,7 @@ int handle_listview_message(WindowSlot& slot, const std::uint32_t message,
                     set_last_error(abi::kErrorInvalidParameter);
                     return 0;
                 }
-                if (item.subitem >= 0 && item.subitem < 6) {
+                if (item.subitem >= 0 && item.subitem < kMaxListViewColumns) {
                     if (row.columns.size() <= static_cast<std::size_t>(item.subitem)) {
                         row.columns.resize(static_cast<std::size_t>(item.subitem + 1));
                     }
@@ -380,7 +412,7 @@ int handle_listview_message(WindowSlot& slot, const std::uint32_t message,
         if (message == abi::kLvmGetItemA) {
             const int param_index = static_cast<int>(wparam);
             abi::GuestLvItemA item{};
-            if (lparam == 0 || !read_guest_value(reinterpret_cast<const void*>(lparam), item)) {
+            if (!read_guest_lvitem_a(lparam, item)) {
                 set_last_error(abi::kErrorInvalidParameter);
                 return 0;
             }
@@ -393,10 +425,36 @@ int handle_listview_message(WindowSlot& slot, const std::uint32_t message,
             }
             const auto& row = slot.list_rows[static_cast<std::size_t>(index)];
             if ((item.mask & abi::kLvifParam) != 0U || item.mask == 0U) {
-                item.param = row.param;
+                const auto offset = offsetof(abi::GuestLvItemA, param);
+                if (runtime::write_guest_memory(
+                        reinterpret_cast<void*>(static_cast<std::uintptr_t>(lparam) + offset),
+                        &row.param, sizeof(row.param)).status !=
+                    runtime::GuestMemoryAccessStatus::Success) {
+                    set_last_error(abi::kErrorInvalidParameter);
+                    return 0;
+                }
             }
             if ((item.mask & abi::kLvifState) != 0U) {
-                item.state = row.state & item.state_mask;
+                const std::uint32_t state = row.state & item.state_mask;
+                const auto offset = offsetof(abi::GuestLvItemA, state);
+                if (runtime::write_guest_memory(
+                        reinterpret_cast<void*>(static_cast<std::uintptr_t>(lparam) + offset),
+                        &state, sizeof(state)).status !=
+                    runtime::GuestMemoryAccessStatus::Success) {
+                    set_last_error(abi::kErrorInvalidParameter);
+                    return 0;
+                }
+            }
+            if ((item.mask & abi::kLvifImage) != 0U) {
+                const std::int32_t image = 0;
+                const auto offset = offsetof(abi::GuestLvItemA, image);
+                if (runtime::write_guest_memory(
+                        reinterpret_cast<void*>(static_cast<std::uintptr_t>(lparam) + offset),
+                        &image, sizeof(image)).status !=
+                    runtime::GuestMemoryAccessStatus::Success) {
+                    set_last_error(abi::kErrorInvalidParameter);
+                    return 0;
+                }
             }
             if ((item.mask & abi::kLvifText) != 0U && item.text != nullptr && item.text_capacity > 0) {
                 if (item.subitem >= 0 && static_cast<std::size_t>(item.subitem) < row.columns.size()) {
@@ -422,17 +480,13 @@ int handle_listview_message(WindowSlot& slot, const std::uint32_t message,
                     }
                 }
             }
-            if (!write_guest_value(reinterpret_cast<void*>(lparam), item)) {
-                set_last_error(abi::kErrorInvalidParameter);
-                return 0;
-            }
             set_last_error(abi::kErrorSuccess);
             return 1;
         }
         if (message == abi::kLvmGetItemW) {
             const int param_index = static_cast<int>(wparam);
             abi::GuestLvItemW item{};
-            if (lparam == 0 || !read_guest_value(reinterpret_cast<const void*>(lparam), item)) {
+            if (!read_guest_lvitem_w(lparam, item)) {
                 set_last_error(abi::kErrorInvalidParameter);
                 return 0;
             }
@@ -445,10 +499,36 @@ int handle_listview_message(WindowSlot& slot, const std::uint32_t message,
             }
             const auto& row = slot.list_rows[static_cast<std::size_t>(index)];
             if ((item.mask & abi::kLvifParam) != 0U || item.mask == 0U) {
-                item.param = row.param;
+                const auto offset = offsetof(abi::GuestLvItemW, param);
+                if (runtime::write_guest_memory(
+                        reinterpret_cast<void*>(static_cast<std::uintptr_t>(lparam) + offset),
+                        &row.param, sizeof(row.param)).status !=
+                    runtime::GuestMemoryAccessStatus::Success) {
+                    set_last_error(abi::kErrorInvalidParameter);
+                    return 0;
+                }
             }
             if ((item.mask & abi::kLvifState) != 0U) {
-                item.state = row.state & item.state_mask;
+                const std::uint32_t state = row.state & item.state_mask;
+                const auto offset = offsetof(abi::GuestLvItemW, state);
+                if (runtime::write_guest_memory(
+                        reinterpret_cast<void*>(static_cast<std::uintptr_t>(lparam) + offset),
+                        &state, sizeof(state)).status !=
+                    runtime::GuestMemoryAccessStatus::Success) {
+                    set_last_error(abi::kErrorInvalidParameter);
+                    return 0;
+                }
+            }
+            if ((item.mask & abi::kLvifImage) != 0U) {
+                const std::int32_t image = 0;
+                const auto offset = offsetof(abi::GuestLvItemW, image);
+                if (runtime::write_guest_memory(
+                        reinterpret_cast<void*>(static_cast<std::uintptr_t>(lparam) + offset),
+                        &image, sizeof(image)).status !=
+                    runtime::GuestMemoryAccessStatus::Success) {
+                    set_last_error(abi::kErrorInvalidParameter);
+                    return 0;
+                }
             }
             if ((item.mask & abi::kLvifText) != 0U && item.text != nullptr && item.text_capacity > 0) {
                 if (item.subitem >= 0 && static_cast<std::size_t>(item.subitem) < row.columns.size()) {
@@ -475,17 +555,13 @@ int handle_listview_message(WindowSlot& slot, const std::uint32_t message,
                     }
                 }
             }
-            if (!write_guest_value(reinterpret_cast<void*>(lparam), item)) {
-                set_last_error(abi::kErrorInvalidParameter);
-                return 0;
-            }
             set_last_error(abi::kErrorSuccess);
             return 1;
         }
         if (message == abi::kLvmGetItemTextA) {
             const int param_index = static_cast<int>(wparam);
             abi::GuestLvItemA item{};
-            if (lparam == 0 || !read_guest_value(reinterpret_cast<const void*>(lparam), item)) {
+            if (!read_guest_lvitem_a(lparam, item)) {
                 set_last_error(abi::kErrorInvalidParameter);
                 return 0;
             }
@@ -493,7 +569,7 @@ int handle_listview_message(WindowSlot& slot, const std::uint32_t message,
                                   ? param_index
                                   : item.item;
             if (index >= 0 && static_cast<std::size_t>(index) < slot.list_rows.size() &&
-                item.subitem >= 0 && item.subitem < 6 && item.text != nullptr && item.text_capacity > 0) {
+                item.subitem >= 0 && item.subitem < kMaxListViewColumns && item.text != nullptr && item.text_capacity > 0) {
                 const auto& row = slot.list_rows[static_cast<std::size_t>(index)];
                 const std::string empty;
                 const std::string& value = (static_cast<std::size_t>(item.subitem) < row.columns.size())
@@ -520,7 +596,7 @@ int handle_listview_message(WindowSlot& slot, const std::uint32_t message,
         if (message == abi::kLvmGetItemTextW) {
             const int param_index = static_cast<int>(wparam);
             abi::GuestLvItemW item{};
-            if (lparam == 0 || !read_guest_value(reinterpret_cast<const void*>(lparam), item)) {
+            if (!read_guest_lvitem_w(lparam, item)) {
                 set_last_error(abi::kErrorInvalidParameter);
                 return 0;
             }
@@ -528,7 +604,7 @@ int handle_listview_message(WindowSlot& slot, const std::uint32_t message,
                                   ? param_index
                                   : item.item;
             if (index >= 0 && static_cast<std::size_t>(index) < slot.list_rows.size() &&
-                item.subitem >= 0 && item.subitem < 6 && item.text != nullptr && item.text_capacity > 0) {
+                item.subitem >= 0 && item.subitem < kMaxListViewColumns && item.text != nullptr && item.text_capacity > 0) {
                 const auto& row = slot.list_rows[static_cast<std::size_t>(index)];
                 const std::string empty;
                 const std::string& value = (static_cast<std::size_t>(item.subitem) < row.columns.size())
@@ -555,7 +631,7 @@ int handle_listview_message(WindowSlot& slot, const std::uint32_t message,
         }
         if (message == abi::kLvmSetItemState) {
             abi::GuestLvItemA item{};
-            if (lparam == 0 || !read_guest_value(reinterpret_cast<const void*>(lparam), item)) {
+            if (!read_guest_lvitem_a(lparam, item)) {
                 set_last_error(abi::kErrorInvalidParameter);
                 return 0;
             }
