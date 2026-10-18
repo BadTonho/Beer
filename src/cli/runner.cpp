@@ -201,7 +201,8 @@ struct MsixFileReadResult {
     do {
         wait_result = ::waitpid(child, &child_status, 0);
     } while (wait_result < 0 && errno == EINTR);
-    return wait_result == child && WIFEXITED(child_status) && WEXITSTATUS(child_status) == 0;
+    return wait_result == child && WIFEXITED(child_status) &&
+           (WEXITSTATUS(child_status) == 0 || WEXITSTATUS(child_status) == 1);
 }
 
 struct FileSignature {
