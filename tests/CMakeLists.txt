@@ -23,6 +23,20 @@ if(TL_POPULAR_APPS_DIR AND TARGET tradutorlinux)
         )
     endif()
 
+    set(TL_7Z_SUBDIR_EXECUTABLE "${TL_POPULAR_APPS_DIR}/7-Zip/7z.exe")
+    if(EXISTS "${TL_7Z_SUBDIR_EXECUTABLE}" AND EXISTS "${TL_POPULAR_APPS_DIR}/7-Zip/7z.dll")
+        add_test(
+            NAME seven_zip_subdir_cli_smoke
+            COMMAND seven_zip_cli_smoke
+                "$<TARGET_FILE:tradutorlinux>"
+                "${TL_7Z_SUBDIR_EXECUTABLE}"
+        )
+        set_tests_properties(seven_zip_subdir_cli_smoke PROPERTIES
+            LABELS "runtime;apps;7zip;dll;archive"
+            TIMEOUT 60
+        )
+    endif()
+
     add_test(
         NAME popular_apps_report_matrix
         COMMAND ${CMAKE_COMMAND}
@@ -70,6 +84,36 @@ if(TL_POPULAR_APPS_DIR AND TARGET tradutorlinux)
                 -P "${PROJECT_SOURCE_DIR}/tests/apps/verify_notepadpp_fh4.cmake"
         )
         set_tests_properties(notepadpp_fh4_headless_smoke PROPERTIES
+            LABELS "runtime;apps;notepadpp;cxx-eh;headless"
+            TIMEOUT 45
+        )
+    endif()
+
+    if(EXISTS "${TL_POPULAR_APPS_DIR}/notepad++.exe")
+        add_test(
+            NAME notepadpp_root_fh4_headless_smoke
+            COMMAND ${CMAKE_COMMAND}
+                "-DTL_RUNTIME=$<TARGET_FILE:tradutorlinux>"
+                "-DTL_TARGET=${TL_POPULAR_APPS_DIR}/notepad++.exe"
+                "-DTL_STAGING_ROOT=${CMAKE_BINARY_DIR}/notepadpp-root-fh4-headless"
+                -P "${PROJECT_SOURCE_DIR}/tests/apps/verify_notepadpp_fh4.cmake"
+        )
+        set_tests_properties(notepadpp_root_fh4_headless_smoke PROPERTIES
+            LABELS "runtime;apps;notepadpp;cxx-eh;headless"
+            TIMEOUT 45
+        )
+    endif()
+
+    if(EXISTS "${TL_POPULAR_APPS_DIR}/npp_extracted/notepad++.exe")
+        add_test(
+            NAME notepadpp_extracted_fh4_headless_smoke
+            COMMAND ${CMAKE_COMMAND}
+                "-DTL_RUNTIME=$<TARGET_FILE:tradutorlinux>"
+                "-DTL_TARGET=${TL_POPULAR_APPS_DIR}/npp_extracted/notepad++.exe"
+                "-DTL_STAGING_ROOT=${CMAKE_BINARY_DIR}/notepadpp-extracted-fh4-headless"
+                -P "${PROJECT_SOURCE_DIR}/tests/apps/verify_notepadpp_fh4.cmake"
+        )
+        set_tests_properties(notepadpp_extracted_fh4_headless_smoke PROPERTIES
             LABELS "runtime;apps;notepadpp;cxx-eh;headless"
             TIMEOUT 45
         )
@@ -331,8 +375,10 @@ if(TL_XVFB_EXECUTABLE)
 
     if(TL_POPULAR_APPS_DIR AND TARGET tradutorlinux)
         set(TL_7ZFM_EXECUTABLE "${TL_POPULAR_APPS_DIR}/7zFM_x64.exe")
+        set(TL_7Z_SUBDIR_GUI_EXECUTABLE "${TL_POPULAR_APPS_DIR}/7-Zip/7zFM.exe")
         set(TL_PUTTY_EXECUTABLE "${TL_POPULAR_APPS_DIR}/putty_x64.exe")
         set(TL_WINRAR_EXECUTABLE "${TL_POPULAR_APPS_DIR}/WinRAR_x64.exe")
+        set(TL_WINRAR_723_EXECUTABLE "${TL_POPULAR_APPS_DIR}/winrar-x64-723.exe")
         set(TL_NOTEPADPP_EXECUTABLE "${TL_POPULAR_APPS_DIR}/Notepad++/notepad++.exe")
 
         if(EXISTS "${TL_7ZFM_EXECUTABLE}")
@@ -343,6 +389,20 @@ if(TL_XVFB_EXECUTABLE)
                     "${TL_7ZFM_EXECUTABLE}"
             )
             set_tests_properties(seven_zip_gui_smoke PROPERTIES
+                LABELS "runtime;apps;gui;7zip"
+                TIMEOUT 60
+                SKIP_RETURN_CODE 77
+            )
+        endif()
+
+        if(EXISTS "${TL_7Z_SUBDIR_GUI_EXECUTABLE}")
+            add_test(
+                NAME seven_zip_subdir_gui_smoke
+                COMMAND seven_zip_smoke
+                    "$<TARGET_FILE:tradutorlinux>"
+                    "${TL_7Z_SUBDIR_GUI_EXECUTABLE}"
+            )
+            set_tests_properties(seven_zip_subdir_gui_smoke PROPERTIES
                 LABELS "runtime;apps;gui;7zip"
                 TIMEOUT 60
                 SKIP_RETURN_CODE 77
@@ -393,6 +453,31 @@ if(TL_XVFB_EXECUTABLE)
                     "${TL_WINRAR_EXECUTABLE}"
             )
             set_tests_properties(winrar_extract_real_smoke PROPERTIES
+                LABELS "runtime;apps;winrar"
+                TIMEOUT 60
+                SKIP_RETURN_CODE 77
+            )
+        endif()
+
+        if(EXISTS "${TL_WINRAR_723_EXECUTABLE}")
+            add_test(
+                NAME winrar_723_sfx_real_smoke
+                COMMAND winrar_sfx_smoke
+                    "$<TARGET_FILE:tradutorlinux>"
+                    "${TL_WINRAR_723_EXECUTABLE}"
+            )
+            set_tests_properties(winrar_723_sfx_real_smoke PROPERTIES
+                LABELS "runtime;apps;gui;winrar"
+                TIMEOUT 60
+                SKIP_RETURN_CODE 77
+            )
+            add_test(
+                NAME winrar_723_extract_real_smoke
+                COMMAND winrar_extract_smoke
+                    "$<TARGET_FILE:tradutorlinux>"
+                    "${TL_WINRAR_723_EXECUTABLE}"
+            )
+            set_tests_properties(winrar_723_extract_real_smoke PROPERTIES
                 LABELS "runtime;apps;winrar"
                 TIMEOUT 60
                 SKIP_RETURN_CODE 77

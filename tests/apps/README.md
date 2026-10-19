@@ -7,13 +7,17 @@ de produção nem criam DLLs específicas.
 Cada cenário deve declarar o aplicativo, a ação segura, o critério de término,
 os limites externos e a evidência ON/OFF quando aplicável.
 
-O `7zip/7z_cli_smoke.cpp` é executado somente quando recebe explicitamente o
-runtime e o `7z_x64.exe` do corpus. O cenário cobre arquivos `stored`,
-`DEFLATE`, `7z/LZMA2` normal e protegido por senha, sobrescrita controlada com
-`-aoa`, rejeição de senha incorreta sem payload válido, caminhos relativos e o
-filtro stdin/stdout (`-si`/`-so`).
+O `7zip/7z_cli_smoke.cpp` é executado pelo teste `seven_zip_cli_smoke` com
+`7z_x64.exe` e pelo teste `seven_zip_subdir_cli_smoke` com `7-Zip/7z.exe`. O cenário
+cobre arquivos `stored`, `DEFLATE`, `7z/LZMA2` normal e protegido por senha,
+sobrescrita controlada com `-aoa`, rejeição de senha incorreta sem payload válido,
+caminhos relativos e o filtro stdin/stdout (`-si`/`-so`).
 O CMake registra o teste automaticamente quando `TL_POPULAR_APPS_DIR` aponta
 para `Aplicativos_Windows_Populares/`.
+
+Os testes `notepadpp_fh4_headless_smoke`, `notepadpp_root_fh4_headless_smoke` e
+`notepadpp_extracted_fh4_headless_smoke` validam o despacho C++ EH FH4 sem X11
+para `Notepad++/notepad++.exe`, `notepad++.exe` da raiz e `npp_extracted/notepad++.exe`.
 
 O mesmo parâmetro registra `popular_apps_report_matrix`, que analisa os 26 PE
 selecionados e o MSIX do corpus e verifica os exit codes esperados sem mapear
@@ -53,10 +57,12 @@ a execução do binário CLI quando aplicável (`7z.exe` com exit `0`) e a poste
 da aplicação do catálogo (`tradutorlinux app remove <id>`).
 
 Com o mesmo parâmetro e Xvfb disponível, os smokes GUI reais de 7-Zip File
-Manager, PuTTY, WinRAR SFX e Notepad++ também são registrados separadamente no
-CTest. O smoke do 7-Zip prepara catálogo, prefixo e
-`compat/profile.json` schema 4 temporários, cadastra o aplicativo com ID
-`7zip` e executa somente por `app run`; o trace exige `compat-profile` carregado
-e `compat-extension` selecionada. Cada cenário cria seu próprio Xvfb/staging e
-mantém seu resultado limitado ao comportamento documentado na matriz de
-compatibilidade.
+Manager (`seven_zip_gui_smoke` e `seven_zip_subdir_gui_smoke`), PuTTY (`putty_real_gui_smoke`
+e `putty_ssh_local_probe`), WinRAR (`winrar_sfx_real_smoke`, `winrar_extract_real_smoke`,
+`winrar_723_sfx_real_smoke` e `winrar_723_extract_real_smoke`) e Notepad++
+(`notepadpp_real_gui_smoke`) também são registrados separadamente no CTest.
+O smoke do 7-Zip prepara catálogo, prefixo e `compat/profile.json` schema 4
+temporários, cadastra o aplicativo com ID `7zip` e executa somente por `app run`; o
+trace exige `compat-profile` carregado e `compat-extension` selecionada. Cada cenário
+cria seu próprio Xvfb/staging e mantém seu resultado limitado ao comportamento documentado
+na matriz de compatibilidade.
