@@ -451,6 +451,18 @@ TEST(PeReaderTest, ToleratesVirtualOnlyExceptionDirectory) {
     EXPECT_TRUE(result.info.runtime_functions.empty());
 }
 
+// Auditoria 2026-10-18 (5.5): o descarte tolerante de diretórios em seções
+// sem dados físicos (padrão UPX/R29) não pode ser silencioso — entra como
+// aviso no ParseResult.
+TEST(PeReaderTest, VirtualOnlyExceptionDirectoryIsDisclosedAsWarning) {
+    const ParseResult result = parse_pe(make_virtual_only_exception_directory_pe());
+
+    EXPECT_EQ(result.status, ParseStatus::Success);
+    ASSERT_FALSE(result.warnings.empty());
+    EXPECT_NE(result.warnings.front().find("exceções"), std::string::npos);
+    EXPECT_NE(result.warnings.front().find("UPX"), std::string::npos);
+}
+
 TEST(PeReaderTest, ParsesLargeChainedUnwindTable) {
     const ParseResult result = parse_pe(make_large_chained_unwind_pe());
 

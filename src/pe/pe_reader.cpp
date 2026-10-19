@@ -90,7 +90,7 @@ constexpr std::uint8_t kUnwindV2EpilogAtFunctionEnd = 0x1;
 }
 
 [[nodiscard]] ParseResult fail(const ParseStatus status, std::string message) {
-    return {.status = status, .error_message = std::move(message), .info = {}};
+    return {.status = status, .error_message = std::move(message), .info = {}, .warnings = {}};
 }
 
 class ByteReader {
@@ -388,7 +388,8 @@ public:
         if (auto error = parse_relocations()) {
             return *error;
         }
-        return {.status = ParseStatus::Success, .error_message = {}, .info = std::move(parser_state_)};
+        return {.status = ParseStatus::Success, .error_message = {},
+                .info = std::move(parser_state_), .warnings = std::move(warnings_)};
     }
 
 private:
@@ -458,6 +459,7 @@ private:
         if (!directory.has_value()) {
             if (is_rva_in_uninitialized_section(
                     {parser_state_.export_directory_rva, parser_state_.export_directory_size})) {
+                record_uninitialized_directory("exports");
                 return std::nullopt;
             }
             return fail(ParseStatus::Malformed,
@@ -900,6 +902,7 @@ private:
         if (!directory.has_value()) {
             if (is_rva_in_uninitialized_section(
                     {parser_state_.tls_directory_rva, parser_state_.tls_directory_size})) {
+                record_uninitialized_directory("TLS");
                 return std::nullopt;
             }
             return fail(ParseStatus::Malformed,
@@ -1295,6 +1298,7 @@ private:
         if (!directory.has_value()) {
             if (is_rva_in_uninitialized_section(
                     {parser_state_.exception_directory_rva, parser_state_.exception_directory_size})) {
+                record_uninitialized_directory("exceções");
                 return std::nullopt;
             }
             return fail(ParseStatus::Malformed, "diretório de exceções fora da imagem (RVA " +
@@ -1403,6 +1407,7 @@ private:
         if (!directory.has_value()) {
             if (is_rva_in_uninitialized_section(
                     {parser_state_.relocation_directory_rva, parser_state_.relocation_directory_size})) {
+                record_uninitialized_directory("relocations");
                 return std::nullopt;
             }
             return fail(ParseStatus::Malformed,
@@ -1464,6 +1469,19 @@ private:
 
     ByteReader reader_;
     PeInfo parser_state_;
+    // Auditoria 2026-10-18 (5.5): tolerância do parser deve ser visível —
+    // dados descartados silenciosamente viram avisos no ParseResult.
+    std::vector<std::string> warnings_;
+
+    void record_uninitialized_directory(const std::string_view name) {
+        constexpr std::size_t kMaxParseWarnings = 64;
+        if (warnings_.size() < kMaxParseWarnings) {
+            warnings_.push_back(
+                "diretório " + std::string{name} +
+                " declarado em seção sem dados físicos (padrão de imagem empacotada "
+                "UPX/R29): tratado como ausente");
+        }
+    }
 };
 
 }  // namespace

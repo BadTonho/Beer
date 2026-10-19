@@ -167,6 +167,12 @@ struct ParseResult {
     ParseStatus status{ParseStatus::Success};
     std::string error_message;
     PeInfo info;
+    // Auditoria 2026-10-18 (5.5): avisos de parse — o sucesso pode ter
+    // descartado dados visíveis ao runtime (ex.: diretório declarado em
+    // seção sem dados físicos, padrão de imagens UPX/R29). O par é
+    // (status, warnings) e o consumidor decide como reportar; o campo fica
+    // vazio em falhas (error_message já descreve o problema real).
+    std::vector<std::string> warnings;
 };
 
 [[nodiscard]] ParseResult parse_pe(std::span<const std::byte> data);

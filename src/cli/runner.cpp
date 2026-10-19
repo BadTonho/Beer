@@ -1236,8 +1236,18 @@ ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_strea
     if (effective_cmd.trace_enabled) {
         write_pe_trace(stderr_stream, parse_result.info,
                        rust_pe_backend ? std::string_view{"rust"} : std::string_view{});
+        // Auditoria 2026-10-18 (5.5): tolerância do parse é visível — dados
+        // descartados (padrão UPX/R29) aparecem por evento pe.
+        for (const std::string& warning : parse_result.warnings) {
+            const std::array fields{diagnostics::TraceField{"warning", warning}};
+            diagnostics::write_trace(stderr_stream, diagnostics::TraceComponent::Pe,
+                                     diagnostics::TraceLevel::Warning, "warning", fields);
+        }
     } else {
         print_pe_summary(stderr_stream, parse_result.info);
+        for (const std::string& warning : parse_result.warnings) {
+            stderr_stream << "aviso pe: " << warning << "\n";
+        }
     }
 
     loader::register_builtin_modules();
