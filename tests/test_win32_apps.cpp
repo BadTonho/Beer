@@ -769,5 +769,58 @@ TEST(RobloxCoverageTest, AllApisAndModules) {
     EXPECT_EQ(tl_TrackMouseEvent_alias(nullptr), 1);
 }
 
+TEST(LogitechGHUBCoverageTest, AllApisAndModules) {
+    // ADVAPI32 Token & Security info
+    void* token = nullptr;
+    EXPECT_EQ(tl_OpenProcessToken(tl_GetCurrentProcess(), abi::kTokenQuery, &token), 1);
+    EXPECT_NE(token, nullptr);
+
+    std::uint32_t ret_len = 0;
+    std::uint8_t tok_info[64]{};
+    EXPECT_EQ(tl_GetTokenInformation(token, abi::kTokenElevation, tok_info, sizeof(tok_info), &ret_len), 1);
+    EXPECT_GT(ret_len, 0U);
+
+    void* new_acl = nullptr;
+    EXPECT_EQ(tl_SetEntriesInAclW(0, nullptr, nullptr, &new_acl), abi::kErrorSuccess);
+
+    void* dacl = nullptr;
+    void* desc = nullptr;
+    EXPECT_EQ(tl_GetNamedSecurityInfoW(nullptr, abi::kSeFileObject, abi::kDaclSecurityInformation,
+                                       nullptr, nullptr, &dacl, nullptr, &desc),
+              abi::kErrorInvalidParameter);
+    EXPECT_EQ(tl_SetNamedSecurityInfoW(nullptr, abi::kSeFileObject, abi::kDaclSecurityInformation,
+                                       nullptr, nullptr, dacl, nullptr),
+              abi::kErrorInvalidParameter);
+
+    // KERNEL32 SRW Locks & Condition Variables
+    std::uintptr_t srw_lock = 0;
+    tl_AcquireSRWLockExclusive(&srw_lock);
+    tl_ReleaseSRWLockExclusive(&srw_lock);
+
+    std::uintptr_t cond_var = 0;
+    tl_WakeAllConditionVariable(&cond_var);
+
+    // KERNEL32 Fls
+    std::uint32_t fls_index = tl_FlsAlloc(0);
+    EXPECT_NE(fls_index, 0xFFFFFFFFU);
+    EXPECT_EQ(tl_FlsSetValue(fls_index, reinterpret_cast<void*>(0x1234)), 1);
+    EXPECT_EQ(tl_FlsGetValue(fls_index), reinterpret_cast<void*>(0x1234));
+    EXPECT_EQ(tl_FlsFree(fls_index), 1);
+
+    // KERNEL32 Heap & Memory
+    void* heap = tl_GetProcessHeap();
+    EXPECT_NE(heap, nullptr);
+    void* mem = tl_HeapAlloc(heap, 0, 128);
+    ASSERT_NE(mem, nullptr);
+    EXPECT_GE(tl_HeapSize(heap, 0, mem), 128U);
+    mem = tl_HeapReAlloc(heap, 0, mem, 256);
+    ASSERT_NE(mem, nullptr);
+    EXPECT_EQ(tl_HeapFree(heap, 0, mem), 1);
+
+    // COMCTL32
+    std::uint32_t init_comctl[2] = { 8, 0xFFFF };
+    EXPECT_EQ(tl_InitCommonControlsEx(init_comctl), 1);
+}
+
 }  // namespace
 }  // namespace tradutorlinux
