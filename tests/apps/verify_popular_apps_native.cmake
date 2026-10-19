@@ -29,6 +29,7 @@ set(CASES
     "winrar-x64-723.exe|0|exit exit-code=\"0\" explicit=\"sim\""
     "Rockstar-Games-Launcher.exe|1|exit exit-code=\"1\" explicit=\"sim\""
     "Rufus_x64.exe|4|entry point fora de uma página executável"
+    "HWiNFO64.exe|4|entry point fora de uma página executável"
     "Notepad++/updater/GUP.exe|255|exit exit-code=\"4294967295\" explicit=\"sim\""
 )
 

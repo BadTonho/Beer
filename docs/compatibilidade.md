@@ -60,14 +60,15 @@ de leitura/relatório), `26` com exit 5 (`Unsupported`) e nenhum com exit 4;
 o script `verify_popular_apps_recursive_report.cmake` é a fonte oficial das
 expectativas por arquivo.
 
-O teste `popular_apps_native_matrix` cobre dez casos de execução direta ou
+O teste `popular_apps_native_matrix` cobre onze casos de execução direta ou
 rejeição pré-entry: os cinco binários 7-Zip (`7z_x64.exe`, `7zFM_x64.exe`,
 `7-Zip/7z.exe`, `7-Zip/7zFM.exe`, `7-Zip/7zG.exe`) e os dois WinRAR terminam
-com `0`, Rockstar preserva seu `ExitProcess(1)`, Rufus é rejeitado com `4` no
-parsing do diretório de exceções virtual-only e o GUP do Notepad++ é rejeitado
-com `255` (`4294967295`). Cada caso recebe prefixo temporário, limites de
-CPU/memória e timeout; isso é evidência de comportamento controlado, não uma
-promoção geral de compatibilidade.
+com `0`, Rockstar preserva seu `ExitProcess(1)`, Rufus e HWiNFO64 são
+rejeitados com `4` no parsing/mapeamento de seções (entry point fora de página
+executável) e o GUP do Notepad++ é rejeitado com `255` (`4294967295`). Cada
+caso recebe prefixo temporário, limites de CPU/memória e timeout; isso é
+evidência de comportamento controlado, não uma promoção geral de
+compatibilidade.
 
 O teste `notepadpp_fh4_headless_smoke` acrescenta uma execução real do
 `Notepad++/notepad++.exe` sem display: o runtime seleciona os catches FH4
