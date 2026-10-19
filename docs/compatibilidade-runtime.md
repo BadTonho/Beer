@@ -38,6 +38,18 @@ frame-alvo são limitados a quatro ações validadas e mapas cíclicos/inválido
 falham de forma controlada. `__finally`, rethrow nativo completo e sinais Linux
 continuam fora do contrato.
 
+Desde a auditoria 2026-10-18 (5.3), módulos carregados via `LoadLibrary`
+participam das vistas por thread: `RtlLookupFunctionEntry`, `RtlPcToFileHeader`
+e o walk de frames de `RtlVirtualUnwind`/`RtlUnwind` resolvem frames dentro
+das imagens registradas (registro/remoção ocorre no attach/detach do grafo de
+módulos, sempre antes de qualquer `munmap`). O dispatch de handlers
+(`__C_specific_handler`, VEH e a resolução de handlers de frames) continua
+relacionado à imagem principal: um frame de módulo que execute handlers
+registrados pelo executável principal desempilha com segurança, mas o handler
+do próprio módulo não intercepta a exceção e a falha aparece por trace
+(`RUNTIME_FUNCTION fora da imagem ativa` / `kInvalidDisposition`) até a etapa
+de multi-imagem do dispatcher ser concluída.
+
 ## Mapeamento de imagem (Fase 2)
 
 O mapeador (`include/tradutorlinux/loader/image_mapper.hpp`, `src/loader/image_mapper.cpp`) reserva a imagem no endereço preferencial quando possível e aplica base relocations quando a base real difere da preferencial. O contrato detalhado (layout de memória, política de permissões, tipos de relocations suportados) está em `docs/arquitetura/mapeamento-imagem.md`.

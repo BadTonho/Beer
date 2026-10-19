@@ -4,6 +4,7 @@
 #include "tradutorlinux/loader/module.hpp"
 #include "tradutorlinux/prefix/prefix.hpp"
 #include "tradutorlinux/runtime/memory_validator.hpp"
+#include "tradutorlinux/runtime/unwind.hpp"
 #include "tradutorlinux/util/basics.hpp"
 
 #include <algorithm>
@@ -904,6 +905,14 @@ bool GuestModuleGraph::attach_module(const std::size_t index) noexcept {
     module.process_attached = true;
     module.state = LoadedState::Attached;
     trace_event("dll-attach", module.name, provider_name(module.provider));
+    // Auditoria 2026-10-18 (5.3): a imagem anexada passa a participar da
+    // vista de unwind desta thread (span vive enquanto o módulo existe).
+    if (module.info.exception_directory_rva != 0U &&
+        !module.info.runtime_functions.empty()) {
+        runtime::add_guest_module_unwind_image(module.image.memory, module.image.size,
+                                               module.info.exception_directory_rva,
+                                               module.info.runtime_functions);
+    }
     return true;
 }
 
@@ -932,6 +941,9 @@ void GuestModuleGraph::detach_module(const std::size_t index) noexcept {
     module.process_attached = false;
     module.state = LoadedState::Unloaded;
     trace_event("dll-detach", module.name, provider_name(module.provider));
+    // Remover ANTES do unmap: o address base da imagem sai do registro de
+    // unwind para nunca sobrar span pendurado em memória desmapeada.
+    runtime::remove_guest_module_unwind_image(module.image.memory);
     unmap_image(module.image);
     runtime::invalidate_memory_map_cache();
     trace_event("dll-unload", module.name, provider_name(module.provider));
@@ -948,6 +960,7 @@ void GuestModuleGraph::reject_loaded_module(const std::size_t index,
     module.process_attached = false;
     module.state = LoadedState::Rejected;
     if (module.image.memory != nullptr) {
+        runtime::remove_guest_module_unwind_image(module.image.memory);
         unmap_image(module.image);
         runtime::invalidate_memory_map_cache();
     }

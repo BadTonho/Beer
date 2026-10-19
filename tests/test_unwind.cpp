@@ -72,8 +72,14 @@ protected:
         return reinterpret_cast<std::uint32_t*>(image.data() + kFunctionTableRva + index * 12U);
     }
 
+    std::uint32_t* module_raw_entry(const std::size_t index = 0) {
+        return reinterpret_cast<std::uint32_t*>(module_image.data() + kFunctionTableRva + index * 12U);
+    }
+
     std::vector<std::byte> image;
     std::vector<RuntimeFunction> functions;
+    std::vector<std::byte> module_image;
+    std::vector<RuntimeFunction> module_functions;
 };
 
 TEST_F(UnwindTest, LookupAndPcToFileHeaderUseActiveImageOnly) {
@@ -93,6 +99,86 @@ TEST_F(UnwindTest, LookupAndPcToFileHeaderUseActiveImageOnly) {
     EXPECT_EQ(header, image.data());
     EXPECT_EQ(tl_RtlPcToFileHeader(reinterpret_cast<void*>(base + image.size()), &header), nullptr);
     EXPECT_EQ(header, nullptr);
+}
+
+// Auditoria 2026-10-18 (5.3): módulos LoadLibrary participam das resoluções
+// de entrada de função e do walk de frames (registro/remoção antes do
+// unmap é responsabilidado do grafo de módulos).
+TEST_F(UnwindTest, RegisteredModuleImagesResolveLookupAndUnwind) {
+    set_functions({function(0x100, 0x200)});
+    module_image.assign(0x1000, std::byte{0});
+    module_functions = {function(0x100, 0x200)};
+    const std::uintptr_t module_base = reinterpret_cast<std::uintptr_t>(module_image.data());
+    const std::uintptr_t main_base = reinterpret_cast<std::uintptr_t>(image.data());
+
+    // Registro inválido não modifica estado.
+    EXPECT_FALSE(runtime::add_guest_module_unwind_image(nullptr, module_image.size(),
+                                                        kFunctionTableRva, module_functions));
+    EXPECT_FALSE(runtime::add_guest_module_unwind_image(module_image.data(), 0U,
+                                                        kFunctionTableRva, module_functions));
+    EXPECT_FALSE(runtime::add_guest_module_unwind_image(module_image.data(), module_image.size(),
+                                                        kFunctionTableRva, {}));
+
+    EXPECT_TRUE(runtime::add_guest_module_unwind_image(module_image.data(), module_image.size(),
+                                                       kFunctionTableRva, module_functions));
+
+    std::uint64_t image_base = 0;
+    EXPECT_EQ(tl_RtlLookupFunctionEntry(main_base + 0x150, &image_base, nullptr), raw_entry());
+    EXPECT_EQ(image_base, main_base);
+    EXPECT_EQ(tl_RtlLookupFunctionEntry(module_base + 0x150, &image_base, nullptr),
+              module_raw_entry());
+    EXPECT_EQ(image_base, module_base);
+
+    void* header = nullptr;
+    EXPECT_EQ(tl_RtlPcToFileHeader(reinterpret_cast<void*>(main_base + 0x150), &header), image.data());
+    EXPECT_EQ(tl_RtlPcToFileHeader(reinterpret_cast<void*>(module_base + 0x150), &header),
+              module_image.data());
+    EXPECT_EQ(tl_RtlPcToFileHeader(reinterpret_cast<void*>(module_base + 0x250), &header),
+              module_image.data());
+    EXPECT_EQ(tl_RtlPcToFileHeader(reinterpret_cast<void*>(module_base + module_image.size()),
+                                   &header), nullptr);
+
+    // Re-attach do mesmo base atualiza em vez de duplicar: o lookup continua
+    // consistente (não há forma de API pública de contagem; a verificação é
+    // behavioral).
+    EXPECT_TRUE(runtime::add_guest_module_unwind_image(module_image.data(), module_image.size(),
+                                                       kFunctionTableRva, module_functions));
+    EXPECT_EQ(tl_RtlLookupFunctionEntry(module_base + 0x150, &image_base, nullptr),
+              module_raw_entry());
+
+    // Remoção idempotente: base conhecido sai, base desconhecido é no-op.
+    runtime::remove_guest_module_unwind_image(module_image.data());
+    runtime::remove_guest_module_unwind_image(module_image.data());
+    runtime::remove_guest_module_unwind_image(nullptr);
+    EXPECT_EQ(tl_RtlLookupFunctionEntry(module_base + 0x150, &image_base, nullptr), nullptr);
+    EXPECT_EQ(tl_RtlPcToFileHeader(reinterpret_cast<void*>(module_base + 0x150), &header), nullptr);
+    // A imagem principal continua resolvendo.
+    EXPECT_EQ(tl_RtlLookupFunctionEntry(main_base + 0x150, &image_base, nullptr), raw_entry());
+}
+
+TEST_F(UnwindTest, VirtualUnwindWalksFrameInRegisteredModuleImage) {
+    set_functions({function(0x100, 0x200)});
+    module_image.assign(0x1000, std::byte{0});
+    UnwindInfo unwind;
+    unwind.codes = {code(UnwindOperation::PushNonVol, 3, 0, 8),
+                    code(UnwindOperation::AllocSmall, 4, 40, 4)};
+    module_functions = {function(0x100, 0x200, unwind)};
+    ASSERT_TRUE(runtime::add_guest_module_unwind_image(module_image.data(), module_image.size(),
+                                                       kFunctionTableRva, module_functions));
+    const std::uintptr_t module_base = reinterpret_cast<std::uintptr_t>(module_image.data());
+    std::array<std::uint64_t, 16> stack{};
+    stack[0] = 0xBEEFU;
+    stack[6] = 0xDEADBEEFU;
+    ContextAmd64 context{};
+    context.rsp = reinterpret_cast<std::uintptr_t>(stack.data());
+    std::uint64_t frame = 0;
+
+    EXPECT_EQ(tl_RtlVirtualUnwind(0, module_base, module_base + 0x150, module_raw_entry(),
+                                  &context, nullptr, &frame, nullptr), nullptr);
+    EXPECT_EQ(context.rbx, 0xBEEFU);
+    EXPECT_EQ(context.rip, 0xDEADBEEFU);
+    EXPECT_EQ(context.rsp, reinterpret_cast<std::uintptr_t>(stack.data() + 7));
+    EXPECT_EQ(frame, reinterpret_cast<std::uintptr_t>(stack.data()));
 }
 
 TEST_F(UnwindTest, ProtectedUnwindBoundariesRejectUnmappedPointers) {

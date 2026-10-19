@@ -129,6 +129,18 @@ struct GuestUnwindView {
 [[nodiscard]] GuestUnwindView current_guest_unwind_view() noexcept;
 void restore_guest_unwind_view(GuestUnwindView view) noexcept;
 
+// Auditoria 2026-10-18 (5.3): módulos carregados via LoadLibrary participam
+// da vista de unwind da thread que os anexou. O span pertence ao grafo de
+// módulos e deve permanecer válido até remove_guest_module_unwind_image;
+// o registro é por thread (mesma política da imagem principal) e o
+// re-attach do mesmo base atualiza a entrada em vez de duplicá-la. Regera
+// false sem modificar estado quando os campos são inválidos ou a cota por
+// thread (64) foi atingida.
+bool add_guest_module_unwind_image(const void* image_base, std::size_t image_size,
+                                   std::uint32_t exception_directory_rva,
+                                   std::span<const pe::RuntimeFunction> functions) noexcept;
+void remove_guest_module_unwind_image(const void* image_base) noexcept;
+
 // Valida somente aritmética e pertencimento à stack convidada ativa. Acesso
 // efetivo à faixa deve usar read_guest_memory/write_guest_memory; esta função
 // não transforma a fotografia de mapas em garantia de acesso.

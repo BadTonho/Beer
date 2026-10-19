@@ -13,9 +13,9 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace tradutorlinux::runtime {
-namespace {
 
 struct UnwindImageView {
     const std::byte* base{};
@@ -25,6 +25,22 @@ struct UnwindImageView {
 };
 
 thread_local UnwindImageView g_unwind_image{};
+
+// Auditoria 2026-10-18 (5.3): DLLs carregadas via LoadLibrary têm
+// diretório .pdata próprio e precisam participar da vista de unwind da
+// thread que as executou. Cada entrada aponta para um span de
+// RUNTIME_FUNCTION possuído pelo grafo de módulos e só é registrado
+// enquanto a imagem está mapeada (removida antes de qualquer unmap).
+thread_local std::vector<UnwindImageView> g_module_unwind_images{};
+
+// Resultado de uma resolução por PC ou por ponteiro de entrada: a imagem
+// à qual a RUNTIME_FUNCTION pertence e o índice dentro dela.
+struct ResolvedFunction {
+    const UnwindImageView* view{};
+    std::size_t index{};
+};
+
+namespace {
 
 struct VectoredHandlerSlot {
     bool used{};
@@ -49,51 +65,92 @@ constexpr std::uint32_t kStatusUnwindConsolidate = 0x80000029U;
     return true;
 }
 
-[[nodiscard]] std::optional<std::size_t> find_function_by_pc(const std::uint64_t pc) noexcept {
-    const std::uint64_t base = reinterpret_cast<std::uintptr_t>(g_unwind_image.base);
-    if (g_unwind_image.base == nullptr || pc < base || pc - base >= g_unwind_image.size ||
-        g_unwind_image.functions.empty()) {
+[[nodiscard]] std::optional<std::size_t> find_function_in_image(
+    const UnwindImageView& view, const std::uint64_t pc) noexcept {
+    const std::uint64_t base = reinterpret_cast<std::uintptr_t>(view.base);
+    if (view.base == nullptr || pc < base || pc - base >= view.size ||
+        view.functions.empty()) {
         return std::nullopt;
     }
     const std::uint64_t rva = pc - base;
     // Conforme a especificação PE32+ x86-64, o diretório .pdata é estritamente ordenado por begin_rva crescente
-    auto it = std::upper_bound(g_unwind_image.functions.begin(), g_unwind_image.functions.end(), rva,
+    auto it = std::upper_bound(view.functions.begin(), view.functions.end(), rva,
                                [](const std::uint64_t val, const pe::RuntimeFunction& fn) noexcept {
                                    return val < fn.begin_rva;
                                });
-    if (it != g_unwind_image.functions.begin()) {
+    if (it != view.functions.begin()) {
         --it;
         if (rva >= it->begin_rva && rva < it->end_rva) {
-            return static_cast<std::size_t>(it - g_unwind_image.functions.begin());
+            return static_cast<std::size_t>(it - view.functions.begin());
         }
     }
     return std::nullopt;
 }
 
-[[nodiscard]] std::optional<std::size_t> find_function_by_raw_pointer(
+[[nodiscard]] const UnwindImageView* find_image_for_pc(const std::uint64_t pc) noexcept {
+    const std::uint64_t main_base = reinterpret_cast<std::uintptr_t>(g_unwind_image.base);
+    if (g_unwind_image.base != nullptr && main_base <= pc && pc - main_base < g_unwind_image.size) {
+        return &g_unwind_image;
+    }
+    for (const UnwindImageView& view : g_module_unwind_images) {
+        const std::uint64_t module_base = reinterpret_cast<std::uintptr_t>(view.base);
+        if (view.base != nullptr && module_base <= pc && pc - module_base < view.size) {
+            return &view;
+        }
+    }
+    return nullptr;
+}
+
+[[nodiscard]] std::optional<ResolvedFunction> resolve_function_by_pc(
+    const std::uint64_t pc) noexcept {
+    const UnwindImageView* const view = find_image_for_pc(pc);
+    if (view == nullptr) {
+        return std::nullopt;
+    }
+    const std::optional<std::size_t> found = find_function_in_image(*view, pc);
+    if (!found.has_value()) {
+        return std::nullopt;
+    }
+    return ResolvedFunction{.view = view, .index = *found};
+}
+
+[[nodiscard]] std::optional<ResolvedFunction> resolve_function_by_raw_pointer(
     const std::uint32_t* const function_entry) noexcept {
-    if (g_unwind_image.base == nullptr || function_entry == nullptr) {
+    if (function_entry == nullptr) {
         return std::nullopt;
     }
     const std::uintptr_t target = reinterpret_cast<std::uintptr_t>(function_entry);
-    const std::uintptr_t table = reinterpret_cast<std::uintptr_t>(g_unwind_image.base) +
-                                 g_unwind_image.exception_directory_rva;
-    for (std::size_t index = 0; index < g_unwind_image.functions.size(); ++index) {
-        const std::uintptr_t candidate = table + index * 12U;
-        if (candidate == target) {
-            return index;
+    if (g_unwind_image.base != nullptr) {
+        const std::uintptr_t table = reinterpret_cast<std::uintptr_t>(g_unwind_image.base) +
+                                     g_unwind_image.exception_directory_rva;
+        for (std::size_t index = 0; index < g_unwind_image.functions.size(); ++index) {
+            if (table + index * 12U == target) {
+                return ResolvedFunction{.view = &g_unwind_image, .index = index};
+            }
+        }
+    }
+    for (const UnwindImageView& view : g_module_unwind_images) {
+        if (view.base == nullptr) {
+            continue;
+        }
+        const std::uintptr_t table = reinterpret_cast<std::uintptr_t>(view.base) +
+                                     view.exception_directory_rva;
+        for (std::size_t index = 0; index < view.functions.size(); ++index) {
+            if (table + index * 12U == target) {
+                return ResolvedFunction{.view = &view, .index = index};
+            }
         }
     }
     return std::nullopt;
 }
 
 [[nodiscard]] std::optional<std::size_t> find_chained_function(
-    const pe::RuntimeFunction& function) noexcept {
+    const UnwindImageView& view, const pe::RuntimeFunction& function) noexcept {
     if (!function.unwind.has_chained_function) {
         return std::nullopt;
     }
-    for (std::size_t index = 0; index < g_unwind_image.functions.size(); ++index) {
-        const pe::RuntimeFunction& candidate = g_unwind_image.functions[index];
+    for (std::size_t index = 0; index < view.functions.size(); ++index) {
+        const pe::RuntimeFunction& candidate = view.functions[index];
         if (candidate.begin_rva == function.unwind.chained_begin_rva &&
             candidate.end_rva == function.unwind.chained_end_rva &&
             candidate.unwind_info_rva == function.unwind.chained_unwind_info_rva) {
@@ -104,11 +161,12 @@ constexpr std::uint32_t kStatusUnwindConsolidate = 0x80000029U;
 }
 
 [[nodiscard]] bool is_v2_epilog(const pe::RuntimeFunction& function,
-                                 const std::uint64_t control_pc) noexcept {
-    if (function.unwind.version != 2U || g_unwind_image.base == nullptr) {
+                                 const std::uint64_t control_pc,
+                                 const UnwindImageView& view) noexcept {
+    if (function.unwind.version != 2U || view.base == nullptr) {
         return false;
     }
-    const std::uint64_t base = reinterpret_cast<std::uintptr_t>(g_unwind_image.base);
+    const std::uint64_t base = reinterpret_cast<std::uintptr_t>(view.base);
     if (control_pc < base) {
         return false;
     }
@@ -272,9 +330,9 @@ void trace_seh_handler(const char* const state, const std::uint32_t code,
     return true;
 }
 
-[[nodiscard]] void* raw_function_entry(const std::size_t index) noexcept {
-    return const_cast<std::byte*>(g_unwind_image.base) +
-           g_unwind_image.exception_directory_rva + index * 12U;
+[[nodiscard]] void* raw_function_entry(const UnwindImageView& view,
+                                       const std::size_t index) noexcept {
+    return const_cast<std::byte*>(view.base) + view.exception_directory_rva + index * 12U;
 }
 
 [[noreturn]] void fail_seh(const std::uint32_t code, const char* const detail) noexcept {
@@ -302,7 +360,7 @@ struct UnwoundFrame {
 
 [[nodiscard]] bool unwind_one(ContextAmd64& context, const std::uint32_t handler_type,
                                UnwoundFrame& frame, const char*& error) noexcept {
-    const std::optional<std::size_t> found = find_function_by_pc(context.rip);
+    const std::optional<ResolvedFunction> found = resolve_function_by_pc(context.rip);
     if (!found.has_value()) {
         if (!advance_leaf(context)) {
             error = "frame folha inválido";
@@ -310,19 +368,20 @@ struct UnwoundFrame {
         }
         return true;
     }
-    const pe::RuntimeFunction& function = g_unwind_image.functions[*found];
-    if (is_v2_epilog(function, context.rip)) {
+    const UnwindImageView& view = *found->view;
+    const pe::RuntimeFunction& function = view.functions[found->index];
+    if (is_v2_epilog(function, context.rip, view)) {
         error = "epílogo UNWIND_INFO V2 não é interpretado";
         return false;
     }
     void* handler_data = nullptr;
     std::uint64_t establisher = 0;
-    const std::uintptr_t base = reinterpret_cast<std::uintptr_t>(g_unwind_image.base);
+    const std::uintptr_t base = reinterpret_cast<std::uintptr_t>(view.base);
     const ContextAmd64 before = context;
     void* const handler = tl_RtlVirtualUnwind(
         handler_type, base, context.rip,
-        static_cast<std::uint32_t*>(raw_function_entry(*found)), &context, &handler_data,
-        &establisher, nullptr);
+        static_cast<std::uint32_t*>(raw_function_entry(view, found->index)), &context,
+        &handler_data, &establisher, nullptr);
     // RtlVirtualUnwind devolve nullptr tanto para "sem handler" quanto para
     // erro. Sem uma API de status, um contexto inalterado é a forma segura de
     // distinguir o segundo caso neste caminho interno.
@@ -330,7 +389,7 @@ struct UnwoundFrame {
         error = "RtlVirtualUnwind falhou";
         return false;
     }
-    frame = {.index = *found,
+    frame = {.index = found->index,
              .establisher_frame = establisher,
              .handler = handler,
              .handler_data = handler_data,
@@ -410,6 +469,7 @@ void set_guest_unwind_view(const void* const image_base, const std::size_t image
 
 void clear_guest_unwind_view() noexcept {
     g_unwind_image = {};
+    g_module_unwind_images.clear();
 }
 
 GuestUnwindView current_guest_unwind_view() noexcept {
@@ -421,6 +481,53 @@ GuestUnwindView current_guest_unwind_view() noexcept {
 
 void restore_guest_unwind_view(const GuestUnwindView view) noexcept {
     set_guest_unwind_view(view.image_base, view.image_size, view.exception_directory_rva, view.functions);
+}
+
+bool add_guest_module_unwind_image(const void* const image_base, const std::size_t image_size,
+                                   const std::uint32_t exception_directory_rva,
+                                   const std::span<const pe::RuntimeFunction> functions) noexcept {
+    if (image_base == nullptr || image_size == 0U || functions.empty() ||
+        functions.data() == nullptr) {
+        return false;
+    }
+    const UnwindImageView next{.base = static_cast<const std::byte*>(image_base),
+                               .size = image_size,
+                               .exception_directory_rva = exception_directory_rva,
+                               .functions = functions};
+    // Re-attach do mesmo base atualiza a entrada em vez de duplicá-la.
+    for (UnwindImageView& existing : g_module_unwind_images) {
+        if (existing.base == next.base) {
+            existing = next;
+            return true;
+        }
+    }
+    // Cota por thread: mantém a resolução O(módulos) e evita crescimento
+    // sem limite em ciclos de LoadLibrary/FreeLibrary com imagens novas.
+    constexpr std::size_t kMaxModuleUnwindImages = 64;
+    if (g_module_unwind_images.size() >= kMaxModuleUnwindImages) {
+        return false;
+    }
+    try {
+        g_module_unwind_images.push_back(next);
+    } catch (...) {
+        return false;
+    }
+    return true;
+}
+
+void remove_guest_module_unwind_image(const void* const image_base) noexcept {
+    if (image_base == nullptr) {
+        return;
+    }
+    const std::byte* const target = static_cast<const std::byte*>(image_base);
+    const auto found = std::find_if(g_module_unwind_images.begin(),
+                                    g_module_unwind_images.end(),
+                                    [target](const UnwindImageView& view) {
+                                        return view.base == target;
+                                    });
+    if (found != g_module_unwind_images.end()) {
+        g_module_unwind_images.erase(found);
+    }
 }
 
 bool validate_guest_stack_range(const void* const address, const std::size_t size,
@@ -621,7 +728,7 @@ std::int32_t c_specific_handler(ExceptionRecordAmd64* const exception_record,
                 DispatcherContextAmd64 dispatcher{
                     .control_pc = before.rip,
                     .image_base = reinterpret_cast<std::uintptr_t>(g_unwind_image.base),
-                    .function_entry = static_cast<std::uint32_t*>(raw_function_entry(frame.index)),
+                    .function_entry = static_cast<std::uint32_t*>(raw_function_entry(g_unwind_image, frame.index)),
                     .establisher_frame = frame.establisher_frame,
                     .target_ip = reinterpret_cast<std::uintptr_t>(target_ip),
                     .context_record = &current_context,
@@ -690,7 +797,7 @@ std::int32_t c_specific_handler(ExceptionRecordAmd64* const exception_record,
             }
             DispatcherContextAmd64 dispatcher{.control_pc = before.rip,
                                               .image_base = reinterpret_cast<std::uintptr_t>(g_unwind_image.base),
-                                              .function_entry = static_cast<std::uint32_t*>(raw_function_entry(frame.index)),
+                                              .function_entry = static_cast<std::uint32_t*>(raw_function_entry(g_unwind_image, frame.index)),
                                               .establisher_frame = frame.establisher_frame,
                                               .target_ip = active_record != nullptr &&
                                                                active_record->code == 0xE06D7363U
@@ -803,7 +910,7 @@ std::int32_t c_specific_handler(ExceptionRecordAmd64* const exception_record,
         }
         DispatcherContextAmd64 dispatcher{.control_pc = before.rip,
                                           .image_base = reinterpret_cast<std::uintptr_t>(g_unwind_image.base),
-                                          .function_entry = static_cast<std::uint32_t*>(raw_function_entry(frame.index)),
+                                          .function_entry = static_cast<std::uint32_t*>(raw_function_entry(g_unwind_image, frame.index)),
                                           .establisher_frame = frame.establisher_frame,
                                           .context_record = &context,
                                           .language_handler = frame.handler,
@@ -893,7 +1000,7 @@ extern "C" TL_MSABI std::uint32_t* tl_RtlLookupFunctionEntry(
         return nullptr;
     }
     std::uint64_t result_base = 0;
-    const std::optional<std::size_t> found = runtime::find_function_by_pc(control_pc);
+    const std::optional<runtime::ResolvedFunction> found = runtime::resolve_function_by_pc(control_pc);
     if (!found.has_value()) {
         if (runtime::write_guest_memory(image_base, &result_base, sizeof(result_base)).status !=
             runtime::GuestMemoryAccessStatus::Success) {
@@ -901,16 +1008,14 @@ extern "C" TL_MSABI std::uint32_t* tl_RtlLookupFunctionEntry(
         }
         return nullptr;
     }
-    const auto base = reinterpret_cast<std::uintptr_t>(runtime::g_unwind_image.base);
-    result_base = base;
+    result_base = reinterpret_cast<std::uintptr_t>(found->view->base);
     if (runtime::write_guest_memory(image_base, &result_base, sizeof(result_base)).status !=
         runtime::GuestMemoryAccessStatus::Success) {
         runtime::trace_unwind_failure("RtlLookupFunctionEntry", "ImageBase inacessível");
         return nullptr;
     }
     return reinterpret_cast<std::uint32_t*>(
-        const_cast<std::byte*>(runtime::g_unwind_image.base) +
-        runtime::g_unwind_image.exception_directory_rva + *found * 12U);
+        runtime::raw_function_entry(*found->view, found->index));
 }
 
 extern "C" TL_MSABI void* tl_RtlPcToFileHeader(void* const pc_value,
@@ -921,16 +1026,15 @@ extern "C" TL_MSABI void* tl_RtlPcToFileHeader(void* const pc_value,
     }
     void* result = nullptr;
     const std::uint64_t pc = reinterpret_cast<std::uintptr_t>(pc_value);
-    const std::uint64_t base = reinterpret_cast<std::uintptr_t>(runtime::g_unwind_image.base);
-    if (runtime::g_unwind_image.base == nullptr || pc < base ||
-        pc - base >= runtime::g_unwind_image.size) {
+    const runtime::UnwindImageView* const view = runtime::find_image_for_pc(pc);
+    if (view == nullptr) {
         if (runtime::write_guest_memory(base_of_image, &result, sizeof(result)).status !=
             runtime::GuestMemoryAccessStatus::Success) {
             runtime::trace_unwind_failure("RtlPcToFileHeader", "BaseOfImage inacessível");
         }
         return nullptr;
     }
-    result = const_cast<std::byte*>(runtime::g_unwind_image.base);
+    result = const_cast<std::byte*>(view->base);
     if (runtime::write_guest_memory(base_of_image, &result, sizeof(result)).status !=
         runtime::GuestMemoryAccessStatus::Success) {
         runtime::trace_unwind_failure("RtlPcToFileHeader", "BaseOfImage inacessível");
@@ -954,15 +1058,20 @@ extern "C" TL_MSABI void* tl_RtlVirtualUnwind(
         runtime::trace_unwind_failure("RtlVirtualUnwind", "ContextRecord inacessível");
         return nullptr;
     }
-    const auto expected_base = reinterpret_cast<std::uintptr_t>(runtime::g_unwind_image.base);
-    const std::optional<std::size_t> first = runtime::find_function_by_raw_pointer(function_entry);
-    const std::optional<std::size_t> control_function = runtime::find_function_by_pc(control_pc);
-    if (image_base != expected_base || !first.has_value() || !control_function.has_value() ||
-        *first != *control_function) {
+    const std::optional<runtime::ResolvedFunction> first = runtime::resolve_function_by_raw_pointer(function_entry);
+    const std::optional<runtime::ResolvedFunction> control_function = runtime::resolve_function_by_pc(control_pc);
+    if (!first.has_value() || !control_function.has_value() ||
+        first->view != control_function->view || first->index != control_function->index) {
         runtime::trace_unwind_failure("RtlVirtualUnwind", "RUNTIME_FUNCTION fora da imagem ativa");
         return nullptr;
     }
-    if (runtime::is_v2_epilog(runtime::g_unwind_image.functions[*first], control_pc)) {
+    const runtime::UnwindImageView& view = *first->view;
+    const std::uint64_t expected_base = reinterpret_cast<std::uintptr_t>(view.base);
+    if (image_base != expected_base) {
+        runtime::trace_unwind_failure("RtlVirtualUnwind", "RUNTIME_FUNCTION fora da imagem ativa");
+        return nullptr;
+    }
+    if (runtime::is_v2_epilog(view.functions[first->index], control_pc, view)) {
         runtime::trace_unwind_failure("RtlVirtualUnwind",
                                       "epílogo UNWIND_INFO V2 não é interpretado");
         return nullptr;
@@ -973,11 +1082,11 @@ extern "C" TL_MSABI void* tl_RtlVirtualUnwind(
     // aplicar os códigos de unwind. Isso é observável por handlers /GS, que
     // localizam o cookie com offsets relativos ao frame ainda ativo.
     std::uint64_t establisher_value = updated.rsp;
-    std::size_t current = *first;
+    std::size_t current = first->index;
     bool machine_frame = false;
     const pe::RuntimeFunction* terminal = nullptr;
-    for (std::size_t depth = 0; depth <= runtime::g_unwind_image.functions.size(); ++depth) {
-        const pe::RuntimeFunction& function = runtime::g_unwind_image.functions[current];
+    for (std::size_t depth = 0; depth <= view.functions.size(); ++depth) {
+        const pe::RuntimeFunction& function = view.functions[current];
         // Uma entrada CHAININFO representa um prólogo já concluído pelo
         // frame externo; todas as suas operações precisam ser aplicadas.
         const std::uint64_t function_pc = depth == 0 ? control_pc :
@@ -1007,7 +1116,7 @@ extern "C" TL_MSABI void* tl_RtlVirtualUnwind(
             terminal = &function;
             break;
         }
-        const std::optional<std::size_t> chained = runtime::find_chained_function(function);
+        const std::optional<std::size_t> chained = runtime::find_chained_function(view, function);
         if (!chained.has_value()) {
             runtime::trace_unwind_failure("RtlVirtualUnwind", "CHAININFO inválido");
             return nullptr;
@@ -1028,7 +1137,7 @@ extern "C" TL_MSABI void* tl_RtlVirtualUnwind(
         updated.rip = return_address;
     }
     const std::uint8_t flags = terminal->unwind.flags;
-    const pe::RuntimeFunction& initial = runtime::g_unwind_image.functions[*first];
+    const pe::RuntimeFunction& initial = view.functions[first->index];
     const std::uint64_t initial_offset = control_pc - expected_base - initial.begin_rva;
     const bool in_prolog = initial_offset < initial.unwind.prolog_size;
     if (in_prolog || handler_type == 0U || (flags & (0x1U | 0x2U)) == 0U ||
@@ -1061,7 +1170,7 @@ extern "C" TL_MSABI void* tl_RtlVirtualUnwind(
         runtime::trace_unwind_failure("RtlVirtualUnwind", "EstablisherFrame inacessível");
         return nullptr;
     }
-    void* result_handler_data = const_cast<std::byte*>(runtime::g_unwind_image.base) +
+    void* result_handler_data = const_cast<std::byte*>(view.base) +
                                 terminal->unwind.handler_data_rva;
     if (handler_data != nullptr) {
         if (runtime::write_guest_memory(handler_data, &result_handler_data,
@@ -1076,7 +1185,7 @@ extern "C" TL_MSABI void* tl_RtlVirtualUnwind(
         runtime::trace_unwind_failure("RtlVirtualUnwind", "ContextRecord inacessível");
         return nullptr;
     }
-    return const_cast<std::byte*>(runtime::g_unwind_image.base) + terminal->unwind.handler_rva;
+    return const_cast<std::byte*>(view.base) + terminal->unwind.handler_rva;
 }
 
 extern "C" TL_MSABI std::int32_t tl_UnhandledExceptionFilter(
