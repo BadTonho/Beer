@@ -14,8 +14,10 @@ tl_cxx_catch_return_trampoline:
     movq %r13, %rdi
     movq %r12, %rsi
     movq %rax, %rsp
+    # System V: no call site RSP%16 == 0. `andq` ja alinha em 0; um `subq $8`
+    # adicional deixava a entrada do chamado com RSP%16 == 0 (esperado: 8),
+    # violando docs/arquitetura/abi-x64.md:30-32 (auditoria 6.4).
     andq $-16, %rsp
-    subq $8, %rsp
     callq tl_cxx_catch_return_from_asm
     ud2
 .size tl_cxx_catch_return_trampoline, .-tl_cxx_catch_return_trampoline
@@ -31,8 +33,8 @@ tl_cxx_cleanup_return_trampoline:
     callq tl_cxx_callback_stack_top
     movq %r12, %rdi
     movq %rax, %rsp
+    # System V: no call site RSP%16 == 0 (auditoria 6.4); ver catchret.
     andq $-16, %rsp
-    subq $8, %rsp
     callq tl_cxx_cleanup_return_from_asm
     ud2
 .size tl_cxx_cleanup_return_trampoline, .-tl_cxx_cleanup_return_trampoline

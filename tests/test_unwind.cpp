@@ -139,6 +139,32 @@ TEST_F(UnwindTest, CapturesAmd64ControlAndFloatingContext) {
     EXPECT_EQ(context.floating[16].high, xmm6.high);
 }
 
+// Auditoria 2026-10-18 (6.4): RtlCaptureContext não pode devolver RDI/RSI
+// corrompidos — ambos são não voláteis na Microsoft x64, enquanto o gancho
+// de trace usa System V (onde são voláteis; era o `leaq` do ponteiro de
+// nome no lugar). O teste chama a rotina com RDI/RSI marcados no mesmo
+// bloco asm e exige valores intactos no retorno.
+TEST_F(UnwindTest, RtlCaptureContextPreservesRdiAndRsi) {
+    ContextAmd64 context{};
+    std::uint64_t rdi_after = 0;
+    std::uint64_t rsi_after = 0;
+
+    asm volatile(
+        "movabsq $0xA5A5A5A5A5A5A5A5, %%rdi\n\t"
+        "movabsq $0x5A5A5A5A5A5A5A5A, %%rsi\n\t"
+        "callq tl_RtlCaptureContext\n\t"
+        "movq %%rdi, %[rdi_out]\n\t"
+        "movq %%rsi, %[rsi_out]\n\t"
+        : [rdi_out] "=&r"(rdi_after), [rsi_out] "=&r"(rsi_after)
+        : "D"(0ULL), "S"(0ULL), "c"(&context)
+        : "rax", "rdx", "r8", "r9", "r10", "r11", "cc", "memory");
+
+    EXPECT_EQ(rdi_after, 0xA5A5A5A5A5A5A5A5U);
+    EXPECT_EQ(rsi_after, 0x5A5A5A5A5A5A5A5AU);
+    EXPECT_EQ(context.rdi, 0xA5A5A5A5A5A5A5A5U);
+    EXPECT_EQ(context.rsi, 0x5A5A5A5A5A5A5A5AU);
+}
+
 TEST_F(UnwindTest, SehLayoutsAndVectoredTokensAreValidated) {
     set_functions({});
     EXPECT_EQ(sizeof(runtime::ExceptionRecordAmd64), 152U);

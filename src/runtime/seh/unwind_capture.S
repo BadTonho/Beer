@@ -46,13 +46,19 @@ tl_RtlCaptureContext:
     movdqu %xmm13, 624(%r11)
     movdqu %xmm14, 640(%r11)
     movdqu %xmm15, 656(%r11)
-    leaq .Ltl_RtlCaptureContext_name(%rip), %rdi
-    # The caller uses the Microsoft x64 convention, while the trace hook
-    # uses System V AMD64.  Align the stack for that host call without
-    # changing the caller's return address or the captured CONTEXT.
+    # RDI and RSI are non-volatile in Microsoft x64 but volatile in System
+    # V (the trace hook may clobber them), so park both in the stack around
+    # the host call — no spare register survives a System V call here
+    # (docs/arquitetura/abi-x64.md:33-40).  Alignment: entry RSP%16 == 8;
+    # two pushes + subq $8 give the 16-aligned call site System V expects.
+    pushq %rdi
+    pushq %rsi
     subq $8, %rsp
+    leaq .Ltl_RtlCaptureContext_name(%rip), %rdi
     callq trace_assembly_function_entry
     addq $8, %rsp
+    popq %rsi
+    popq %rdi
     retq
 .size tl_RtlCaptureContext, .-tl_RtlCaptureContext
 
