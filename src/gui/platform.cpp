@@ -94,6 +94,16 @@ TL_PLATFORM_FORWARD_BOOL(map_window)
 TL_PLATFORM_FORWARD_VOID(unmap_window)
 TL_PLATFORM_FORWARD_VOID(flush_window)
 
+void set_window_title(const NativeWindow window, const char* const title) noexcept {
+    WindowHandle* const value = handle(window);
+    if (value == nullptr) return;
+    if (value->backend == Backend::Wayland) {
+        wayland::set_window_title(value->native, title);
+    } else {
+        ::tradutorlinux::gui::set_window_title(value->native, title);
+    }
+}
+
 void draw_text(const NativeWindow window, const char* text, const int x, const int y) noexcept {
     draw_text_len(window, text, text == nullptr ? 0 : static_cast<int>(std::strlen(text)), x, y);
 }

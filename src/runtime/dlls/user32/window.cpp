@@ -717,8 +717,6 @@ TL_MSABI int tl_UpdateWindow(const void* const window) noexcept {
 TL_MSABI abi::Lresult tl_DefWindowProcA(const void* const window,
                                         const std::uint32_t message,
                                         const abi::Wparam wparam, const abi::Lparam lparam) noexcept {
-    (void)wparam;
-    (void)lparam;
     if (message == abi::kWmClose) {
         tl_DestroyWindow(window);
         return 0;
@@ -726,12 +724,37 @@ TL_MSABI abi::Lresult tl_DefWindowProcA(const void* const window,
     if (message == abi::kWmNcCreate) {
         return 1;
     }
+    if (message == abi::kWmSetText) {
+        return tl_SetWindowTextA(window, reinterpret_cast<const char*>(lparam));
+    }
+    if (message == abi::kWmGetText) {
+        return tl_GetWindowTextA(window, reinterpret_cast<char*>(lparam), static_cast<int>(wparam));
+    }
+    if (message == abi::kWmGetTextLength) {
+        return tl_GetWindowTextLengthA(window);
+    }
     return 0;
 }
 
 TL_MSABI abi::Lresult tl_DefWindowProcW(const void* const window,
                                         const std::uint32_t message,
                                         const abi::Wparam wparam, const abi::Lparam lparam) noexcept {
+    if (message == abi::kWmClose) {
+        tl_DestroyWindow(window);
+        return 0;
+    }
+    if (message == abi::kWmNcCreate) {
+        return 1;
+    }
+    if (message == abi::kWmSetText) {
+        return tl_SetWindowTextW(window, reinterpret_cast<const std::uint16_t*>(lparam));
+    }
+    if (message == abi::kWmGetText) {
+        return tl_GetWindowTextW(window, reinterpret_cast<std::uint16_t*>(lparam), static_cast<int>(wparam));
+    }
+    if (message == abi::kWmGetTextLength) {
+        return tl_GetWindowTextLengthW(window);
+    }
     return tl_DefWindowProcA(window, message, wparam, lparam);
 }
 
@@ -862,8 +885,11 @@ TL_MSABI int tl_SetWindowTextA(const void* window, const char* text) noexcept {
         return 0;
     }
     slot->text = text_copy;
+    slot->window_title = text_copy;
     if (slot->parent != nullptr) {
         request_dialog_render(*slot->parent);
+    } else if (slot->native != nullptr) {
+        gui::platform::set_window_title(slot->native, text_copy.c_str());
     }
     set_last_error(abi::kErrorSuccess);
     return 1;
@@ -876,10 +902,11 @@ TL_MSABI int tl_GetWindowTextA(const void* window, char* text, int capacity) noe
         set_last_error(abi::kErrorInvalidParameter);
         return 0;
     }
-    const std::size_t count = std::min<std::size_t>(slot->text.size(),
+    const std::string& src = !slot->text.empty() ? slot->text : slot->window_title;
+    const std::size_t count = std::min<std::size_t>(src.size(),
                                                     static_cast<std::size_t>(capacity - 1));
     std::vector<char> output(count + 1U, '\0');
-    std::copy_n(slot->text.data(), count, output.data());
+    std::copy_n(src.data(), count, output.data());
     if (runtime::write_guest_memory(text, output.data(), output.size()).status !=
         runtime::GuestMemoryAccessStatus::Success) {
         set_last_error(abi::kErrorInvalidParameter);
@@ -907,9 +934,8 @@ TL_MSABI int tl_GetWindowTextW(const void* window, std::uint16_t* text, int capa
         set_last_error(abi::kErrorInvalidParameter);
         return 0;
     }
-    std::string utf8;
-    utf8 = slot->text;
-    const std::u16string wide = util::utf8_to_wide(utf8);
+    const std::string& src = !slot->text.empty() ? slot->text : slot->window_title;
+    const std::u16string wide = util::utf8_to_wide(src);
     const std::size_t to_copy = std::min<std::size_t>(wide.size(), static_cast<std::size_t>(capacity - 1));
     std::vector<std::uint16_t> output(to_copy + 1U, 0);
     std::copy_n(wide.data(), to_copy, output.data());
@@ -992,11 +1018,13 @@ TL_MSABI const void* tl_FindWindowA(const char* class_name, const char* window_n
         return nullptr;
     }
     for (const WindowSlot& slot : g_windows) {
-        if (!slot.used || slot.native == nullptr ||
+        if (!slot.used || slot.parent != nullptr ||
             (class_name != nullptr && !util::ascii_iequals(slot.class_name, class_copy))) {
             continue;
         }
-        if (window_name == nullptr || window_copy.empty() || slot.window_title == window_copy) {
+        const std::string& title = !slot.text.empty() ? slot.text : slot.window_title;
+        if (window_name == nullptr || window_copy.empty() || title == window_copy ||
+            slot.window_title == window_copy) {
             return &slot;
         }
     }

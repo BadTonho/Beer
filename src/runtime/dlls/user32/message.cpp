@@ -1514,7 +1514,7 @@ TL_MSABI abi::Lresult tl_SendMessageA(const void* window, const std::uint32_t me
             }
         }
         if (slot->control_kind == ControlKind::Edit) {
-            if (message == 0x000C && lparam != 0) {
+            if (message == abi::kWmSetText && lparam != 0) {
                 std::string text_copy;
                 if (!runtime::copy_guest_cstring(reinterpret_cast<const char*>(lparam), 65535U,
                                                  text_copy)) {
@@ -1734,7 +1734,7 @@ TL_MSABI abi::Lresult tl_SendMessageW(const void* window, const std::uint32_t me
             return tl_SendMessageA(window, abi::kSbSetTextA, wparam,
                                    reinterpret_cast<abi::Lparam>(utf8.c_str()));
         }
-        if (message == 0x000C && lparam != 0) {
+        if (message == abi::kWmSetText && lparam != 0) {
             std::u16string wide_text;
             if (!runtime::copy_guest_wstring(reinterpret_cast<const std::uint16_t*>(lparam), 65535U,
                                               wide_text)) {

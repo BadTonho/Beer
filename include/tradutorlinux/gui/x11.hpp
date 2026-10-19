@@ -35,6 +35,7 @@ using NativeWindow = void*;
 // o display não está disponível ou não há slot livre.
 [[nodiscard]] NativeWindow create_window(const char* caption, int width, int height) noexcept;
 void destroy_window(NativeWindow window) noexcept;
+void set_window_title(NativeWindow window, const char* title) noexcept;
 bool map_window(NativeWindow window) noexcept;
 void unmap_window(NativeWindow window) noexcept;
 void flush_window(NativeWindow window) noexcept;

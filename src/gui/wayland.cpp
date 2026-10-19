@@ -367,6 +367,18 @@ void destroy_window(const NativeWindow value) noexcept {
     *window = {};
 }
 
+void set_window_title(const NativeWindow value, const char* const title) noexcept {
+    WaylandWindow* const window = find_window(value);
+    if (window == nullptr) return;
+    window->caption = title != nullptr ? title : "";
+    if (window->toplevel != nullptr) {
+        xdg_toplevel_set_title(window->toplevel, window->caption.c_str());
+        if (g_context.display != nullptr) {
+            wl_display_flush(g_context.display);
+        }
+    }
+}
+
 bool map_window(const NativeWindow value) noexcept {
     WaylandWindow* window = find_window(value);
     if (window == nullptr) return false;

@@ -228,6 +228,9 @@ constexpr Dword kPfPaeEnabled = 9;
 constexpr Dword kPfXmmi64InstructionsAvailable = 10;
 constexpr Dword kPfNxEnabled = 12;
 
+constexpr Uint kWmSetText = 0x000C;
+constexpr Uint kWmGetText = 0x000D;
+constexpr Uint kWmGetTextLength = 0x000E;
 constexpr Uint kWmPaint = 0x000F;
 constexpr Uint kWmClose = 0x0010;
 constexpr Uint kWmCreate = 0x0001;

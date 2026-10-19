@@ -378,7 +378,15 @@ NativeWindow create_window(const char* const caption, const int width,  // NOLIN
         write_gui_trace(diagnostics::TraceLevel::Error, "window-create", fields);
         return nullptr;
     }
-    XStoreName(dpy, window, caption != nullptr ? caption : "TradutorLinux");
+    const char* const initial_caption = caption != nullptr ? caption : "TradutorLinux";
+    XStoreName(dpy, window, initial_caption);
+    const Atom net_wm_name = XInternAtom(dpy, "_NET_WM_NAME", False);
+    const Atom utf8_string = XInternAtom(dpy, "UTF8_STRING", False);
+    if (net_wm_name != None && utf8_string != None) {
+        XChangeProperty(dpy, window, net_wm_name, utf8_string, 8,
+                         PropModeReplace, reinterpret_cast<const unsigned char*>(initial_caption),
+                         static_cast<int>(std::strlen(initial_caption)));
+    }
     XSelectInput(dpy, window, ExposureMask | ButtonPressMask | ButtonReleaseMask |
                                  PointerMotionMask | KeyPressMask | KeyReleaseMask |
                                  StructureNotifyMask);
@@ -390,7 +398,7 @@ NativeWindow create_window(const char* const caption, const int width,  // NOLIN
         .screen = screen,
         .width = resolved_width,
         .height = resolved_height,
-        .caption = caption != nullptr ? caption : "TradutorLinux",
+        .caption = initial_caption,
         .created_at = std::chrono::steady_clock::now(),
         .pending = {},
     };
@@ -413,6 +421,25 @@ void destroy_window(const NativeWindow window) noexcept {
         XFlush(dpy);
     }
     *state = {};
+}
+
+void set_window_title(const NativeWindow window, const char* const title) noexcept {
+    Display* const dpy = display();
+    WindowState* const state = find_state(window);
+    if (dpy == nullptr || state == nullptr) {
+        return;
+    }
+    const char* const text = title != nullptr ? title : "";
+    state->caption = text;
+    XStoreName(dpy, state->window, text);
+    const Atom net_wm_name = XInternAtom(dpy, "_NET_WM_NAME", False);
+    const Atom utf8_string = XInternAtom(dpy, "UTF8_STRING", False);
+    if (net_wm_name != None && utf8_string != None) {
+        XChangeProperty(dpy, state->window, net_wm_name, utf8_string, 8,
+                         PropModeReplace, reinterpret_cast<const unsigned char*>(text),
+                         static_cast<int>(std::strlen(text)));
+    }
+    XFlush(dpy);
 }
 
 bool map_window(const NativeWindow window) noexcept {

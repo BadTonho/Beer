@@ -1200,5 +1200,55 @@ TEST(Win32GuiTest, ConcurrentMultiThreadWindowOperationsAreThreadSafe) {
     g_classes = {};
 }
 
+TEST(Win32GuiTest, DefWindowProcHandlesTextMessagesAndTitleUpdates) {
+    g_classes = {};
+    g_windows = {};
+
+    const char class_name[] = "TitleTestClass";
+    abi::GuestWndClassExA class_a{};
+    class_a.cb_size = sizeof(class_a);
+    class_a.window_proc = reinterpret_cast<std::uintptr_t>(&tl_DefWindowProcA);
+    class_a.class_name = class_name;
+    ASSERT_NE(tl_RegisterClassExA(&class_a), 0U);
+
+    WindowSlot& window = g_windows[0];
+    window.used = true;
+    window.parent = nullptr;
+    window.class_name = class_name;
+    window.window_title = "Initial Title";
+    window.wndproc = reinterpret_cast<std::uintptr_t>(&tl_DefWindowProcA);
+    register_window_handle(&window);
+
+    char buf_a[128]{};
+    EXPECT_EQ(tl_GetWindowTextA(&window, buf_a, sizeof(buf_a)), 13);
+    EXPECT_STREQ(buf_a, "Initial Title");
+    EXPECT_EQ(tl_GetWindowTextLengthA(&window), 13);
+
+    std::uint16_t buf_w[128]{};
+    EXPECT_EQ(tl_GetWindowTextW(&window, buf_w, 128), 13);
+    EXPECT_EQ(tl_GetWindowTextLengthW(&window), 13);
+
+    const char new_title_a[] = "Updated Title A";
+    EXPECT_EQ(tl_DefWindowProcA(&window, abi::kWmSetText, 0, reinterpret_cast<abi::Lparam>(new_title_a)), 1);
+
+    std::memset(buf_a, 0, sizeof(buf_a));
+    EXPECT_EQ(tl_DefWindowProcA(&window, abi::kWmGetText, sizeof(buf_a), reinterpret_cast<abi::Lparam>(buf_a)), 15);
+    EXPECT_STREQ(buf_a, "Updated Title A");
+    EXPECT_EQ(tl_DefWindowProcA(&window, abi::kWmGetTextLength, 0, 0), 15);
+    EXPECT_EQ(tl_FindWindowA(nullptr, "Updated Title A"), &window);
+
+    const std::uint16_t new_title_w[] = {'W', 'i', 'd', 'e', ' ', 'W', 0};
+    EXPECT_EQ(tl_DefWindowProcW(&window, abi::kWmSetText, 0, reinterpret_cast<abi::Lparam>(new_title_w)), 1);
+
+    std::memset(buf_w, 0, sizeof(buf_w));
+    EXPECT_EQ(tl_DefWindowProcW(&window, abi::kWmGetText, 128, reinterpret_cast<abi::Lparam>(buf_w)), 6);
+    EXPECT_EQ(tl_DefWindowProcW(&window, abi::kWmGetTextLength, 0, 0), 6);
+    EXPECT_EQ(tl_FindWindowA(nullptr, "Wide W"), &window);
+
+    unregister_window_handle(&window);
+    g_windows = {};
+    g_classes = {};
+}
+
 }  // namespace
 }  // namespace tradutorlinux
