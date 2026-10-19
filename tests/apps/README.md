@@ -53,8 +53,9 @@ Instaladores PE32/x86 permanecem fora da execução funcional direta.
 NSIS/SFX do corpus (`7-Zip_x64_Installer.exe`, `Notepad++_x64_Installer.exe`,
 `Everything_Search_x64.exe` e `RTSSSetup737.exe`), verificando a extração do payload
 PE32+ (x86-64) em prefixo isolado, o cadastro bem-sucedido no catálogo (`tradutorlinux app list`),
-a execução do binário CLI quando aplicável (`7z.exe` com exit `0`) e a posterior remoção limpa
-da aplicação do catálogo (`tradutorlinux app remove <id>`).
+a execução do binário CLI quando aplicável (`7z.exe` com exit `0` e `everything.exe` com
+`-create-file-list` indexando a árvore de diretórios e gerando arquivo `.efu` válido com exit `0`)
+e a posterior remoção limpa da aplicação do catálogo (`tradutorlinux app remove <id>`).
 
 Com o mesmo parâmetro e Xvfb disponível, os smokes GUI reais de 7-Zip File
 Manager (`seven_zip_gui_smoke` e `seven_zip_subdir_gui_smoke`), PuTTY (`putty_real_gui_smoke`

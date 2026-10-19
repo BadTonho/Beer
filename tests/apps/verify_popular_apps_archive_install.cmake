@@ -18,7 +18,7 @@ set(ENV{WAYLAND_DISPLAY})
 set(CASES
     "7-Zip_x64_Installer.exe|sevenzip|drive_c/Program Files/sevenzip/7z.exe|1"
     "Notepad++_x64_Installer.exe|notepadpp|drive_c/Program Files/notepadpp/notepad++.exe|0"
-    "Everything_Search_x64.exe|everything|drive_c/Program Files/everything/$PLUGINSDIR/Everything/everything.exe|0"
+    "Everything_Search_x64.exe|everything|drive_c/Program Files/everything/$PLUGINSDIR/Everything/everything.exe|everything_file_list"
     "RTSSSetup737.exe|rtss|drive_c/Program Files/rtss/DesktopOverlayHost64.exe|0"
 )
 
@@ -95,7 +95,7 @@ foreach(case IN LISTS CASES)
             "${relative_path}: app_id [${app_id}] não encontrado na listagem:\n${list_stdout}")
     endif()
 
-    # 4. Executar smoke CLI do aplicativo quando suportado (ex: 7z.exe)
+    # 4. Executar smoke CLI do aplicativo quando suportado (ex: 7z.exe, everything.exe)
     if("${can_run_smoke}" STREQUAL "1")
         execute_process(
             COMMAND "${TL_RUNTIME}" app run "${app_id}" --timeout 5
@@ -110,6 +110,27 @@ foreach(case IN LISTS CASES)
                 "${relative_path}: app run ${app_id} falhou com código ${run_exit}\n"
                 "stdout:\n${run_stdout}\n"
                 "stderr:\n${run_stderr}")
+        endif()
+    elseif("${can_run_smoke}" STREQUAL "everything_file_list")
+        set(efu_target "${prefix}/drive_c/test_filelist.efu")
+        execute_process(
+            COMMAND "${TL_RUNTIME}" app run "${app_id}" --timeout 10 -create-file-list "C:\\test_filelist.efu" "C:\\Program Files"
+            TIMEOUT 20
+            RESULT_VARIABLE run_exit
+            OUTPUT_VARIABLE run_stdout
+            ERROR_VARIABLE run_stderr
+        )
+        if(NOT "${run_exit}" EQUAL 0)
+            file(REMOVE_RECURSE "${TL_STAGING_ROOT}")
+            message(FATAL_ERROR
+                "${relative_path}: app run ${app_id} -create-file-list falhou com código ${run_exit}\n"
+                "stdout:\n${run_stdout}\n"
+                "stderr:\n${run_stderr}")
+        endif()
+        if(NOT EXISTS "${efu_target}")
+            file(REMOVE_RECURSE "${TL_STAGING_ROOT}")
+            message(FATAL_ERROR
+                "${relative_path}: arquivo .efu não foi gerado pelo app run: ${efu_target}")
         endif()
     endif()
 

@@ -94,8 +94,8 @@ instalação completa e extração em prefixo de instaladores de arquivo auto-ex
 NSIS/SFX do corpus (`7-Zip_x64_Installer.exe`, `Notepad++_x64_Installer.exe`,
 `Everything_Search_x64.exe` e `RTSSSetup737.exe`), verificando a descoberta do payload
 PE32+ (x86-64), suporte a `--app-exe` determinístico ou seleção automática do melhor candidato PE32+,
-cadastro no catálogo (`tradutorlinux app list`), execução de smoke do
-binário CLI (`7z.exe` com exit `0`) e desinstalação limpa (`tradutorlinux app remove`).
+cadastro no catálogo (`tradutorlinux app list`), execução de smoke dos
+binários CLI (`7z.exe` com exit `0` e `everything.exe` com `-create-file-list` gerando `.efu` e exit `0`) e desinstalação limpa (`tradutorlinux app remove`).
 
 ## Documentos temáticos
 
