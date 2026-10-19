@@ -56,6 +56,11 @@ entram como avisos `pe/warning` no `--trace` (ou como linhas `aviso pe:`
 no resumo). O backend Rust de `parse_pe_rust` ainda não emite esse aviso
 — paridade é registrada como limitação.
 
+No mapeamento (auditoria 2026-10-18, 6.3), relocations pegam alvo apenas
+dentro de seções mapeadas — alvos nos headers ou em estirões não
+reivindicados recusam a imagem (`alvo DIR64 em RVA … fora de seção
+mapeada`); páginas do mapping sem seção ficam `PROT_NONE` desde o load.
+
 ## Mapeamento de imagem (Fase 2)
 
 O mapeador (`include/tradutorlinux/loader/image_mapper.hpp`, `src/loader/image_mapper.cpp`) reserva a imagem no endereço preferencial quando possível e aplica base relocations quando a base real difere da preferencial. O contrato detalhado (layout de memória, política de permissões, tipos de relocations suportados) está em `docs/arquitetura/mapeamento-imagem.md`.

@@ -70,9 +70,14 @@ struct RelocationDirectory {
 // RVA 0. `image` must span at least the relocation targets. `delta` is the
 // difference between the actual base and the preferred base. Pure algorithm
 // with no OS calls, exposed for deterministic testing.
-[[nodiscard]] RelocationResult apply_relocations(std::span<std::byte> image,
-                                                 const RelocationDirectory& directory,
-                                                 std::int64_t delta);
+//
+// Auditoria 2026-10-18 (6.3): com `patchable_regions` informado, todo alvo
+// DIR64 precisa estar contido em uma seção mapeada — alvos nos headers, em
+// estirões entre seções ou além da imagem falham com InvalidImage. Vazio =
+// sem restrição (comportamento legado para chamadas isoladas/teses).
+[[nodiscard]] RelocationResult apply_relocations(
+    std::span<std::byte> image, const RelocationDirectory& directory, std::int64_t delta,
+    std::span<const MapRegion> patchable_regions = {});
 
 // Reserves a private mapping (Linux mmap), copies headers and section raw data,
 // applies base relocations when the base differs from the preferred one and

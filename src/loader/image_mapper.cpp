@@ -203,11 +203,30 @@ void write_le_u64(const std::span<std::byte> bytes, const std::size_t offset,
            static_cast<std::uint64_t>(second.rva) < first_end;
 }
 
+// Auditoria 2026-10-18 (6.3): alvo de relocation deve cair inteiro dentro de
+// uma seção mapeada (headers, estirões entre seções e bytes além da imagem
+// não são patcheáveis). Lista vazia = restrição desligada (chamadas isoladas).
+[[nodiscard]] bool patchable_target(const std::span<const MapRegion> regions,
+                                    const std::uint64_t target_rva,
+                                    const std::uint64_t target_size) noexcept {
+    if (regions.empty()) {
+        return true;
+    }
+    for (const MapRegion& region : regions) {
+        const std::uint64_t begin = static_cast<std::uint64_t>(region.rva);
+        const std::uint64_t end = begin + region.size;
+        if (target_rva >= begin && target_rva < end && target_size <= end - target_rva) {
+            return true;
+        }
+    }
+    return false;
+}
+
 }  // namespace
 
 RelocationResult apply_relocations(const std::span<std::byte> image,
-                                   const RelocationDirectory& directory,
-                                   const std::int64_t delta) {
+                                   const RelocationDirectory& directory, const std::int64_t delta,
+                                   const std::span<const MapRegion> patchable_regions) {
     const std::uint32_t directory_rva = directory.rva;
     const std::uint32_t directory_size = directory.size;
     if (directory_size == 0) {
@@ -260,6 +279,14 @@ RelocationResult apply_relocations(const std::span<std::byte> image,
             }
             const std::uint64_t target_rva = static_cast<std::uint64_t>(page_rva) + offset;
             if (type == kImageRelBasedDir64) {
+                // Auditoria 2026-10-18 (6.3): o alvo precisa pertencer a uma
+                // seção mapeada — patchear headers/padding corrompe metadados
+                // do próprio documento que o validador já leu.
+                if (!patchable_target(patchable_regions, target_rva, sizeof(std::uint64_t))) {
+                    return fail_reloc(MapStatus::InvalidImage,
+                                      "alvo DIR64 em RVA " + std::to_string(target_rva) +
+                                          " fora de seção mapeada");
+                }
                 std::uint64_t value{};
                 if (!read_le_u64(image, target_rva, value)) {
                     return fail_reloc(MapStatus::InvalidImage,
@@ -411,12 +438,24 @@ MapResult map_image(const pe::PeInfo& info, const std::span<const std::byte> fil
             apply_relocations(std::span(memory, mapping_size),
                               {.rva = info.relocation_directory_rva,
                                .size = info.relocation_directory_size},
-                              delta);
+                              delta, regions);
         if (relocation.status != MapStatus::Success) {
             munmap(mapping, mapping_size);
             return fail(MapStatus::InvalidImage, relocation.error_message);
         }
         applied_relocations = relocation.applied;
+    }
+
+    // Auditoria 2026-10-18 (6.3): toda a imagem passa a PROT_NONE primeiro —
+    // páginas órfãs (sem interseção com seção ou headers) ficam inacessíveis
+    // em vez de herdarem RW; os laços abaixo concedem as permissões reais
+    // apenas às páginas de seções e headers.
+    if (mprotect(mapping, mapping_size, PROT_NONE) != 0) {
+        const int error = errno;
+        munmap(mapping, mapping_size);
+        return fail(MapStatus::OutOfMemory,
+                    "não foi possível isolar páginas órfãs do mapping (errno=" +
+                        std::to_string(error) + ")");
     }
 
     for (const MapRegion& region : regions) {

@@ -25,6 +25,8 @@ using tradutorlinux::test_support::maps_permissions_for;
 
 constexpr std::size_t kTestBufferSize = 0x4000;
 constexpr std::uint64_t kTestPreferredBase = 0x10000000ULL;
+// Espelhado de src/loader/image_mapper.cpp (internal): IMAGE_REL_BASED_DIR64.
+constexpr std::uint16_t kTestRelBasedDir64 = 10;
 
 std::vector<std::byte> read_file(const std::string& path) {
     std::ifstream input(path, std::ios::binary);
@@ -148,6 +150,76 @@ TEST(ApplyRelocations, RejectsHighLowForPe32Plus) {
 
     EXPECT_EQ(result.status, MapStatus::InvalidImage);
     EXPECT_EQ(result.applied, 0U);
+}
+
+// Auditoria 2026-10-18 (6.3): com regiões patcheáveis informadas, alvos de
+// DIR64 fora de seção mapeada (headers, gap entre seções, além da imagem)
+// recusam o mapeamento em vez de corromper metadados do próprio documento.
+TEST(ApplyRelocations, RestrictsDir64TargetsToPatchableRegions) {
+    std::vector<std::byte> image(kTestBufferSize, std::byte{0});
+    const std::uint16_t dir64_entry = static_cast<std::uint16_t>(kTestRelBasedDir64 << 12);
+
+    const MapRegion patchable{.name = ".text",
+                              .rva = 0x1000,
+                              .size = 0x2000,
+                              .raw_data_pointer = 0,
+                              .raw_data_size = 0,
+                              .permissions = SectionPermissions::ReadWrite};
+
+    // Alvo dentro da região: aplica normalmente.
+    {
+        const std::vector<std::byte> inside = make_reloc_block(0x1000, {0xA000 | 0x800});
+        for (std::size_t index = 0; index < inside.size(); ++index) {
+            image[0x1000 + index] = inside[index];
+        }
+        const RelocationResult result =
+            apply_relocations(image, RelocationDirectory{0x1000, 10}, 0x1000,
+                              std::span<const MapRegion>{&patchable, 1});
+        ASSERT_EQ(result.status, MapStatus::Success) << result.error_message;
+        EXPECT_EQ(result.applied, 1U);
+        EXPECT_EQ(read_le_u64(image, 0x1800), 0x1000ULL);
+    }
+
+    // Alvo no header (rva 0x10): recusa.
+    {
+        const std::vector<std::byte> header_target =
+            make_reloc_block(0x0000, {static_cast<std::uint16_t>(dir64_entry | 0x10)});
+        for (std::size_t index = 0; index < header_target.size(); ++index) {
+            image[0x1000 + index] = header_target[index];
+        }
+        const RelocationResult result =
+            apply_relocations(image, RelocationDirectory{0x1000, 10}, 0x1000,
+                              std::span<const MapRegion>{&patchable, 1});
+        EXPECT_EQ(result.status, MapStatus::InvalidImage);
+        EXPECT_NE(result.error_message.find("fora de seção mapeada"), std::string::npos);
+    }
+
+    // Alvo em estirão sem seção (rva 0x3A00 além do fim da região 0x3000):
+    // recusa sem tocar o byte.
+    {
+        const std::vector<std::byte> gap_target =
+            make_reloc_block(0x3000, {static_cast<std::uint16_t>(dir64_entry | 0xA00)});
+        for (std::size_t index = 0; index < gap_target.size(); ++index) {
+            image[0x1000 + index] = gap_target[index];
+        }
+        const RelocationResult result =
+            apply_relocations(image, RelocationDirectory{0x1000, 10}, 0x1000,
+                              std::span<const MapRegion>{&patchable, 1});
+        EXPECT_EQ(result.status, MapStatus::InvalidImage);
+        EXPECT_NE(result.error_message.find("fora de seção mapeada"), std::string::npos);
+    }
+
+    // Lista vazia mantém o comportamento legado documentado (sem restrição).
+    {
+        const std::vector<std::byte> legacy = make_reloc_block(0x0000, {0xA000 | 0x10});
+        for (std::size_t index = 0; index < legacy.size(); ++index) {
+            image[0x1000 + index] = legacy[index];
+        }
+        const RelocationResult result =
+            apply_relocations(image, RelocationDirectory{0x1000, 10}, 0x1000);
+        ASSERT_EQ(result.status, MapStatus::Success) << result.error_message;
+        EXPECT_EQ(result.applied, 1U);
+    }
 }
 
 TEST(ApplyRelocations, AppliesNegativeDelta) {
@@ -297,6 +369,60 @@ TEST_F(ImageMapperTest, AppliesProtectionsFromSectionCharacteristics) {
         maps_permissions_for(static_cast<std::uintptr_t>(kTestPreferredBase) + 0x2000);
     ASSERT_TRUE(rdata_perms.has_value());
     EXPECT_EQ(*rdata_perms, "r--p");
+
+    unmap_image(result.image);
+}
+
+// Auditoria 2026-10-18 (6.3): no caminho real do mapeamento, um bloco de
+// relocations cujo alvo DIR64 cai nos headers recusa a imagem — patchear
+// metadados como PE\0\0/SizeOfImage durante o load é corrupção, não
+// tolerância.
+TEST_F(ImageMapperTest, RejectsRelocationTargetPointingIntoHeaders) {
+    BuildSpec spec;
+    spec.section_count = 3;
+    spec.section_names = {".text", ".rdata", ".reloc"};
+    spec.section_data = {
+        {}, {}, make_reloc_block(0x0000, {static_cast<std::uint16_t>(0xA000 | 0x10)})};
+    spec.reloc_rva = 0x3000;
+    spec.reloc_size = 10;
+    spec.size_of_image = 0x5000;
+
+    const std::vector<std::byte> bytes = build(spec);
+    const pe::ParseResult parse = pe::parse_pe(bytes);
+    ASSERT_EQ(parse.status, pe::ParseStatus::Success);
+
+    const MapResult result = map_relocated(parse.info, bytes);
+    ASSERT_EQ(result.status, MapStatus::InvalidImage);
+    EXPECT_NE(result.error_message.find("fora de seção mapeada"), std::string::npos);
+    EXPECT_NE(result.error_message.find("16"), std::string::npos);
+}
+
+// Auditoria 2026-10-18 (6.3): páginas do mapping sem interseção com seção
+// alguma (cauda, gaps) passam a PROT_NONE em vez de herdarem RW.
+TEST_F(ImageMapperTest, LeavesOrphanMappingPagesInaccessible) {
+    BuildSpec spec;
+    spec.section_count = 2;  // .text @0x1000, .rdata @0x2000
+    spec.size_of_image = 0x4000;  // página [0x3000, 0x4000) sem seção
+
+    const std::vector<std::byte> bytes = build(spec);
+    const pe::ParseResult parse = pe::parse_pe(bytes);
+    ASSERT_EQ(parse.status, pe::ParseStatus::Success);
+
+    MapOptions options;
+    options.preferred_base = kTestPreferredBase;  // delta == 0, sem reloc
+    MapResult result = map_image(parse.info, bytes, options);
+
+    ASSERT_EQ(result.status, MapStatus::Success) << result.error_message;
+    const std::optional<std::string> orphan_perms =
+        maps_permissions_for(static_cast<std::uintptr_t>(kTestPreferredBase) + 0x3000);
+    ASSERT_TRUE(orphan_perms.has_value());
+    EXPECT_EQ(*orphan_perms, "---p");
+
+    // As seções seguem com suas permissões reais.
+    const std::optional<std::string> text_perms =
+        maps_permissions_for(static_cast<std::uintptr_t>(kTestPreferredBase) + 0x1000);
+    ASSERT_TRUE(text_perms.has_value());
+    EXPECT_EQ(*text_perms, "r-xp");
 
     unmap_image(result.image);
 }
