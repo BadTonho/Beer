@@ -865,6 +865,27 @@ void clear_pending_native(WindowSlot& slot) noexcept {
     pending_native(slot) = {};
 }
 
+// Auditoria 2026-10-18 (5.1): entrega o WM_QUIT pendente (PostQuitMessage).
+// Extraída do corpo de tl_GetMessageA para o loop idle re-checar o pedido
+// a cada iteração — antes, uma PostQuitMessage emitida enquanto
+// GetMessageA bloqueava nunca era vista e o pump morria.
+int deliver_quit_message(void* const msg) noexcept {
+    g_quit_requested = false;
+    if (!write_guest_msg(msg, nullptr, abi::kWmQuit, g_quit_code, 0)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return -1;
+    }
+    const std::array<diagnostics::TraceField, 4> fields{
+        diagnostics::TraceField{"symbol", "GetMessageA"},
+        diagnostics::TraceField{"message", "WM_QUIT"},
+        diagnostics::TraceField{"exit-code", std::to_string(g_quit_code)},
+        diagnostics::TraceField{"result", "quit"},
+    };
+    runtime_trace("GetMessageA", fields, 4);
+    set_last_error(abi::kErrorSuccess);
+    return 0;
+}
+
 extern "C" {
 
 TL_MSABI int tl_GetMessageA(void* const msg, const void* const window,
@@ -881,20 +902,11 @@ TL_MSABI int tl_GetMessageA(void* const msg, const void* const window,
     (void)filter_min;
     (void)filter_max;
     if (g_quit_requested) {
-        g_quit_requested = false;
-        if (!write_guest_msg(msg, nullptr, abi::kWmQuit, g_quit_code, 0)) {
-            set_last_error(abi::kErrorInvalidParameter);
-            return -1;
-        }
-        const std::array<diagnostics::TraceField, 4> fields{
-            diagnostics::TraceField{"symbol", "GetMessageA"},
-            diagnostics::TraceField{"message", "WM_QUIT"},
-            diagnostics::TraceField{"exit-code", std::to_string(g_quit_code)},
-            diagnostics::TraceField{"result", "quit"},
-        };
-        runtime_trace("GetMessageA", fields, 4);
-        set_last_error(abi::kErrorSuccess);
-        return 0;
+        // Auditoria 2026-10-18 (5.1): entrega de WM_QUIT extraída para
+        // deliver_quit_message — reutilizada dentro do loop idle, que não
+        // re-checava o pedido e deixava o pump bloqueado após
+        // PostQuitMessage.
+        return deliver_quit_message(msg);
     }
     tl_WSAPumpAsyncSelect();
     {
@@ -935,6 +947,19 @@ TL_MSABI int tl_GetMessageA(void* const msg, const void* const window,
     }
     bool idle_traced = false;
     for (;;) {
+        if (g_quit_requested) {
+            // Auditoria 5.1: PostQuitMessage pode chegar enquanto este loop
+            // espera (inclusive via SendMessage de outra thread) — a cada
+            // iteração o pump sai e entrega WM_QUIT em vez de dormir para
+            // sempre.
+            return deliver_quit_message(msg);
+        }
+        if (guest_process_exit_pending()) {
+            // Auditoria A2: ExitProcess de thread secundária registra o
+            // pedido; o pump da thread principal sai do bloqueio aqui e a
+            // próxima espera observável desempilha pelo jmp_buf do dono.
+            return -1;
+        }
         tl_WSAPumpAsyncSelect();
         {
             std::unique_lock lock(g_gui_state_mutex);

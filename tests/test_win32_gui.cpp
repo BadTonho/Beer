@@ -500,6 +500,54 @@ TEST(Win32GuiTest, AllowsCrossThreadPostMessageToPrimaryQueue) {
     g_windows = {};
 }
 
+TEST(Win32GuiTest, GetMessageIdleLoopDeliversPostQuitMessageWhileWaiting) {
+    for (WindowSlot& slot : g_windows) {
+        unregister_window_handle(&slot);
+    }
+    clear_cross_thread_window_messages();
+    g_windows = {};
+    g_quit_requested = false;
+    g_quit_code = 0;
+
+    WindowSlot& window = g_windows[0];
+    window.used = true;
+    ASSERT_TRUE(register_window_handle(&window));
+
+    // Auditoria 2026-10-18 (5.1): o loop idle de GetMessageA não re-checava
+    // g_quit_requested — PostQuitMessage emitida com o pump bloqueado
+    // deixava a thread dormindo para sempre. Uma outra thread sinaliza o
+    // pedido aqui, como SendMessage entre threads faria.
+    std::thread quitter([] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(60));
+        g_quit_requested = true;
+        g_quit_code = 7;
+    });
+
+    abi::GuestMsg message{};
+    const auto start = std::chrono::steady_clock::now();
+    const int result = tl_GetMessageA(&message, nullptr, 0, 0);
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - start);
+    quitter.join();
+
+    EXPECT_EQ(result, 0);
+    EXPECT_EQ(message.hwnd, nullptr);
+    EXPECT_EQ(message.message, abi::kWmQuit);
+    EXPECT_EQ(message.wparam, 7U);
+    // Sem a re-checagem o pump não retorna; com ela, dentro do sleep de 10 ms
+    // do loop mais folga.
+    EXPECT_LT(elapsed.count(), 2000);
+
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorSuccess);
+    EXPECT_FALSE(g_quit_requested);
+
+    unregister_window_handle(&window);
+    clear_cross_thread_window_messages();
+    g_windows = {};
+    g_quit_requested = false;
+    g_quit_code = 0;
+}
+
 TEST(Win32GuiTest, WsaAsyncSelectPostsReadableSocketMessage) {
     for (WindowSlot& slot : g_windows) {
         unregister_window_handle(&slot);
