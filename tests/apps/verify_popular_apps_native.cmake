@@ -30,7 +30,10 @@ set(CASES
     "Rockstar-Games-Launcher.exe|1|exit exit-code=\"1\" explicit=\"sim\""
     "Rufus_x64.exe|4|entry point fora de uma página executável"
     "HWiNFO64.exe|4|entry point fora de uma página executável"
+    "Logitech_GHUB_x64.exe|0|exit exit-code=\"0\" explicit=\"sim\""
+    "lghub_installer.exe|0|exit exit-code=\"0\" explicit=\"sim\""
     "Notepad++/updater/GUP.exe|255|exit exit-code=\"4294967295\" explicit=\"sim\""
+    "npp_extracted/updater/GUP.exe|255|exit exit-code=\"4294967295\" explicit=\"sim\""
 )
 
 file(REMOVE_RECURSE "${TL_STAGING_ROOT}")
@@ -78,7 +81,8 @@ foreach(case IN LISTS CASES)
             "stdout:\n${run_stdout}\n"
             "stderr:\n${run_stderr}")
     endif()
-    if("${relative_path}" STREQUAL "Notepad++/updater/GUP.exe")
+    if("${relative_path}" STREQUAL "Notepad++/updater/GUP.exe" OR
+       "${relative_path}" STREQUAL "npp_extracted/updater/GUP.exe")
         string(FIND "${run_stderr}" "unmap base=\"" unmap_position)
         string(FIND "${run_stderr}" "ExitProcess symbol=\"" exit_process_position)
         string(FIND "${run_stderr}" "guest-signal" guest_signal_position)

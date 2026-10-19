@@ -27,11 +27,12 @@ pacotes e instaladores rejeitados nunca são iniciados, e cada exit esperado é
 fixado no catálogo do teste para que uma mudança de formato ou arquitetura
 falhe de forma visível.
 
-`popular_apps_native_matrix` executa os onze casos PE32+ com ação direta
+`popular_apps_native_matrix` executa quatorze casos PE32+ com ação direta
 ou rejeição pré-entry já documentados: os cinco binários do ecossistema 7-Zip
 (`7z_x64.exe`, `7zFM_x64.exe`, `7-Zip/7z.exe`, `7-Zip/7zFM.exe`, `7-Zip/7zG.exe`),
-os dois binários WinRAR, Rockstar, Rufus, HWiNFO64 e GUP do Notepad++. Cada caso usa
-prefixo temporário, ambiente headless, `--timeout 3`, limites de CPU/memória e
+os dois binários WinRAR, Rockstar, Rufus, HWiNFO64, Logitech G HUB e seu alias, e os
+dois executáveis GUP de atualização do Notepad++ (`Notepad++/updater/GUP.exe` e `npp_extracted/updater/GUP.exe`).
+Cada caso usa prefixo temporário, ambiente headless, `--timeout 3`, limites de CPU/memória e
 verifica o exit code e o diagnóstico esperado; instaladores, DLLs e cenários
 interativos de GUI permanecem nos testes específicos.
 
