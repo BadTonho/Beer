@@ -602,10 +602,14 @@ TL_MSABI abi::HWnd tl_CreateWindowExW(const std::uint32_t ex_style,
     }
     std::string utf8_window;
     const char* win_cstr = nullptr;
-    if (window_name != nullptr && window_val > 0xFFFFU) {
-        utf8_window = util::wide_to_utf8(
-            reinterpret_cast<const std::uint16_t*>(window_name_copy.data()), window_name_copy.size());
-        win_cstr = utf8_window.c_str();
+    if (window_name != nullptr) {
+        if (window_val <= 0xFFFFU) {
+            win_cstr = reinterpret_cast<const char*>(window_val);
+        } else {
+            utf8_window = util::wide_to_utf8(
+                reinterpret_cast<const std::uint16_t*>(window_name_copy.data()), window_name_copy.size());
+            win_cstr = utf8_window.c_str();
+        }
     }
     if (class_val <= 0xFFFFU) {
         const bool previous_bridge = g_create_window_w_bridge;
