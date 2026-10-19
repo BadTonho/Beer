@@ -60,10 +60,13 @@ e a posterior remoção limpa da aplicação do catálogo (`tradutorlinux app re
 Com o mesmo parâmetro e Xvfb disponível, os smokes GUI reais de 7-Zip File
 Manager (`seven_zip_gui_smoke` e `seven_zip_subdir_gui_smoke`), PuTTY (`putty_real_gui_smoke`
 e `putty_ssh_local_probe`), WinRAR (`winrar_sfx_real_smoke`, `winrar_extract_real_smoke`,
-`winrar_723_sfx_real_smoke` e `winrar_723_extract_real_smoke`) e Notepad++
-(`notepadpp_real_gui_smoke`) também são registrados separadamente no CTest.
+`winrar_723_sfx_real_smoke` e `winrar_723_extract_real_smoke`), Notepad++
+(`notepadpp_real_gui_smoke`) e Rockstar Games Launcher (`rockstar_real_gui_smoke`)
+também são registrados separadamente no CTest.
 O smoke do 7-Zip prepara catálogo, prefixo e `compat/profile.json` schema 4
 temporários, cadastra o aplicativo com ID `7zip` e executa somente por `app run`; o
-trace exige `compat-profile` carregado e `compat-extension` selecionada. Cada cenário
-cria seu próprio Xvfb/staging e mantém seu resultado limitado ao comportamento documentado
-na matriz de compatibilidade.
+trace exige `compat-profile` carregado e `compat-extension` selecionada. O smoke do
+Rockstar Games Launcher valida a inicialização da janela GUI "Rockstar Games Launcher Installer"
+sob Xvfb, recepção de eventos de encerramento via `WM_DELETE_WINDOW` e finalização limpa
+com exit code 1. Cada cenário cria seu próprio Xvfb/staging e mantém seu resultado
+limitado ao comportamento documentado na matriz de compatibilidade.

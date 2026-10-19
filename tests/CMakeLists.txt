@@ -373,6 +373,14 @@ if(TL_XVFB_EXECUTABLE)
     tl_enable_warnings(notepadpp_smoke)
     tl_enable_sanitizers(notepadpp_smoke)
 
+    add_executable(rockstar_smoke
+        apps/rockstar/rockstar_smoke.cpp
+    )
+    target_include_directories(rockstar_smoke PRIVATE "${TL_X11_INCLUDE_DIR}")
+    target_link_libraries(rockstar_smoke PRIVATE "${TL_X11_LIBRARY}")
+    tl_enable_warnings(rockstar_smoke)
+    tl_enable_sanitizers(rockstar_smoke)
+
     if(TL_POPULAR_APPS_DIR AND TARGET tradutorlinux)
         set(TL_7ZFM_EXECUTABLE "${TL_POPULAR_APPS_DIR}/7zFM_x64.exe")
         set(TL_7Z_SUBDIR_GUI_EXECUTABLE "${TL_POPULAR_APPS_DIR}/7-Zip/7zFM.exe")
@@ -380,6 +388,7 @@ if(TL_XVFB_EXECUTABLE)
         set(TL_WINRAR_EXECUTABLE "${TL_POPULAR_APPS_DIR}/WinRAR_x64.exe")
         set(TL_WINRAR_723_EXECUTABLE "${TL_POPULAR_APPS_DIR}/winrar-x64-723.exe")
         set(TL_NOTEPADPP_EXECUTABLE "${TL_POPULAR_APPS_DIR}/Notepad++/notepad++.exe")
+        set(TL_ROCKSTAR_EXECUTABLE "${TL_POPULAR_APPS_DIR}/Rockstar-Games-Launcher.exe")
 
         if(EXISTS "${TL_7ZFM_EXECUTABLE}")
             add_test(
@@ -493,6 +502,20 @@ if(TL_XVFB_EXECUTABLE)
             )
             set_tests_properties(notepadpp_real_gui_smoke PROPERTIES
                 LABELS "runtime;apps;gui;notepadpp"
+                TIMEOUT 90
+                SKIP_RETURN_CODE 77
+            )
+        endif()
+
+        if(EXISTS "${TL_ROCKSTAR_EXECUTABLE}")
+            add_test(
+                NAME rockstar_real_gui_smoke
+                COMMAND rockstar_smoke
+                    "$<TARGET_FILE:tradutorlinux>"
+                    "${TL_ROCKSTAR_EXECUTABLE}"
+            )
+            set_tests_properties(rockstar_real_gui_smoke PROPERTIES
+                LABELS "runtime;apps;gui;rockstar"
                 TIMEOUT 90
                 SKIP_RETURN_CODE 77
             )
