@@ -900,12 +900,23 @@ fn serialize(profile: &ProfileModel) -> Result<Success, Failure> {
         total = add_u64(total, bytes).ok_or_else(|| Failure::internal(b"overflow da tabela dlls"))?;
         offset
     };
+    // Auditoria 2026-10-18 (Rust): o offset de cada registro de string é
+    // calculado uma única vez durante o dimensionamento da tabela — o
+    // encoder de referências antes rescaneava a tabela por referência
+    // (O(N²) dentro dos limites legais).
+    let mut string_layout: Vec<(u64, u64)> = Vec::with_capacity(strings.values.len());
     let strings_offset = if strings.values.is_empty() {
         0
     } else {
         total = align8(total).ok_or_else(|| Failure::internal(b"overflow de alinhamento TLPR"))?;
         let offset = total;
         for value in &strings.values {
+            // O cursor de layout é o próprio `total` do dimensionamento: o
+            // pré-computo reusa exatamente a aritmética que define o tamanho.
+            let data = total
+                .checked_add(WIRE_STRING_RECORD_HEADER_SIZE as u64)
+                .ok_or_else(|| Failure::internal(b"overflow de offset string"))?;
+            string_layout.push((data, value.len() as u64));
             let record = (WIRE_STRING_RECORD_HEADER_SIZE as u64)
                 .checked_add(value.len() as u64)
                 .ok_or_else(|| Failure::internal(b"overflow de registro string TLPR"))?;
@@ -984,38 +995,30 @@ fn serialize(profile: &ProfileModel) -> Result<Success, Failure> {
                 0
             }),
     );
-    put_ref(&mut wire, info + WIRE_INFO_APP_ID_OFFSET, &strings, app_id, strings_offset, total)?;
+    put_ref(&mut wire, info + WIRE_INFO_APP_ID_OFFSET, &string_layout, app_id)?;
     put_ref(
         &mut wire,
         info + WIRE_INFO_SHA256_OFFSET,
-        &strings,
+        &string_layout,
         app_sha256,
-        strings_offset,
-        total,
     )?;
     put_ref(
         &mut wire,
         info + WIRE_INFO_VERSION_OFFSET,
-        &strings,
+        &string_layout,
         app_version,
-        strings_offset,
-        total,
     )?;
     put_ref(
         &mut wire,
         info + WIRE_INFO_MIN_VERSION_OFFSET,
-        &strings,
+        &string_layout,
         min_version,
-        strings_offset,
-        total,
     )?;
     put_ref(
         &mut wire,
         info + WIRE_INFO_EXTENSION_OFFSET,
-        &strings,
+        &string_layout,
         extension,
-        strings_offset,
-        total,
     )?;
 
     for (index, (source, target)) in file_refs.iter().enumerate() {
@@ -1023,16 +1026,16 @@ fn serialize(profile: &ProfileModel) -> Result<Success, Failure> {
             .ok()
             .and_then(|offset| offset.checked_add(index * WIRE_FILE_STRIDE))
             .ok_or_else(|| Failure::internal(b"offset files invalido"))?;
-        put_ref(&mut wire, record, &strings, *source, strings_offset, total)?;
-        put_ref(&mut wire, record + WIRE_STRING_REF_SIZE, &strings, *target, strings_offset, total)?;
+        put_ref(&mut wire, record, &string_layout, *source)?;
+        put_ref(&mut wire, record + WIRE_STRING_REF_SIZE, &string_layout, *target)?;
     }
     for (index, (module, source)) in dll_refs.iter().enumerate() {
         let record = usize::try_from(dlls_offset)
             .ok()
             .and_then(|offset| offset.checked_add(index * WIRE_DLL_STRIDE))
             .ok_or_else(|| Failure::internal(b"offset dlls invalido"))?;
-        put_ref(&mut wire, record, &strings, *module, strings_offset, total)?;
-        put_ref(&mut wire, record + WIRE_STRING_REF_SIZE, &strings, *source, strings_offset, total)?;
+        put_ref(&mut wire, record, &string_layout, *module)?;
+        put_ref(&mut wire, record + WIRE_STRING_REF_SIZE, &string_layout, *source)?;
     }
     if strings_offset != 0 {
         let mut cursor = usize::try_from(strings_offset)
@@ -1049,38 +1052,18 @@ fn serialize(profile: &ProfileModel) -> Result<Success, Failure> {
     Ok(Success { wire })
 }
 
-fn string_offset(
-    strings: &StringTable,
-    index: usize,
-    strings_offset: u64,
-) -> Result<(u64, u64), Failure> {
+fn string_offset(layout: &[(u64, u64)], index: usize) -> Result<(u64, u64), Failure> {
     if index == usize::MAX {
         return Ok((0, 0));
     }
-    let mut cursor = strings_offset;
-    for (current, value) in strings.values.iter().enumerate() {
-        let data = add_u64(cursor, WIRE_STRING_RECORD_HEADER_SIZE as u64)
-            .ok_or_else(|| Failure::internal(b"overflow de offset string"))?;
-        if current == index {
-            return Ok((data, value.len() as u64));
-        }
-        let record = add_u64(data, value.len() as u64)
-            .and_then(align8)
-            .ok_or_else(|| Failure::internal(b"overflow de registro string"))?;
-        cursor = record;
-    }
-    Err(Failure::internal(b"indice de string invalido"))
+    layout
+        .get(index)
+        .copied()
+        .ok_or_else(|| Failure::internal(b"indice de string invalido"))
 }
 
-fn put_ref(
-    wire: &mut [u8],
-    offset: usize,
-    strings: &StringTable,
-    index: usize,
-    strings_offset: u64,
-    _total: u64,
-) -> Result<(), Failure> {
-    let (data, length) = string_offset(strings, index, strings_offset)?;
+fn put_ref(wire: &mut [u8], offset: usize, layout: &[(u64, u64)], index: usize) -> Result<(), Failure> {
+    let (data, length) = string_offset(layout, index)?;
     put_u64(wire, offset, data);
     put_u64(wire, offset + 8, length);
     Ok(())

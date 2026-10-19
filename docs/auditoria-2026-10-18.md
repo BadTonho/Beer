@@ -189,6 +189,11 @@ recebe "sucesso" onde não há implementação — violando a regra do projeto
   tabela de strings para cada referência (O(N²)); dentro dos limites legais
   (262k strings/1 MiB) pode custo ~17 bilhões de iterações de CPU.
 
+> **Errata (2026-10-18, varredura de correção):** `string_offset` agora
+> consulta offsets pré-computados durante o dimensionamento da tabela de
+> strings (um passo único, O(N) total); o wire é bit-idêntico (testes
+> determinísticos do crate e `cargo test` 38/38).
+
 ### 6.2 Corridas / integridade
 
 - **ws2_32:** `find_socket` sem `g_sockets_mutex` na maioria das chamadas →
