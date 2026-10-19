@@ -566,14 +566,35 @@ char** g_guest_initenv = nullptr;
 int g_guest_commode = 0;
 int g_guest_fmode = 0;
 char* g_guest_acmdln = nullptr;
+int g_guest_argc = 0;
+char** g_guest_argv = nullptr;
+wchar_t** g_guest_wargv = nullptr;
 GuestFile g_guest_iob[3] = {
     {nullptr, 0, nullptr, 0x0001, 0, -1, 0, nullptr},
     {nullptr, 0, nullptr, 0x0002, 1, -1, 0, nullptr},
     {nullptr, 0, nullptr, 0x0002, 2, -1, 0, nullptr},
 };
 
+static std::vector<char*> g_guest_argv_ptrs;
+
+static void ensure_guest_argv() {
+    const std::size_t argument_count = g_guest_arguments.empty() ? 1 : g_guest_arguments.size();
+    g_guest_argc = static_cast<int>(argument_count);
+    g_guest_argv_ptrs.resize(argument_count + 1);
+    if (g_guest_arguments.empty()) {
+        g_guest_argv_ptrs[0] = const_cast<char*>("");
+    } else {
+        for (std::size_t index = 0; index < g_guest_arguments.size(); ++index) {
+            g_guest_argv_ptrs[index] = const_cast<char*>(g_guest_arguments[index].c_str());
+        }
+    }
+    g_guest_argv_ptrs[argument_count] = nullptr;
+    g_guest_argv = g_guest_argv_ptrs.data();
+}
+
 void msvcrt_set_guest_command_line(std::vector<std::string> arguments) {
     g_guest_arguments = std::move(arguments);
+    ensure_guest_argv();
     g_guest_command_line.clear();
     for (const std::string& argument : g_guest_arguments) {
         if (!g_guest_command_line.empty()) {
@@ -606,31 +627,28 @@ TL_CRT_MSABI int tl___getmainargs(int* argc, char*** argv, char*** envp, int* gl
         set_error(EINVAL);
         return -1;
     }
-    const std::size_t argument_count = g_guest_arguments.empty() ? 1 : g_guest_arguments.size();
+    ensure_guest_argv();
     char** argv_storage =
-        static_cast<char**>(std::malloc(sizeof(char*) * (argument_count + 1)));
+        static_cast<char**>(std::malloc(sizeof(char*) * (static_cast<std::size_t>(g_guest_argc) + 1)));
     if (argv_storage == nullptr) {
         set_error(ENOMEM);
         return -1;
     }
-    if (g_guest_arguments.empty()) {
-        argv_storage[0] = const_cast<char*>("");
-    } else {
-        for (std::size_t index = 0; index < g_guest_arguments.size(); ++index) {
-            argv_storage[index] = const_cast<char*>(g_guest_arguments[index].c_str());
-        }
+    for (int i = 0; i <= g_guest_argc; ++i) {
+        argv_storage[i] = g_guest_argv_ptrs[static_cast<std::size_t>(i)];
     }
-    argv_storage[argument_count] = nullptr;
-    g_guest_initenv = runtime::guest_environment_block_a();
+    if (g_guest_initenv == nullptr) {
+        g_guest_initenv = runtime::guest_environment_block_a();
+    }
     if (argc != nullptr) {
-        *argc = static_cast<int>(argument_count);
+        *argc = g_guest_argc;
     }
     *argv = argv_storage;
     *envp = g_guest_initenv;
     const std::string argv0 =
-        argument_count > 0 && argv_storage[0] != nullptr ? argv_storage[0] : "";
+        g_guest_argc > 0 && argv_storage[0] != nullptr ? argv_storage[0] : "";
     trace_crt(TraceLevel::Info, "getmainargs",
-              {TraceField{"argc", std::to_string(argument_count)},
+              {TraceField{"argc", std::to_string(g_guest_argc)},
                TraceField{"argv0", argv0}});
     return 0;
 }
@@ -2183,6 +2201,49 @@ TL_CRT_MSABI int* tl___p__commode() noexcept {
     return &g_guest_commode;
 }
 
+TL_CRT_MSABI int* tl___p___argc() noexcept {
+    ensure_guest_argv();
+    return &g_guest_argc;
+}
+
+TL_CRT_MSABI char*** tl___p___argv() noexcept {
+    ensure_guest_argv();
+    return &g_guest_argv;
+}
+
+TL_CRT_MSABI wchar_t*** tl___p___wargv() noexcept {
+    return &g_guest_wargv;
+}
+
+TL_CRT_MSABI char** tl__get_initial_narrow_environment() noexcept {
+    if (g_guest_initenv == nullptr) {
+        g_guest_initenv = runtime::guest_environment_block_a();
+    }
+    return g_guest_initenv;
+}
+
+TL_CRT_MSABI wchar_t** tl__get_initial_wide_environment() noexcept {
+    return nullptr;
+}
+
+TL_CRT_MSABI void tl___std_type_info_destroy_list(void* const pNode) noexcept {
+    (void)pNode;
+}
+
+TL_CRT_MSABI int tl__execute_onexit_table(void* const table) noexcept {
+    (void)table;
+    return 0;
+}
+
+TL_CRT_MSABI int tl__seh_filter_dll(const unsigned long xcpt, void* const pinfo) noexcept {
+    return tl__XcptFilter(xcpt, pinfo);
+}
+
+TL_CRT_MSABI int tl__callnewh(const std::size_t size) noexcept {
+    (void)size;
+    return 0;
+}
+
 TL_CRT_MSABI int tl__set_fmode(const int mode) noexcept {
     g_guest_fmode = mode;
     return 0;
@@ -2675,6 +2736,15 @@ void register_msvcrt_module() {
         {"_splitpath", 149, reinterpret_cast<std::uintptr_t>(&tl__splitpath), ExportSupport::Full},
         {"_wsplitpath_s", 150, reinterpret_cast<std::uintptr_t>(&tl__wsplitpath_s), ExportSupport::Full},
         {"_wsplitpath", 151, reinterpret_cast<std::uintptr_t>(&tl__wsplitpath), ExportSupport::Full},
+        {"__p___argc", 152, reinterpret_cast<std::uintptr_t>(&tl___p___argc), ExportSupport::Full},
+        {"__p___argv", 153, reinterpret_cast<std::uintptr_t>(&tl___p___argv), ExportSupport::Full},
+        {"__p___wargv", 154, reinterpret_cast<std::uintptr_t>(&tl___p___wargv), ExportSupport::Full},
+        {"_get_initial_narrow_environment", 155, reinterpret_cast<std::uintptr_t>(&tl__get_initial_narrow_environment), ExportSupport::Full},
+        {"_get_initial_wide_environment", 156, reinterpret_cast<std::uintptr_t>(&tl__get_initial_wide_environment), ExportSupport::Full},
+        {"__std_type_info_destroy_list", 157, reinterpret_cast<std::uintptr_t>(&tl___std_type_info_destroy_list), ExportSupport::Full},
+        {"_execute_onexit_table", 158, reinterpret_cast<std::uintptr_t>(&tl__execute_onexit_table), ExportSupport::Full},
+        {"_seh_filter_dll", 159, reinterpret_cast<std::uintptr_t>(&tl__seh_filter_dll), ExportSupport::Full},
+        {"_callnewh", 160, reinterpret_cast<std::uintptr_t>(&tl__callnewh), ExportSupport::Full},
     };
     static const InternalModule kMsvcrtModule{"msvcrt.dll", kMsvcrtExports};
     register_module(kMsvcrtModule);

@@ -1815,6 +1815,7 @@ TL_MSABI int tl_vk_generic_stub() noexcept {
 }
 
 TL_MSABI void tl_vk_void_stub() noexcept {}
+TL_MSABI void tl_std_Xlength_error(const char* message) noexcept { (void)message; }
 
 TL_MSABI int dummy_worker_check() noexcept {
     return 1;
@@ -2253,6 +2254,11 @@ void register_winapi_stubs_module() {
     };
     static const InternalModule kVulkan1Module{"vulkan-1.dll", kVulkan1Exports};
     register_module(kVulkan1Module);
+    static const ExportedFunction kMsvcp140Exports[] = {
+        {"?_Xlength_error@std@@YAXPEBD@Z", 1, reinterpret_cast<std::uintptr_t>(&tl_std_Xlength_error), ExportSupport::Stub},
+    };
+    static const InternalModule kMsvcp140Module{"msvcp140.dll", kMsvcp140Exports};
+    register_module(kMsvcp140Module);
 }
 
 }  // namespace tradutorlinux::loader

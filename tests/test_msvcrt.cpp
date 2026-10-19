@@ -467,5 +467,31 @@ TEST(MsvcrtUcrtTest, StrpbrkAndSplitPath) {
     EXPECT_TRUE(std::wcscmp(wext, L".exe") == 0);
 }
 
+TEST(MsvcrtUcrtTest, StartupArgvAndEnvironmentExports) {
+    msvcrt_set_guest_command_line({"app.exe", "--arg1", "val"});
+    int* const pargc = tl___p___argc();
+    ASSERT_NE(pargc, nullptr);
+    EXPECT_EQ(*pargc, 3);
+
+    char*** const pargv = tl___p___argv();
+    ASSERT_NE(pargv, nullptr);
+    ASSERT_NE(*pargv, nullptr);
+    EXPECT_STREQ((*pargv)[0], "app.exe");
+    EXPECT_STREQ((*pargv)[1], "--arg1");
+    EXPECT_STREQ((*pargv)[2], "val");
+    EXPECT_EQ((*pargv)[3], nullptr);
+
+    wchar_t*** const pwargv = tl___p___wargv();
+    ASSERT_NE(pwargv, nullptr);
+
+    char** const env = tl__get_initial_narrow_environment();
+    ASSERT_NE(env, nullptr);
+    EXPECT_EQ(tl__get_initial_wide_environment(), nullptr);
+
+    tl___std_type_info_destroy_list(nullptr);
+    EXPECT_EQ(tl__execute_onexit_table(nullptr), 0);
+    EXPECT_EQ(tl__callnewh(1024), 0);
+}
+
 }  // namespace
 }  // namespace tradutorlinux
