@@ -559,6 +559,30 @@ TEST(Win32StubTest, NormalizAndBcryptModulesExportFunctionalSymbols) {
     EXPECT_EQ(output_domain[0], 'e');
 }
 
+// Auditoria 2026-10-18 (6.3): IdnToAscii/IdnToUnicode/BCryptGenRandom operam
+// pela fronteira protegida de memória convidada — ponteiros hostis devolvem
+// erro controlado em vez de dereferenciar no runtime.
+TEST(Win32StubTest, IdnAndBcryptRejectUnmappedGuestPointers) {
+    auto* const invalid = reinterpret_cast<void*>(static_cast<std::uintptr_t>(0x1000U));
+    const std::uint16_t sample_domain[] = {'e', 'x', 'a', 'm', 'p', 'l', 'e', '.', 'c', 'o', 'm', 0};
+    std::uint16_t output_domain[32]{};
+
+    EXPECT_EQ(tl_IdnToAscii(0, reinterpret_cast<const std::uint16_t*>(invalid), -1,
+                            output_domain, 32), 0);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
+    EXPECT_EQ(tl_IdnToUnicode(0, reinterpret_cast<const std::uint16_t*>(invalid), -1,
+                              output_domain, 32), 0);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
+
+    EXPECT_EQ(tl_IdnToAscii(0, sample_domain, -1, reinterpret_cast<std::uint16_t*>(invalid), 32), 0);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
+
+    EXPECT_EQ(tl_BCryptGenRandom(nullptr, static_cast<std::uint8_t*>(invalid), 16, 2),
+              0xC000000DU);
+    std::uint8_t probe[16]{};
+    EXPECT_EQ(tl_BCryptGenRandom(nullptr, probe, 1024U * 1024U + 1U, 2), 0xC000000DU);
+}
+
 TEST(Win32StubTest, Crypt32AndAdvapiModulesExportLibcurlSymbols) {
     loader::register_builtin_modules();
     EXPECT_TRUE(loader::is_module_registered("CRYPT32.dll"));

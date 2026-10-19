@@ -1847,6 +1847,56 @@ TL_MSABI std::uint32_t tl_ldap_success_stub() noexcept {
 TL_MSABI void tl_ldap_void_stub() noexcept {
 }
 
+namespace {
+
+// Auditoria 2026-10-18 (6.3): IdnToAscii/IdnToUnicode devem funcionar uma
+// cópia direta (ainda sem IDN real) mas pela fronteira protegida — a
+// leitura e a escrita aplicam validação de memória convidada em vez de
+// dereferenciar ponteiros hostis; este limite também firma o ponteiro
+// pedido para a consulta de comprimento.
+constexpr int kMaxIdnUnits = 32768;
+
+[[nodiscard]] std::optional<std::u16string> read_idn_source(const std::uint16_t* const src,
+                                                            int src_len) noexcept {
+    if (src == nullptr) {
+        return std::nullopt;
+    }
+    std::u16string value;
+    try {
+        if (src_len < 0) {
+            if (!runtime::copy_guest_wstring(src, kMaxIdnUnits, value)) {
+                return std::nullopt;
+            }
+            value.push_back(u'\0');  // o comprimento contado inclui o NUL
+        } else {
+            if (src_len > kMaxIdnUnits) {
+                return std::nullopt;
+            }
+            value.resize(static_cast<std::size_t>(src_len));
+            if (src_len > 0 &&
+                runtime::read_guest_memory(src, value.data(),
+                        static_cast<std::size_t>(src_len) * sizeof(std::uint16_t)).status !=
+                    runtime::GuestMemoryAccessStatus::Success) {
+                return std::nullopt;
+            }
+        }
+    } catch (const std::bad_alloc&) {
+        return std::nullopt;
+    }
+    return value;
+}
+
+[[nodiscard]] bool write_idn_destination(std::uint16_t* const dst, const std::u16string& value) noexcept {
+    const std::size_t bytes = value.size() * sizeof(std::uint16_t);
+    if (bytes == 0U) {
+        return true;
+    }
+    return runtime::write_guest_memory(dst, value.data(), bytes).status ==
+           runtime::GuestMemoryAccessStatus::Success;
+}
+
+}  // namespace
+
 TL_MSABI int tl_IdnToAscii(std::uint32_t flags, const std::uint16_t* src, int src_len,
                            std::uint16_t* dst, int dst_len) noexcept {
     (void)flags;
@@ -1854,14 +1904,12 @@ TL_MSABI int tl_IdnToAscii(std::uint32_t flags, const std::uint16_t* src, int sr
         set_last_error(abi::kErrorInvalidParameter);
         return 0;
     }
-    int len = src_len;
-    if (len < 0) {
-        len = 0;
-        while (src[len] != 0) {
-            ++len;
-        }
-        ++len;
+    const std::optional<std::u16string> source = read_idn_source(src, src_len);
+    if (!source.has_value()) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
     }
+    const int len = static_cast<int>(source->size());
     if (dst_len == 0) {
         return len;
     }
@@ -1869,9 +1917,11 @@ TL_MSABI int tl_IdnToAscii(std::uint32_t flags, const std::uint16_t* src, int sr
         set_last_error(abi::kErrorInsufficientBuffer);
         return 0;
     }
-    for (int i = 0; i < len; ++i) {
-        dst[i] = src[i];
+    if (!write_idn_destination(dst, *source)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
     }
+    set_last_error(abi::kErrorSuccess);
     return len;
 }
 
@@ -1882,14 +1932,12 @@ TL_MSABI int tl_IdnToUnicode(std::uint32_t flags, const std::uint16_t* src, int 
         set_last_error(abi::kErrorInvalidParameter);
         return 0;
     }
-    int len = src_len;
-    if (len < 0) {
-        len = 0;
-        while (src[len] != 0) {
-            ++len;
-        }
-        ++len;
+    const std::optional<std::u16string> source = read_idn_source(src, src_len);
+    if (!source.has_value()) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
     }
+    const int len = static_cast<int>(source->size());
     if (dst_len == 0) {
         return len;
     }
@@ -1897,9 +1945,11 @@ TL_MSABI int tl_IdnToUnicode(std::uint32_t flags, const std::uint16_t* src, int 
         set_last_error(abi::kErrorInsufficientBuffer);
         return 0;
     }
-    for (int i = 0; i < len; ++i) {
-        dst[i] = src[i];
+    if (!write_idn_destination(dst, *source)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
     }
+    set_last_error(abi::kErrorSuccess);
     return len;
 }
 
@@ -1913,19 +1963,53 @@ TL_MSABI std::uint32_t tl_BCryptGenRandom(void* algorithm, std::uint8_t* buffer,
     if (buffer == nullptr) {
         return 0xC000000DU; // STATUS_INVALID_PARAMETER
     }
-    long ret = ::syscall(SYS_getrandom, buffer, static_cast<std::size_t>(count), 0);
-    if (ret < 0) {
-        int fd = ::open("/dev/urandom", O_RDONLY | O_CLOEXEC);
-        if (fd >= 0) {
-            std::size_t total = 0;
-            while (total < count) {
-                ssize_t n = ::read(fd, buffer + total, count - total);
-                if (n <= 0) break;
-                total += static_cast<std::size_t>(n);
+    // Auditoria 2026-10-18 (6.3): a petição aleatória do convidado passa
+    // pela fronteira protegida (staging do host + write_guest_memory), com
+    // teto honesto de 1 MiB por chamada e falhas controladas.
+    constexpr std::uint32_t kMaxRandomBytes = 1024U * 1024U;
+    if (count > kMaxRandomBytes) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0xC000000DU; // STATUS_INVALID_PARAMETER
+    }
+    std::array<std::uint8_t, 4096> staging{};
+    std::size_t total = 0;
+    auto fill_from_host = [&](const std::size_t want) noexcept {
+        std::size_t done = 0;
+        long ret = ::syscall(SYS_getrandom, staging.data(), want, 0);
+        if (ret > 0) {
+            done = static_cast<std::size_t>(ret);
+        } else {
+            int fd = ::open("/dev/urandom", O_RDONLY | O_CLOEXEC);
+            if (fd < 0) {
+                return std::size_t{0};
+            }
+            while (done < want) {
+                const ssize_t n = ::read(fd, staging.data() + done, want - done);
+                if (n <= 0) {
+                    break;
+                }
+                done += static_cast<std::size_t>(n);
             }
             ::close(fd);
         }
+        return done;
+    };
+    while (total < count) {
+        const std::size_t want = std::min<std::size_t>(staging.size(), count - total);
+        const std::size_t got = fill_from_host(want);
+        if (got == 0U) {
+            // Falha controlada: nada de bytes parcialmente invalidados sem
+            // mensagem de estado (o convidado deve repetir).
+            return 0xC0000225U; // STATUS_NOT_FOUND
+        }
+        if (runtime::write_guest_memory(buffer + total, staging.data(), got).status !=
+            runtime::GuestMemoryAccessStatus::Success) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0xC000000DU; // STATUS_INVALID_PARAMETER
+        }
+        total += got;
     }
+    set_last_error(abi::kErrorSuccess);
     return 0; // STATUS_SUCCESS
 }
 
