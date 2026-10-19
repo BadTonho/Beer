@@ -431,6 +431,15 @@ TEST(Win32GuiTest, ProtectedWindowRegistrationInputsRejectUnmappedPointers) {
     EXPECT_EQ(tl_CreateWindowExW(0, valid_class_w,
                                  static_cast<const std::uint16_t*>(invalid), 0, 0, 0, 0, 0,
                                  nullptr, nullptr, nullptr, nullptr), nullptr);
+
+    // Ordinais / Resource IDs (<= 0xFFFFU) não devem ser rejeitados pela validação de strings
+    const char* const res_id_a = reinterpret_cast<const char*>(101);
+    EXPECT_EQ(tl_CreateWindowExA(0, valid_class_a, res_id_a, 0, 0, 0,
+                                 0, 0, nullptr, nullptr, nullptr, nullptr), nullptr);
+    const std::uint16_t* const res_id_w = reinterpret_cast<const std::uint16_t*>(101);
+    EXPECT_EQ(tl_CreateWindowExW(0, valid_class_w, res_id_w, 0, 0, 0, 0, 0,
+                                 nullptr, nullptr, nullptr, nullptr), nullptr);
+
     EXPECT_TRUE(std::all_of(g_classes.begin(), g_classes.end(),
                             [](const ClassSlot& slot) { return !slot.used; }));
     EXPECT_TRUE(std::all_of(g_windows.begin(), g_windows.end(),

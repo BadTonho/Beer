@@ -259,6 +259,7 @@ TL_MSABI abi::HWnd tl_CreateWindowExA(const std::uint32_t ex_style,
     (void)instance;
     (void)param;
     const auto class_val = reinterpret_cast<std::uintptr_t>(class_name);
+    const auto window_val = reinterpret_cast<std::uintptr_t>(window_name);
     const bool normalize_geometry =
         guest_window_geometry_is_unreasonable(x, y, width, height);
     const int resolved_width = normalize_geometry ? 800 : guest_window_dimension(width, 800);
@@ -273,7 +274,7 @@ TL_MSABI abi::HWnd tl_CreateWindowExA(const std::uint32_t ex_style,
     if (class_name == nullptr ||
         (class_val > 0xFFFFU && !strings_from_bridge &&
          !runtime::copy_guest_cstring(class_name, 4096U, class_name_copy)) ||
-        (window_name != nullptr && !strings_from_bridge &&
+        (window_name != nullptr && window_val > 0xFFFFU && !strings_from_bridge &&
          !runtime::copy_guest_cstring(window_name, 4096U, window_name_copy))) {
         set_last_error(abi::kErrorInvalidParameter);
         trace_guest_failure("CreateWindowExA", "strings", "nome de classe ou janela inválido");
@@ -282,7 +283,7 @@ TL_MSABI abi::HWnd tl_CreateWindowExA(const std::uint32_t ex_style,
     if (class_val > 0xFFFFU && !strings_from_bridge) {
         effective_class_name = class_name_copy.c_str();
     }
-    if (window_name != nullptr && !strings_from_bridge) {
+    if (window_name != nullptr && window_val > 0xFFFFU && !strings_from_bridge) {
         effective_window_name = window_name_copy.c_str();
     }
     ClassSlot* const cls = find_class_slot(effective_class_name);
