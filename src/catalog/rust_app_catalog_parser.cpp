@@ -650,8 +650,10 @@ RustAppCatalogParseResult parse_app_catalog_rust(const std::span<const std::byte
         return result;
     }
     if (size_call.required == 0U ||
-        size_call.required > TL_APP_CATALOG_LIMIT_MAX_SERIALIZED_BYTES ||
-        size_call.required > std::numeric_limits<std::size_t>::max()) {
+        size_call.required > TL_APP_CATALOG_LIMIT_MAX_SERIALIZED_BYTES) {
+        // Auditoria 2026-10-18 (B11): a tautologia size > size_t::max foi
+        // removida; o limite real (TL_APP_CATALOG_LIMIT_MAX_SERIALIZED_BYTES)
+        // permanece.
         return internal_result(
             {TL_APP_CATALOG_ERROR_INTERNAL, TL_APP_CATALOG_ERROR_PHASE_SERIALIZE, kUnknownOffset,
              size_call.required},

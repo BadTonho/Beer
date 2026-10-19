@@ -482,11 +482,8 @@ bool decode_tlms_v1(const std::span<const std::uint8_t> wire, AppxPackageInfo& i
 
 RustMsixParseResult parse_msix_rust(const std::span<const std::uint8_t> input) {
     try {
-        if (input.size() > std::numeric_limits<std::uint64_t>::max()) {
-            return internal_result({TL_MSIX_ERROR_INPUT_TOO_LARGE, TL_MSIX_ERROR_PHASE_INPUT,
-                                    TL_MSIX_ERROR_OFFSET_UNKNOWN, input.size()},
-                                   "entrada excede o limite da ABI Rust");
-        }
+        // Auditoria 2026-10-18 (B11): checagem tautológica (size > uint64::max, sempre falsa em
+        // 64-bit, size_t == uint64_t no alvo) removida pela auditoria 2026-10-18.
         const auto* input_bytes = input.data();
         const FfiCall sized = invoke_with_message([&](std::uint64_t* required,
                                                        tl_msix_error_v1* error,

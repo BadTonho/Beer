@@ -662,11 +662,8 @@ RustProfileParseResult parse_profile_rust(const std::span<const std::byte> input
                                           const std::string_view expected_app_sha256,
                                           const std::string_view expected_app_version) {
     try {
-        if (input.size() > std::numeric_limits<std::uint64_t>::max()) {
-            return internal_result({TL_PROFILE_ERROR_INPUT_TOO_LARGE, TL_PROFILE_ERROR_PHASE_INPUT,
-                                    TL_PROFILE_ERROR_OFFSET_UNKNOWN, input.size()},
-                                   "entrada excede o limite da ABI Rust");
-        }
+        // Auditoria 2026-10-18 (B11): checagem tautológica (size > uint64::max, sempre falsa em
+        // 64-bit, size_t == uint64_t no alvo) removida pela auditoria 2026-10-18.
         const auto* input_bytes = reinterpret_cast<const std::uint8_t*>(input.data());
         const auto identity = tl_profile_identity_v1{
             reinterpret_cast<const std::uint8_t*>(expected_app_id.data()), expected_app_id.size(),

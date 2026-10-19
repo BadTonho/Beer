@@ -86,13 +86,10 @@ RustPathValidationResult RustPathValidationSession::validate(
         finish();
         return RustPathValidationResult::InternalError;
     }
-    if (path.size() > std::numeric_limits<std::uint64_t>::max()) {
-        ++metrics_.rejected;
-        error = std::string{role} + " excede o tamanho representável";
-        finish();
-        return RustPathValidationResult::InvalidInput;
-    }
-
+    // Auditoria 2026-10-18 (B11): a checagem tautológica
+    // size > uint64::max (sempre falsa em 64-bit) foi removida. O custo do
+    // arquivo é limitado pelo contrato da ABI (u64 length) e o validador
+    // recusa entradas por excesso no Rust abaixo.
     std::array<char, kDiagnosticCapacity> diagnostic{};
     std::uint64_t required = 0;
     const auto* bytes = reinterpret_cast<const std::uint8_t*>(path.data());

@@ -885,11 +885,8 @@ bool decode_tlpe_v1(const std::span<const std::uint8_t> wire, PeInfo& info,
 
 RustPeParseResult parse_pe_rust(const std::span<const std::byte> input) {
     try {
-        if (input.size() > std::numeric_limits<std::uint64_t>::max()) {
-            return internal_result({TL_PE_ERROR_INPUT_TOO_LARGE, TL_PE_ERROR_PHASE_INPUT,
-                                    TL_PE_ERROR_OFFSET_UNKNOWN, input.size()},
-                                   "entrada excede o limite da ABI Rust");
-        }
+        // Auditoria 2026-10-18 (B11): checagem tautológica (size > uint64::max, sempre falsa em
+        // 64-bit, size_t == uint64_t no alvo) removida pela auditoria 2026-10-18.
         const auto* input_bytes = reinterpret_cast<const std::uint8_t*>(input.data());
         const FfiCall sized = invoke_with_message([&](std::uint64_t* required,
                                                        tl_pe_error_v1* error,

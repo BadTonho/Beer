@@ -686,4 +686,49 @@ TEST(RustPeParserTest, ProductionDecoderRejectsWireHeaderAndRecordMutations) {
     EXPECT_TRUE(rejects(mutate(static_cast<std::size_t>(info_table.offset) + 34U, 1)));
 }
 
+// Auditoria 2026-10-18 (B12): os limites duplicados header C ↔ parser Rust
+// não podem divergir silenciosamente. Os macros do cabeçalho são fixados e
+// o fonte .rs é lido em texto para conferir a constante correspondente (o
+// par 65534 ↔ 65535 é por design: um byte reservado ao NUL).
+TEST(RustPeParserTest, HeaderAndRustLimitConstantsStayInParity) {
+#if defined(TL_PROJECT_SOURCE_DIR)
+    const std::filesystem::path rust_source =
+        std::filesystem::path(TL_PROJECT_SOURCE_DIR) / "src" / "rust" / "pe_parser.rs";
+    std::ifstream source(rust_source);
+    ASSERT_TRUE(source.good()) << "fonte Rust ausente: " << rust_source;
+    const std::string content((std::istreambuf_iterator<char>(source)),
+                              std::istreambuf_iterator<char>());
+
+    const std::pair<const char*, const char*> rust_literals[] = {
+        {"MAX_SECTIONS", "MAX_SECTIONS: usize = 65_535;"},
+        {"MAX_IMPORT_DLLS", "MAX_IMPORT_DLLS: usize = 1_024;"},
+        {"MAX_SYMBOLS_PER_DLL", "MAX_SYMBOLS_PER_DLL: usize = 4_096;"},
+        {"MAX_RELOC_BLOCKS", "MAX_RELOC_BLOCKS: usize = 4_096;"},
+        {"MAX_RUNTIME_FUNCTIONS", "MAX_RUNTIME_FUNCTIONS: usize = 65_536;"},
+        {"MAX_CSTRING", "MAX_CSTRING: usize = 65_535;"},
+        {"MAX_EXPORT_FUNCTIONS", "MAX_EXPORT_FUNCTIONS: usize = 65_536;"},
+        {"MAX_EXPORT_NAMES", "MAX_EXPORT_NAMES: usize = 65_536;"},
+        {"MAX_TLS_CALLBACKS", "MAX_TLS_CALLBACKS: usize = 65_536;"},
+        {"MAX_SERIALIZED_BYTES", "MAX_SERIALIZED_BYTES: u64 = 268_435_456;"},
+    };
+    for (const auto& [name, literal] : rust_literals) {
+        EXPECT_NE(content.find(literal), std::string::npos)
+            << "constante Rust divergiu do contrato: " << name;
+    }
+
+    EXPECT_EQ(TL_PE_LIMIT_MAX_SECTIONS, UINT64_C(65535));
+    EXPECT_EQ(TL_PE_LIMIT_MAX_IMPORT_DLLS, UINT64_C(1024));
+    EXPECT_EQ(TL_PE_LIMIT_MAX_SYMBOLS_PER_DLL, UINT64_C(4096));
+    EXPECT_EQ(TL_PE_LIMIT_MAX_RELOC_BLOCKS, UINT64_C(4096));
+    EXPECT_EQ(TL_PE_LIMIT_MAX_RUNTIME_FUNCTIONS, UINT64_C(65536));
+    EXPECT_EQ(TL_PE_LIMIT_MAX_STRING_BYTES, UINT64_C(65534));
+    EXPECT_EQ(TL_PE_LIMIT_MAX_EXPORT_FUNCTIONS, UINT64_C(65536));
+    EXPECT_EQ(TL_PE_LIMIT_MAX_EXPORT_NAMES, UINT64_C(65536));
+    EXPECT_EQ(TL_PE_LIMIT_MAX_TLS_CALLBACKS, UINT64_C(65536));
+    EXPECT_EQ(TL_PE_LIMIT_MAX_SERIALIZED_BYTES, UINT64_C(268435456));
+#else
+    GTEST_SKIP() << "definição TL_PROJECT_SOURCE_DIR ausente";
+#endif
+}
+
 }  // namespace
