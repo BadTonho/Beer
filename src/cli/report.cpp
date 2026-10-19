@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <map>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -452,7 +453,8 @@ void print_support_report_group(std::ostream& stream, const loader::ResolveResul
     const pe::PeInfo& info,
     const pe::PackerInspectionResult& packer,
     const pe::FrameworkInspectionResult& frameworks,
-    const pe::SecurityServiceInspectionResult& security) {
+    const pe::SecurityServiceInspectionResult& security,
+    const loader::ResolveResult& result) {
     std::vector<std::string> recs;
 
     auto is_3d_graphics_dll = [](const std::string_view name) noexcept {
@@ -523,6 +525,19 @@ void print_support_report_group(std::ostream& stream, const loader::ResolveResul
                        "); componentes ring-0 de anticheat nao sao suportados no runtime nativo");
     } else if (security.has_service_apis) {
         recs.push_back("aplicativo registra servicos ou drivers de sistema (advapi32); servicos de kernel nao sao suportados no runtime nativo");
+    }
+
+    if (result.status != loader::ImportStatus::Resolved) {
+        std::map<std::string, std::size_t> unresolved_counts;
+        for (const auto& entry : result.imports) {
+            if (entry.status != loader::ImportStatus::Resolved) {
+                unresolved_counts[entry.dll]++;
+            }
+        }
+        for (const auto& [dll, count] : unresolved_counts) {
+            recs.push_back("biblioteca ausente ou nao suportada: " + dll + " (" +
+                           std::to_string(count) + " simbolos pendentes); forneca a DLL no diretorio do executavel ou via compat-profile");
+        }
     }
 
     return recs;
@@ -679,6 +694,23 @@ void print_support_report_json(
     stream << "    \"status\": \"" << (result.status == loader::ImportStatus::Resolved ? "supported" : "unsupported") << "\",\n";
     stream << "    \"compatibility_percentage\": " << pct << ",\n";
     stream << "    \"runtime_support\": \"" << runtime_support << "\",\n";
+    if (result.status != loader::ImportStatus::Resolved) {
+        std::map<std::string, std::size_t> unresolved_counts;
+        for (const auto& entry : result.imports) {
+            if (entry.status != loader::ImportStatus::Resolved) {
+                unresolved_counts[entry.dll]++;
+            }
+        }
+        stream << "    \"unresolved_modules\": [\n";
+        std::size_t u_idx = 0;
+        for (const auto& [dll, count] : unresolved_counts) {
+            stream << "      {\"name\": \"" << escape_json_string(dll)
+                   << "\", \"unresolved_count\": " << count << "}"
+                   << (u_idx + 1 < unresolved_counts.size() ? "," : "") << "\n";
+            ++u_idx;
+        }
+        stream << "    ],\n";
+    }
     stream << "    \"modules\": [\n";
 
     std::vector<std::string> all_dlls;
@@ -752,7 +784,7 @@ void print_support_report_json(
     const pe::FrameworkInspectionResult frameworks = pe::inspect_pe_frameworks(info, file_bytes);
     const pe::SecurityServiceInspectionResult security = pe::inspect_pe_security_services(info);
     const std::vector<std::string> recommendations =
-        collect_recommendations(info, packer, frameworks, security);
+        collect_recommendations(info, packer, frameworks, security, result);
 
     if (json_output) {
         print_support_report_json(stream, info, file_bytes, result, packer, frameworks, security,
@@ -965,6 +997,28 @@ void print_support_report_json(
            << " (" << limited_exports << " limited, " << stub_exports << " stub)\n";
     stream << "execution: not-attempted\n";
     stream << "execution-result: not-attempted\n";
+
+    if (result.status != loader::ImportStatus::Resolved) {
+        std::map<std::string, std::vector<std::string>> unresolved_symbols;
+        for (const auto& entry : result.imports) {
+            if (entry.status != loader::ImportStatus::Resolved) {
+                unresolved_symbols[entry.dll].push_back(resolved_symbol_label(entry));
+            }
+        }
+        for (const auto& [dll, syms] : unresolved_symbols) {
+            stream << "unresolved-module: " << dll << " (" << syms.size() << " unresolved imports";
+            if (syms.size() <= 3) {
+                stream << ": ";
+                for (std::size_t i = 0; i < syms.size(); ++i) {
+                    if (i > 0) {
+                        stream << ", ";
+                    }
+                    stream << syms[i];
+                }
+            }
+            stream << ")\n";
+        }
+    }
 
     for (const auto& rec : recommendations) {
         stream << "recommendation: " << rec << '\n';

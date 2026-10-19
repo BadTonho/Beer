@@ -113,3 +113,18 @@ desfazer uma cópia parcial gera `status="rollback-failed"` e interrompe a
 execução por segurança. A limpeza ocorre depois do processo convidado; um
 arquivo substituído ou um diretório que ficou não vazio é preservado.
 `compat/` não é exposta automaticamente ao convidado.
+
+## Diagnóstico de análise (`--report` / `--report --json`)
+
+Ao analisar a compatibilidade de um executável PE32+, quando há importações não
+resolvidas (`result: unsupported`), o runtime emite sumário explícito dos módulos
+e símbolos faltantes ao final do relatório:
+
+```text
+unresolved-module: mfc140.dll (230 unresolved imports)
+recommendation: biblioteca ausente ou nao suportada: mfc140.dll (230 simbolos pendentes); forneca a DLL no diretorio do executavel ou via compat-profile
+```
+
+No formato estruturado (`--report --json`), o bloco `imports` inclui a lista
+`unresolved_modules` contendo o nome da DLL e a contagem de símbolos não resolvidos,
+e `recommendations` inclui as orientações para resolução das dependências.

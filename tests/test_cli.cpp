@@ -421,6 +421,8 @@ TEST(CommandRunTest, ReportsUnsupportedWhenDllNotRegistered) {
     EXPECT_NE(output.find("compatibility:"), std::string::npos);
     EXPECT_NE(output.find("runtime-support: unresolved"), std::string::npos);
     EXPECT_NE(output.find("% ("), std::string::npos);
+    EXPECT_NE(output.find("unresolved-module: USER32.dll (1 unresolved imports: TlUnknownSymbolW)"), std::string::npos);
+    EXPECT_NE(output.find("recommendation: biblioteca ausente ou nao suportada: USER32.dll"), std::string::npos);
 }
 
 TEST(CommandRunTest, ReturnsGuestFaultWhenGuestTerminatesBySignal) {
@@ -638,6 +640,26 @@ TEST(CommandRunTest, ReportJsonContains3DGraphicsRecommendation) {
     EXPECT_NE(report.find("requer aceleracao grafica 3D (d3d11.dll); configure profile.json com 'backend.kind: proton'"),
               std::string::npos)
         << report;
+}
+
+TEST(CommandRunTest, ReportJsonContainsUnresolvedModulesWhenUnsupported) {
+    CommandLine command_line;
+    command_line.report_only = true;
+    command_line.report_json = true;
+    command_line.executable_path =
+        std::filesystem::path{TL_FIXTURE_OUTPUT_DIRECTORY} / "tl_missing_dll.exe";
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+
+    const ExitCode exit_code = run_command(command_line, stdout_stream, stderr_stream);
+    EXPECT_EQ(exit_code, ExitCode::Unsupported);
+
+    const std::string report = stdout_stream.str();
+    EXPECT_NE(report.find("\"unresolved_modules\": ["), std::string::npos) << report;
+    EXPECT_NE(report.find("\"name\": \"USER32.dll\""), std::string::npos) << report;
+    EXPECT_NE(report.find("\"unresolved_count\": 1"), std::string::npos) << report;
+    EXPECT_NE(report.find("\"recommendations\": ["), std::string::npos) << report;
+    EXPECT_NE(report.find("biblioteca ausente ou nao suportada: USER32.dll"), std::string::npos) << report;
 }
 
 TEST(CommandLineTest, ParsesDoctorCommand) {
