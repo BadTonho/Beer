@@ -21,6 +21,10 @@ set(ENV{WAYLAND_DISPLAY})
 # iniciados por esta matriz.
 set(CASES
     "7z_x64.exe|0|exit exit-code=\"0\" explicit=\"sim\""
+    "7zFM_x64.exe|0|exit exit-code=\"0\" explicit=\"sim\""
+    "7-Zip/7z.exe|0|exit exit-code=\"0\" explicit=\"sim\""
+    "7-Zip/7zFM.exe|0|exit exit-code=\"0\" explicit=\"sim\""
+    "7-Zip/7zG.exe|0|exit exit-code=\"0\" explicit=\"sim\""
     "WinRAR_x64.exe|0|exit exit-code=\"0\" explicit=\"sim\""
     "winrar-x64-723.exe|0|exit exit-code=\"0\" explicit=\"sim\""
     "Rockstar-Games-Launcher.exe|1|exit exit-code=\"1\" explicit=\"sim\""
