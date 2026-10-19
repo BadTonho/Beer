@@ -514,6 +514,8 @@ if(TL_BUILD_RUST AND TARGET tradutorlinux_samples)
     )
 endif()
 
+# Auditoria 2026-10-18 (B4): testes do launcher Qt exigem TL_ENABLE_GUI.
+if(TL_ENABLE_GUI)
 add_executable(tradutorlinux_qt_launcher_tests
     gui/qt_launcher_test.cpp
     ../src/gui/main_window.cpp
@@ -553,6 +555,7 @@ set_tests_properties(qt_launcher_smoke PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     LABELS "gui;qt"
 )
+endif()
 
 if(TL_XVFB_EXECUTABLE AND TARGET tradutorlinux_samples AND TARGET tradutorlinux)
     find_library(TL_X11_LIBRARY X11 REQUIRED)

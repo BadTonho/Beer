@@ -7,7 +7,10 @@ include(GNUInstallDirs)
 include(CTest)
 include(FetchContent)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+option(TL_ENABLE_GUI "Build the Qt GUI launcher and its tests (requires Qt6)" ON)
+if(TL_ENABLE_GUI)
+    find_package(Qt6 REQUIRED COMPONENTS Widgets)
+endif()
 find_package(ZLIB REQUIRED)
 
 option(TL_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
@@ -39,9 +42,14 @@ if(TL_BUILD_RUST)
     tl_configure_rust_validator()
 endif()
 
+set(TL_GUI_INSTALL_TARGET "")
+if(TL_ENABLE_GUI)
+    list(APPEND TL_GUI_INSTALL_TARGET tradutorlinux_gui)
+endif()
+
 add_subdirectory(src)
 
-install(TARGETS tradutorlinux tradutorlinux_gui
+install(TARGETS tradutorlinux ${TL_GUI_INSTALL_TARGET}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 install(FILES resources/tradutorlinux.desktop

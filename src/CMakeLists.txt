@@ -224,21 +224,25 @@ endif()
 tl_enable_warnings(tradutorlinux)
 tl_enable_sanitizers(tradutorlinux)
 
-add_executable(tradutorlinux_gui
-    gui/main_window.cpp
-    gui/main_window.hpp
-    gui/qt_main.cpp
-)
-set_target_properties(tradutorlinux_gui PROPERTIES
-    AUTOMOC ON
-    AUTOUIC ON
-    AUTORCC ON
-)
-target_link_libraries(tradutorlinux_gui PRIVATE tradutorlinux_core Qt6::Widgets)
-tl_enable_warnings(tradutorlinux_gui)
-tl_enable_sanitizers(tradutorlinux_gui)
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(tradutorlinux_gui PRIVATE -Wno-conversion -Wno-sign-conversion)
-    target_compile_options(tradutorlinux_gui PRIVATE -finstrument-functions)
-    target_link_options(tradutorlinux_gui PRIVATE -rdynamic)
+# Auditoria 2026-10-18 (B4): o launcher Qt e opt-in — TL_ENABLE_GUI=OFF
+# permite build headless (CLI/CI) sem Qt6; o runtime core não depende de Qt.
+if(TL_ENABLE_GUI)
+    add_executable(tradutorlinux_gui
+        gui/main_window.cpp
+        gui/main_window.hpp
+        gui/qt_main.cpp
+    )
+    set_target_properties(tradutorlinux_gui PROPERTIES
+        AUTOMOC ON
+        AUTOUIC ON
+        AUTORCC ON
+    )
+    target_link_libraries(tradutorlinux_gui PRIVATE tradutorlinux_core Qt6::Widgets)
+    tl_enable_warnings(tradutorlinux_gui)
+    tl_enable_sanitizers(tradutorlinux_gui)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(tradutorlinux_gui PRIVATE -Wno-conversion -Wno-sign-conversion)
+        target_compile_options(tradutorlinux_gui PRIVATE -finstrument-functions)
+        target_link_options(tradutorlinux_gui PRIVATE -rdynamic)
+    endif()
 endif()

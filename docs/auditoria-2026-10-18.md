@@ -279,7 +279,20 @@ recebe "sucesso" onde não há implementação — violando a regra do projeto
 | B2 | alto | **DEB com dependência formal quebrada** — falta `zlib1g` (e `libstdc++6`, `libgcc-s1`); `objdump -p build/debug/src/tradutorlinux` mostra `NEEDED libz.so.1` etc. | `CMakeLists.txt:61` vs `:11` e `src/CMakeLists.txt:178` |
 | B3 | alto | **README quickstart omite dependências REQUIRED** — `libx11-dev`, `libwayland-dev`, `libwayland-bin`, `libxkbcommon-dev`, `wayland-protocols` (xdg-shell.xml), `libxtst-dev` | `README.md:48` vs `src/CMakeLists.txt:174-187`, `tests/CMakeLists.txt:588` |
 | B4 | médio-alto | **Qt6 `REQUIRED` incondicional** — impossível build headless (CLI/.Left unitários) sem Qt; falta opção `TL_ENABLE_GUI=OFF` | `CMakeLists.txt:10` |
+
+> **Errata (2026-10-18, varredura de correção):** nova opção `TL_ENABLE_GUI`
+> (default ON) guarda `find_package(Qt6)`, o alvo `tradutorlinux_gui`, os
+> testes do launcher e o alvo de instalação. O core do runtime nunca dependeu
+> de Qt (X11/Wayland primários). Validação local: reconfigure do `build/debug`
+> (caminho ON intacto) e configure-only em diretório temporário com
+> `TL_ENABLE_GUI=OFF` (nenhum erro de referência de alvo); um build OFF
+> completo fica para o CI.
 | B5 | médio | **Preset `tsan` existe, nunca roda no CI** — única cobertura de concorrência por sanitizador ausente do CI | `CMakePresets.json:66-72`; `ci.yml` |
+
+> **Errata (2026-10-18, varredura de correção):** job `thread-sanitizer`
+> adicionado ao `ci.yml` espelhando o job de sanitizers com o preset `tsan`
+> (configure/build/ctest). A execução real do preset fica como validação do
+> próprio CI; localmente o preset `tsan` não foi configurado nesta varredura.
 | B6 | médio | **Docs desatualizados** — PROJETO.md §7 mostra árvore pequena (`src/{cli,main,diagnostics}`) que não existe mais; PROJETO.md §3.3/§10 narram o MVP como vigente; README "Fase 13/13.14" está atrás do ROADMAP (R25–R29 concluídos) | `PROJETO.md:134-168, 72-80, 190-196`; `README.md:9` |
 
 > **Errata (2026-10-18, varredura de correção):** trees de `PROJETO.md` §7
