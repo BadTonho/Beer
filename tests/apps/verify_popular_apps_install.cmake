@@ -21,6 +21,11 @@ set(CASES
     "CPU-Z_2.18_en.exe|cpuz|5"
     "GPU-Z_2.70.0.exe|gpuz|5"
     "HWMonitor_1.67.exe|hwmonitor|5"
+    "CapCut_7677236283084898320_installer.exe|capcut|5"
+    "Creative_Cloud_Set-Up_7474.exe|creativecloud|5"
+    "EpicInstaller-20.1.4-831cc1564f92442abc51fdb4a9854359.exe|epic|5"
+    "officedeploymenttool_20228-20124.exe|office|5"
+    "RTSS.exe|rtss|5"
     "HWiNFO64.exe|hwinfo|4"
 )
 
@@ -77,7 +82,9 @@ foreach(case IN LISTS CASES)
     endif()
 
     if("${app_id}" STREQUAL "cpuz" OR "${app_id}" STREQUAL "gpuz" OR
-       "${app_id}" STREQUAL "hwmonitor")
+       "${app_id}" STREQUAL "hwmonitor" OR "${app_id}" STREQUAL "capcut" OR
+       "${app_id}" STREQUAL "creativecloud" OR "${app_id}" STREQUAL "epic" OR
+       "${app_id}" STREQUAL "office" OR "${app_id}" STREQUAL "rtss")
         set(expected_stage "parse")
     elseif("${app_id}" STREQUAL "hwinfo")
         set(expected_stage "prepare")
@@ -108,7 +115,9 @@ foreach(case IN LISTS CASES)
     elseif("${app_id}" STREQUAL "hwinfo")
         set(expected_marker "failed stage=\"prepare\"")
     elseif("${app_id}" STREQUAL "cpuz" OR "${app_id}" STREQUAL "gpuz" OR
-           "${app_id}" STREQUAL "hwmonitor")
+           "${app_id}" STREQUAL "hwmonitor" OR "${app_id}" STREQUAL "capcut" OR
+           "${app_id}" STREQUAL "creativecloud" OR "${app_id}" STREQUAL "epic" OR
+           "${app_id}" STREQUAL "office" OR "${app_id}" STREQUAL "rtss")
         set(expected_marker "failed stage=\"parse\"")
     endif()
     string(FIND "${install_trace}" "${expected_marker}" marker_position)

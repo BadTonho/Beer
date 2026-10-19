@@ -35,11 +35,12 @@ prefixo temporário, ambiente headless, `--timeout 3`, limites de CPU/memória e
 verifica o exit code e o diagnóstico esperado; instaladores, DLLs e cenários
 interativos de GUI permanecem nos testes específicos.
 
-`popular_apps_install_matrix` cobre sete casos controlados: Roblox, G HUB, o
-alias byte-a-byte e as rejeições pré-extração de CPU-Z, GPU-Z,
-HWMonitor e HWiNFO. Cada caso usa `HOME`, `XDG_CONFIG_HOME`, `APPDATA` e
+`popular_apps_install_matrix` cobre doze casos controlados: Roblox, G HUB, o
+alias byte-a-byte, o preparo de HWiNFO e as rejeições pré-extração por arquitetura
+x86 de CPU-Z, GPU-Z, HWMonitor, CapCut, Creative Cloud, Epic Installer, Office
+Deployment Tool e RTSS. Cada caso usa `HOME`, `XDG_CONFIG_HOME`, `APPDATA` e
 prefixo temporários, verifica o estágio/erro esperado e exige ausência de
-arquivos, extração e cadastro após a rejeição. O pacote MSIX de grande porte
+arquivos residuais, extração e cadastro após a rejeição. O pacote MSIX de grande porte
 Affinity x64 é instalado e registrado com sucesso e validado em testes próprios.
 Instaladores PE32/x86 permanecem fora da execução funcional.
 

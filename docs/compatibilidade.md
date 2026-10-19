@@ -79,15 +79,15 @@ com diagnóstico controlado. Isso valida apenas o caminho de inicialização e
 C++ EH observado; o fluxo GUI continua dependente do smoke Xvfb e não é
 promovido a suporte diário.
 
-O teste `popular_apps_install_matrix` cobre as instalações autorizadas de
-Roblox (`3` após `RBXCRASH`), G HUB e seu alias (`1` após `ExitProcess(1)`),
-além do pacote MSIX Affinity x64 analisado e instalado com sucesso
-(extração e cadastro de `App\Affinity.exe` no catálogo sob limites de segurança).
-Ele cobre também o preparo de HWiNFO64 (`prepare`) e as rejeições pré-extração
-de CPU-Z, GPU-Z, HWMonitor (`5`, `5`, `5`). Ele isola prefixo, `HOME`,
-configuração e `APPDATA`, exige que não haja arquivos, extração ou cadastro
-parcial nas rejeições e preserva o fallback genérico somente para instaladores
-cujo payload PE32+ seja validado antes do cadastro.
+O teste `popular_apps_install_matrix` cobre doze casos controlados de instalação:
+as autorizadas de Roblox (`72` após guest-timeout) e G HUB / alias (`6` após
+`ExitProcess(0)`), o preparo controlado de HWiNFO64 (`prepare`, exit `4`) e as
+rejeições pré-extração por arquitetura de máquina x86/PE32 de CPU-Z, GPU-Z,
+HWMonitor, CapCut, Creative Cloud, Epic Installer, Office Deployment Tool e RTSS
+(`5`, stage `parse`). Ele isola prefixo, `HOME`, configuração e `APPDATA`, exige
+que não haja arquivos residuais, extração ou cadastro parcial nas rejeições e
+preserva o fallback genérico somente para instaladores cujo payload PE32+ seja
+validado antes do cadastro.
 
 ## Documentos temáticos
 
