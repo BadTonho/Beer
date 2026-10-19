@@ -959,6 +959,52 @@ TEST(EverythingSearchCoverageTest, SCMAndServiceApis) {
     EXPECT_EQ(tl_RegCloseKey(key), 0U);
 }
 
+TEST(PresentMonCoverageTest, ConsoleMessageAndEtwTraceApis) {
+    // KERNEL32 Console Buffer
+    EXPECT_EQ(tl_SetConsoleCursorPosition(nullptr, 0), 1);
+    EXPECT_EQ(tl_SetConsoleWindowInfo(nullptr, 1, nullptr), 1);
+
+    std::uint32_t written = 0;
+    EXPECT_EQ(tl_FillConsoleOutputCharacterW(nullptr, L' ', 80, 0, &written), 1);
+    EXPECT_EQ(written, 80U);
+
+    written = 0;
+    const std::uint16_t sample_text[] = { 'T', 'e', 's', 't', 0 };
+    EXPECT_EQ(tl_WriteConsoleOutputCharacterW(nullptr, sample_text, 4, 0, &written), 1);
+    EXPECT_EQ(written, 4U);
+
+    EXPECT_EQ(tl_ScrollConsoleScreenBufferW(nullptr, nullptr, nullptr, 0, nullptr), 1);
+    EXPECT_EQ(tl_ReadConsoleOutputW(nullptr, nullptr, 0, 0, nullptr), 1);
+
+    // USER32 Message Extra Info
+    EXPECT_EQ(tl_GetMessageExtraInfo(), 0);
+    EXPECT_EQ(tl_SetMessageExtraInfo(123), 0);
+
+    // TDH Event Info
+    std::uint32_t tdh_size = 0;
+    EXPECT_EQ(tl_TdhGetPropertySize(nullptr, 0, nullptr, 0, nullptr, &tdh_size), 0U);
+    EXPECT_EQ(tl_TdhGetEventInformation(nullptr, 0, nullptr, nullptr, &tdh_size), 0U);
+    EXPECT_GT(tdh_size, 0U);
+    EXPECT_EQ(tl_TdhLoadManifestFromBinary(nullptr), 0U);
+
+    // KERNEL32 Heap Query
+    std::size_t ret_info_len = 1;
+    EXPECT_EQ(tl_HeapQueryInformation(nullptr, 0, nullptr, 0, &ret_info_len), 1);
+    EXPECT_EQ(ret_info_len, 0U);
+
+    // ADVAPI32 ETW Trace
+    EXPECT_EQ(tl_OpenTraceW(nullptr), 0x0000545241434531ULL);
+    EXPECT_EQ(tl_ProcessTrace(nullptr, 0, nullptr, nullptr), 0U);
+    EXPECT_EQ(tl_CloseTrace(0x0000545241434531ULL), 0U);
+
+    std::uint64_t trace_handle = 0;
+    EXPECT_EQ(tl_StartTraceW(&trace_handle, nullptr, nullptr), 0U);
+    EXPECT_EQ(trace_handle, 0x0000545241434531ULL);
+
+    EXPECT_EQ(tl_ControlTraceW(trace_handle, nullptr, nullptr, 0), 0U);
+    EXPECT_EQ(tl_EnableTraceEx2(trace_handle, nullptr, 0, 0, 0, 0, 0, nullptr), 0U);
+}
+
 }  // namespace
 }  // namespace tradutorlinux
 

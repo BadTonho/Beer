@@ -406,6 +406,8 @@ TL_MSABI void* tl_ActivateKeyboardLayout(void* hkl, std::uint32_t flags) noexcep
 TL_MSABI int tl_GetKeyboardLayoutList(int buff_count, void** list) noexcept;
 TL_MSABI int tl_GetKeyNameTextW(std::int32_t lparam, std::uint16_t* string_buf, int size) noexcept;
 TL_MSABI std::uint32_t tl_MapVirtualKeyExW(std::uint32_t code, std::uint32_t map_type, void* hkl) noexcept;
+TL_MSABI std::intptr_t tl_GetMessageExtraInfo(void) noexcept;
+TL_MSABI std::intptr_t tl_SetMessageExtraInfo(std::intptr_t l_param) noexcept;
 
 }  // extern "C"
 }  // namespace tradutorlinux

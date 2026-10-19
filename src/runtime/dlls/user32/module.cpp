@@ -358,6 +358,8 @@ void register_user32_module() {
         {"GetKeyboardLayoutList", 347, reinterpret_cast<std::uintptr_t>(&tl_GetKeyboardLayoutList), ExportSupport::Full},
         {"GetKeyNameTextW", 348, reinterpret_cast<std::uintptr_t>(&tl_GetKeyNameTextW), ExportSupport::Full},
         {"MapVirtualKeyExW", 349, reinterpret_cast<std::uintptr_t>(&tl_MapVirtualKeyExW), ExportSupport::Full},
+        {"GetMessageExtraInfo", 350, reinterpret_cast<std::uintptr_t>(&tl_GetMessageExtraInfo), ExportSupport::Full},
+        {"SetMessageExtraInfo", 351, reinterpret_cast<std::uintptr_t>(&tl_SetMessageExtraInfo), ExportSupport::Full},
     };
     static const InternalModule kUser32Module{"USER32.dll", kUser32Exports};
     register_module(kUser32Module);

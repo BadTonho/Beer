@@ -849,5 +849,22 @@ TL_MSABI int tl_HeapSetInformation(void* const heap_handle, const std::uint32_t 
     return 1;
 }
 
+TL_MSABI int tl_HeapQueryInformation(void* const heap_handle, const std::uint32_t info_class,
+                                     void* const info, const std::size_t info_length,
+                                     std::size_t* const return_length) noexcept {
+    (void)heap_handle;
+    (void)info_class;
+    (void)info;
+    (void)info_length;
+    if (return_length != nullptr) {
+        if (!write_guest_value(return_length, std::size_t{0})) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux

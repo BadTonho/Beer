@@ -1457,6 +1457,75 @@ TL_ADVAPI_MSABI std::uint32_t tl_EventWriteTransfer(const std::uint64_t reg_hand
     return 0; // ERROR_SUCCESS
 }
 
+TL_ADVAPI_MSABI std::uint64_t tl_OpenTraceW(void* const logfile) noexcept {
+    (void)logfile;
+    set_last_error(abi::kErrorSuccess);
+    return 0x0000545241434531ULL; // 'TRACE1'
+}
+
+TL_ADVAPI_MSABI std::uint32_t tl_ProcessTrace(void* const handle_array, const std::uint32_t handle_count,
+                                              void* const start_time, void* const end_time) noexcept {
+    (void)handle_array;
+    (void)handle_count;
+    (void)start_time;
+    (void)end_time;
+    set_last_error(abi::kErrorSuccess);
+    return 0; // ERROR_SUCCESS
+}
+
+TL_ADVAPI_MSABI std::uint32_t tl_CloseTrace(const std::uint64_t trace_handle) noexcept {
+    (void)trace_handle;
+    set_last_error(abi::kErrorSuccess);
+    return 0; // ERROR_SUCCESS
+}
+
+TL_ADVAPI_MSABI std::uint32_t tl_StartTraceW(std::uint64_t* const trace_handle,
+                                            const std::uint16_t* const instance_name,
+                                            void* const properties) noexcept {
+    (void)instance_name;
+    (void)properties;
+    if (trace_handle != nullptr) {
+        if (!write_guest_value(trace_handle, std::uint64_t{0x0000545241434531ULL})) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return abi::kErrorInvalidParameter;
+        }
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 0; // ERROR_SUCCESS
+}
+
+TL_ADVAPI_MSABI std::uint32_t tl_ControlTraceW(const std::uint64_t trace_handle,
+                                              const std::uint16_t* const instance_name,
+                                              void* const properties,
+                                              const std::uint32_t control_code) noexcept {
+    (void)trace_handle;
+    (void)instance_name;
+    (void)properties;
+    (void)control_code;
+    set_last_error(abi::kErrorSuccess);
+    return 0; // ERROR_SUCCESS
+}
+
+TL_ADVAPI_MSABI std::uint32_t tl_EnableTraceEx2(const std::uint64_t trace_handle,
+                                               const void* const provider_id,
+                                               const std::uint32_t control_code,
+                                               const std::uint8_t level,
+                                               const std::uint64_t match_any,
+                                               const std::uint64_t match_all,
+                                               const std::uint32_t timeout,
+                                               void* const enable_parameters) noexcept {
+    (void)trace_handle;
+    (void)provider_id;
+    (void)control_code;
+    (void)level;
+    (void)match_any;
+    (void)match_all;
+    (void)timeout;
+    (void)enable_parameters;
+    set_last_error(abi::kErrorSuccess);
+    return 0; // ERROR_SUCCESS
+}
+
 TL_ADVAPI_MSABI int tl_AccessCheck(const void* const sec_desc, void* const token,
                                    const std::uint32_t desired_access, const void* const generic_mapping,
                                    void* const priv_set, std::uint32_t* const priv_set_len,
@@ -1777,6 +1846,12 @@ void register_advapi32_module() {
         {"InitializeAcl", 98, reinterpret_cast<std::uintptr_t>(&tl_InitializeAcl), ExportSupport::Full},
         {"ImpersonateNamedPipeClient", 99, reinterpret_cast<std::uintptr_t>(&tl_ImpersonateNamedPipeClient), ExportSupport::Full},
         {"RevertToSelf", 100, reinterpret_cast<std::uintptr_t>(&tl_RevertToSelf), ExportSupport::Full},
+        {"OpenTraceW", 101, reinterpret_cast<std::uintptr_t>(&tl_OpenTraceW), ExportSupport::Full},
+        {"ProcessTrace", 102, reinterpret_cast<std::uintptr_t>(&tl_ProcessTrace), ExportSupport::Full},
+        {"CloseTrace", 103, reinterpret_cast<std::uintptr_t>(&tl_CloseTrace), ExportSupport::Full},
+        {"StartTraceW", 104, reinterpret_cast<std::uintptr_t>(&tl_StartTraceW), ExportSupport::Full},
+        {"ControlTraceW", 105, reinterpret_cast<std::uintptr_t>(&tl_ControlTraceW), ExportSupport::Full},
+        {"EnableTraceEx2", 106, reinterpret_cast<std::uintptr_t>(&tl_EnableTraceEx2), ExportSupport::Full},
     };
     static const InternalModule kAdvapi32Module{"ADVAPI32.dll", kAdvapi32Exports};
     register_module(kAdvapi32Module);

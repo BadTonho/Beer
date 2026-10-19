@@ -2279,5 +2279,14 @@ TL_MSABI int tl_PostThreadMessageW(const std::uint32_t thread_id, const std::uin
     return 1;
 }
 
+TL_MSABI std::intptr_t tl_GetMessageExtraInfo() noexcept {
+    return 0;
+}
+
+TL_MSABI std::intptr_t tl_SetMessageExtraInfo(const std::intptr_t l_param) noexcept {
+    (void)l_param;
+    return 0;
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux

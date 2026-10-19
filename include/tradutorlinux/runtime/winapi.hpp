@@ -270,6 +270,8 @@ TL_MSABI int tl_PathIsUNCA(const char* path) noexcept;
 TL_MSABI std::uint32_t tl_NetApiBufferFree(void* buffer) noexcept;
 TL_MSABI std::intptr_t tl_LresultFromObject(const void* riid, std::uintptr_t w_param, void* unk) noexcept;
 TL_MSABI std::uint32_t tl_TdhGetPropertySize(void* event_record, std::uint32_t tdh_context_count, void* tdh_context, std::uint32_t property_data_count, void* property_data, std::uint32_t* property_size) noexcept;
+TL_MSABI std::uint32_t tl_TdhGetEventInformation(void* event_record, std::uint32_t tdh_context_count, void* tdh_context, void* buffer, std::uint32_t* buffer_size) noexcept;
+TL_MSABI std::uint32_t tl_TdhLoadManifestFromBinary(const std::uint16_t* binary_path) noexcept;
 TL_MSABI int tl_OpenPrinterW(const std::uint16_t* printer_name, void** printer_handle, void* defaults) noexcept;
 TL_MSABI void tl_WTSFreeMemory(void* memory) noexcept;
 TL_MSABI int tl_WTSEnumerateSessionsW(void* server, std::uint32_t reserved,

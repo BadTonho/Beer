@@ -130,6 +130,19 @@ TL_ADVAPI_MSABI std::uint32_t tl_EventSetInformation(std::uint64_t reg_handle, i
 TL_ADVAPI_MSABI std::uint32_t tl_EventWriteTransfer(std::uint64_t reg_handle, const void* event_descriptor,
                                                    const void* activity_id, const void* related_activity_id,
                                                    std::uint32_t user_data_count, void* user_data) noexcept;
+TL_ADVAPI_MSABI std::uint64_t tl_OpenTraceW(void* logfile) noexcept;
+TL_ADVAPI_MSABI std::uint32_t tl_ProcessTrace(void* handle_array, std::uint32_t handle_count,
+                                              void* start_time, void* end_time) noexcept;
+TL_ADVAPI_MSABI std::uint32_t tl_CloseTrace(std::uint64_t trace_handle) noexcept;
+TL_ADVAPI_MSABI std::uint32_t tl_StartTraceW(std::uint64_t* trace_handle, const std::uint16_t* instance_name,
+                                             void* properties) noexcept;
+TL_ADVAPI_MSABI std::uint32_t tl_ControlTraceW(std::uint64_t trace_handle, const std::uint16_t* instance_name,
+                                               void* properties, std::uint32_t control_code) noexcept;
+TL_ADVAPI_MSABI std::uint32_t tl_EnableTraceEx2(std::uint64_t trace_handle, const void* provider_id,
+                                                std::uint32_t control_code, std::uint8_t level,
+                                                std::uint64_t match_any, std::uint64_t match_all,
+                                                std::uint32_t timeout, void* enable_parameters) noexcept;
+
 TL_ADVAPI_MSABI int tl_AccessCheck(const void* sec_desc, void* token, std::uint32_t desired_access,
                                    const void* generic_mapping, void* priv_set, std::uint32_t* priv_set_len,
                                    std::uint32_t* granted_access, int* access_status) noexcept;

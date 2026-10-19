@@ -652,6 +652,7 @@ TL_MSABI std::uint32_t tl_GetPriorityClass(void* process) noexcept;
 TL_MSABI int tl_GetCPInfoExW(std::uint32_t code_page, std::uint32_t flags, void* cp_info_ex) noexcept;
 TL_MSABI int tl_FreeResource(void* res_data) noexcept;
 TL_MSABI int tl_HeapSetInformation(void* heap_handle, std::uint32_t info_class, void* info, std::size_t info_length) noexcept;
+TL_MSABI int tl_HeapQueryInformation(void* heap_handle, std::uint32_t info_class, void* info, std::size_t info_length, std::size_t* return_length) noexcept;
 TL_MSABI std::uint32_t tl_SetHandleCount(std::uint32_t count) noexcept;
 TL_MSABI int tl_SetConsoleScreenBufferSize(void* console_output, std::uint32_t size) noexcept;
 TL_MSABI char* tl_GetEnvironmentStrings(void) noexcept;
@@ -660,6 +661,12 @@ TL_MSABI int tl_FreeEnvironmentStringsA(char* block) noexcept;
 TL_MSABI int tl_GetStringTypeA(std::uint32_t Locale, std::uint32_t dwInfoType, const char* lpSrcStr, int cchSrc, std::uint16_t* lpCharType) noexcept;
 TL_MSABI int tl_GetCalendarInfoW(std::uint32_t Locale, std::uint32_t Calendar, std::uint32_t CalType, std::uint16_t* lpCalData, int cchData, std::uint32_t* lpValue) noexcept;
 TL_MSABI std::uint32_t tl_QueryDosDeviceW(const std::uint16_t* lpDeviceName, std::uint16_t* lpTargetPath, std::uint32_t ucchMax) noexcept;
+TL_MSABI int tl_SetConsoleCursorPosition(void* console_output, std::uint32_t cursor_pos) noexcept;
+TL_MSABI int tl_SetConsoleWindowInfo(void* console_output, int absolute, const void* console_window) noexcept;
+TL_MSABI int tl_FillConsoleOutputCharacterW(void* console_output, std::uint16_t character, std::uint32_t length, std::uint32_t write_coord, std::uint32_t* written) noexcept;
+TL_MSABI int tl_WriteConsoleOutputCharacterW(void* console_output, const std::uint16_t* character, std::uint32_t length, std::uint32_t write_coord, std::uint32_t* written) noexcept;
+TL_MSABI int tl_ScrollConsoleScreenBufferW(void* console_output, const void* scroll_rect, const void* clip_rect, std::uint32_t dest_origin, const void* fill) noexcept;
+TL_MSABI int tl_ReadConsoleOutputW(void* console_output, void* buffer, std::uint32_t buffer_size, std::uint32_t buffer_coord, void* read_region) noexcept;
 
 }  // extern "C"
 }  // namespace tradutorlinux

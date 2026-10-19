@@ -493,6 +493,13 @@ void register_kernel32_module() {
         {"GetQueuedCompletionStatus", 483, reinterpret_cast<std::uintptr_t>(&tl_GetQueuedCompletionStatus), ExportSupport::Full},
         {"PostQueuedCompletionStatus", 484, reinterpret_cast<std::uintptr_t>(&tl_PostQueuedCompletionStatus), ExportSupport::Full},
         {"SetEnvironmentVariableA", 485, reinterpret_cast<std::uintptr_t>(&tl_SetEnvironmentVariableA), ExportSupport::Full},
+        {"SetConsoleCursorPosition", 486, reinterpret_cast<std::uintptr_t>(&tl_SetConsoleCursorPosition), ExportSupport::Full},
+        {"SetConsoleWindowInfo", 487, reinterpret_cast<std::uintptr_t>(&tl_SetConsoleWindowInfo), ExportSupport::Full},
+        {"FillConsoleOutputCharacterW", 488, reinterpret_cast<std::uintptr_t>(&tl_FillConsoleOutputCharacterW), ExportSupport::Full},
+        {"WriteConsoleOutputCharacterW", 489, reinterpret_cast<std::uintptr_t>(&tl_WriteConsoleOutputCharacterW), ExportSupport::Full},
+        {"ScrollConsoleScreenBufferW", 490, reinterpret_cast<std::uintptr_t>(&tl_ScrollConsoleScreenBufferW), ExportSupport::Full},
+        {"ReadConsoleOutputW", 491, reinterpret_cast<std::uintptr_t>(&tl_ReadConsoleOutputW), ExportSupport::Full},
+        {"HeapQueryInformation", 492, reinterpret_cast<std::uintptr_t>(&tl_HeapQueryInformation), ExportSupport::Full},
     };
     static const InternalModule kKernel32Module{"KERNEL32.dll", kKernel32Exports};
     register_module(kKernel32Module);

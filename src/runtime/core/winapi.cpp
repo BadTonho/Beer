@@ -1354,6 +1354,31 @@ TL_MSABI std::uint32_t tl_TdhGetPropertySize(void* const event_record, const std
     return 0; // ERROR_SUCCESS
 }
 
+TL_MSABI std::uint32_t tl_TdhGetEventInformation(void* const event_record,
+                                                const std::uint32_t tdh_context_count,
+                                                void* const tdh_context,
+                                                void* const buffer,
+                                                std::uint32_t* const buffer_size) noexcept {
+    (void)event_record;
+    (void)tdh_context_count;
+    (void)tdh_context;
+    (void)buffer;
+    if (buffer_size != nullptr) {
+        if (!write_guest_value(buffer_size, std::uint32_t{256})) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return abi::kErrorInvalidParameter;
+        }
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 0; // ERROR_SUCCESS
+}
+
+TL_MSABI std::uint32_t tl_TdhLoadManifestFromBinary(const std::uint16_t* const binary_path) noexcept {
+    (void)binary_path;
+    set_last_error(abi::kErrorSuccess);
+    return 0; // ERROR_SUCCESS
+}
+
 TL_MSABI int tl_OpenPrinterW(const std::uint16_t* const printer_name, void** const printer_handle, void* const defaults) noexcept {
     (void)defaults;
     std::u16string guest_printer_name;
@@ -2085,6 +2110,8 @@ void register_winapi_stubs_module() {
     register_module(kOleAccModule);
     static const ExportedFunction kTdhExports[] = {
         {"TdhGetPropertySize", 1, reinterpret_cast<std::uintptr_t>(&tl_TdhGetPropertySize), ExportSupport::Full},
+        {"TdhGetEventInformation", 2, reinterpret_cast<std::uintptr_t>(&tl_TdhGetEventInformation), ExportSupport::Full},
+        {"TdhLoadManifestFromBinary", 3, reinterpret_cast<std::uintptr_t>(&tl_TdhLoadManifestFromBinary), ExportSupport::Full},
     };
     static const InternalModule kTdhModule{"tdh.dll", kTdhExports};
     register_module(kTdhModule);

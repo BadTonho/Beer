@@ -568,5 +568,76 @@ TL_MSABI int tl_SetConsoleScreenBufferSize(void* const console_output, const std
     return 1;
 }
 
+TL_MSABI int tl_SetConsoleCursorPosition(void* const console_output, const std::uint32_t cursor_pos) noexcept {
+    (void)console_output;
+    (void)cursor_pos;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI int tl_SetConsoleWindowInfo(void* const console_output, const int absolute, const void* const console_window) noexcept {
+    (void)console_output;
+    (void)absolute;
+    (void)console_window;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI int tl_FillConsoleOutputCharacterW(void* const console_output, const std::uint16_t character,
+                                            const std::uint32_t length, const std::uint32_t write_coord,
+                                            std::uint32_t* const written) noexcept {
+    (void)console_output;
+    (void)character;
+    (void)write_coord;
+    if (written != nullptr) {
+        if (!write_guest_value(written, length)) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI int tl_WriteConsoleOutputCharacterW(void* const console_output, const std::uint16_t* const character,
+                                             const std::uint32_t length, const std::uint32_t write_coord,
+                                             std::uint32_t* const written) noexcept {
+    (void)console_output;
+    (void)character;
+    (void)write_coord;
+    if (written != nullptr) {
+        if (!write_guest_value(written, length)) {
+            set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI int tl_ScrollConsoleScreenBufferW(void* const console_output, const void* const scroll_rect,
+                                          const void* const clip_rect, const std::uint32_t dest_origin,
+                                          const void* const fill) noexcept {
+    (void)console_output;
+    (void)scroll_rect;
+    (void)clip_rect;
+    (void)dest_origin;
+    (void)fill;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI int tl_ReadConsoleOutputW(void* const console_output, void* const buffer,
+                                   const std::uint32_t buffer_size, const std::uint32_t buffer_coord,
+                                   void* const read_region) noexcept {
+    (void)console_output;
+    (void)buffer;
+    (void)buffer_size;
+    (void)buffer_coord;
+    (void)read_region;
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
 }  // extern "C"
 }  // namespace tradutorlinux
