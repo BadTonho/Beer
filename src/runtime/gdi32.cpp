@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <mutex>
 #include <new>
 #include <string>
 #include <vector>
@@ -21,6 +22,56 @@ namespace {
 
 constexpr std::size_t kMaxGdiArrayElements = 1U << 20U;
 constexpr std::size_t kMaxGdiStringUnits = 1U << 20U;
+
+// Auditoria 2026-10-18 (5.4): os tokens de CreateFontA/CreateSolidBrush
+// eram arrays estáticos de função nunca liberados (16 objetos de uma
+// sessão inteira esgotavam a cota) e sem qualquer sincronização entre
+// threads. O pool agora é compartilhado, mutado sob mutex e liberado por
+// DeleteObject.
+struct GdiTokenPool {
+    std::mutex mutex;
+    std::array<char, 16> tokens{};
+};
+
+[[nodiscard]] GdiTokenPool& gdi_font_tokens() noexcept {
+    static GdiTokenPool pool;
+    return pool;
+}
+
+[[nodiscard]] GdiTokenPool& gdi_brush_tokens() noexcept {
+    static GdiTokenPool pool;
+    return pool;
+}
+
+[[nodiscard]] void* take_gdi_token(GdiTokenPool& pool) noexcept {
+    std::lock_guard<std::mutex> lock(pool.mutex);
+    for (char& token : pool.tokens) {
+        if (token == 0) {
+            token = 1;
+            set_last_error(abi::kErrorSuccess);
+            return &token;
+        }
+    }
+    set_last_error(abi::kErrorNotEnoughMemory);
+    return nullptr;
+}
+
+// 0 = objeto não pertence a um pool de token; 1 = liberado.
+[[nodiscard]] int release_gdi_token(const void* const object) noexcept {
+    if (object == nullptr) {
+        return 0;
+    }
+    for (GdiTokenPool* const pool : {&gdi_font_tokens(), &gdi_brush_tokens()}) {
+        std::lock_guard<std::mutex> lock(pool->mutex);
+        for (char& token : pool->tokens) {
+            if (&token == object) {
+                token = 0;
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
 
 [[nodiscard]] bool copy_gdi_ansi_count(const char* const source, const int count,
                                        std::string& destination) noexcept {
@@ -221,30 +272,15 @@ TL_MSABI void* tl_CreateFontA(int height, int width, int escapement, int orienta
     (void)quality;
     (void)pitch_and_family;
     (void)face_name;
-    static std::array<char, 16> tokens{};
-    for (char& token : tokens) {
-        if (token == 0) {
-            token = 1;
-            set_last_error(abi::kErrorSuccess);
-            return &token;
-        }
-    }
-    set_last_error(abi::kErrorNotEnoughMemory);
-    return nullptr;
+    // Auditoria 2026-10-18 (5.4): tokens em pool sincronizado, liberados por
+    // DeleteObject — a versão anterior usava array estático de função, nunca
+    // liberado (16 fontes em uma sessão inteira esgotavam o pool).
+    return take_gdi_token(gdi_font_tokens());
 }
 
 TL_MSABI void* tl_CreateSolidBrush(const std::uint32_t color) noexcept {
     (void)color;
-    static std::array<char, 16> tokens{};
-    for (char& token : tokens) {
-        if (token == 0) {
-            token = 1;
-            set_last_error(abi::kErrorSuccess);
-            return &token;
-        }
-    }
-    set_last_error(abi::kErrorNotEnoughMemory);
-    return nullptr;
+    return take_gdi_token(gdi_brush_tokens());
 }
 
 TL_MSABI int tl_DeleteObject(const void* object) noexcept {
@@ -263,6 +299,10 @@ TL_MSABI int tl_DeleteObject(const void* object) noexcept {
             set_last_error(abi::kErrorSuccess);
             return 1;
         }
+    }
+    if (release_gdi_token(object)) {
+        set_last_error(abi::kErrorSuccess);
+        return 1;
     }
     set_last_error(abi::kErrorSuccess);
     return 1;

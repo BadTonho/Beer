@@ -350,6 +350,31 @@ TEST(Win32GuiTest, FillRectSupportsCompatibleMemoryDcAndCustomSolidBrush) {
     EXPECT_EQ(tl_DeleteDC(mem_dc), 1);
 }
 
+// Auditoria 2026-10-18 (5.4): DeleteObject devolve o token ao pool de
+// CreateFontA/CreateSolidBrush; antes, os arrays estáticos de função
+// nunca liberavam e 16 objetos esgotavam a sessão inteira.
+TEST(Win32GuiTest, DeleteObjectReturnsFontAndBrushTokensToTheirPools) {
+    void* const font = tl_CreateFontA(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, nullptr);
+    ASSERT_NE(font, nullptr);
+
+    // Ciclo de 32 criações/liberações: sem devolução o pool de 16 tokens
+    // esgotaria na metade (qualquer que seja o estado inicial da suite).
+    for (int round = 0; round < 32; ++round) {
+        void* const recycled =
+            tl_CreateFontA(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, nullptr);
+        ASSERT_NE(recycled, nullptr);
+        EXPECT_EQ(tl_DeleteObject(recycled), 1);
+    }
+
+    for (int round = 0; round < 32; ++round) {
+        void* const recycled = tl_CreateSolidBrush(0x1F2F3FU + static_cast<std::uint32_t>(round));
+        ASSERT_NE(recycled, nullptr);
+        EXPECT_EQ(tl_DeleteObject(recycled), 1);
+    }
+
+    EXPECT_EQ(tl_DeleteObject(font), 1);
+}
+
 TEST(Win32GuiTest, ProtectedWindowInputsAndOutputsRejectUnmappedPointers) {
     g_windows = {};
     WindowSlot& window = g_windows[0];
