@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace tradutorlinux::runtime {
@@ -22,6 +23,12 @@ void clear_guest_environment() noexcept;
                                                 const std::optional<std::string>& value) noexcept;
 [[nodiscard]] std::vector<std::u16string> guest_environment_entries_w();
 [[nodiscard]] char** guest_environment_block_a() noexcept;
+
+// Auditoria 2026-10-18 (5.2): usuário de CreateProcessA/W passando
+// lpEnvironment substitui integralmente o ambiente visto pelo filho; sem
+// bloco, o filho mantém o mapa herdado (nunca o ::environ cru).
+void reset_guest_environment(
+    const std::vector<std::pair<std::string, std::string>>& entries);
 
 // Blocos retornados por GetEnvironmentStringsW pertencem ao runtime e só
 // podem ser liberados por FreeEnvironmentStringsW.

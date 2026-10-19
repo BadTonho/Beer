@@ -219,6 +219,27 @@ bool set_guest_environment_value(const std::string_view name,
     return true;
 }
 
+void reset_guest_environment(
+    const std::vector<std::pair<std::string, std::string>>& entries) {
+    std::lock_guard lock(environment_mutex());
+    ensure_initialized_locked();
+
+    // Auditoria 5.2: semântica de substituição do CreateProcess. A entrada
+    // de dados não renormaliza pseudo-variáveis (APPDATA/TEMP etc.): quem
+    // passa lpEnvironment no Windows substitui o ambiente por inteiro; a
+    // cópia inicial é a única fonte das pseudo-variáveis.
+    std::map<std::string, EnvironmentEntry>& restarted = environment_entries();
+    restarted.clear();
+    for (const auto& [name, value] : entries) {
+        if (!valid_name(name)) {
+            continue;
+        }
+        restarted.insert_or_assign(normalized_name(name),
+                                   EnvironmentEntry{std::string{name}, value});
+    }
+    rebuild_ansi_block_locked();
+}
+
 char** guest_environment_block_a() noexcept {
     std::lock_guard lock(environment_mutex());
     ensure_initialized_locked();

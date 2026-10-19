@@ -1,12 +1,16 @@
 #include "test_win32_common.hpp"
 #include "tradutorlinux/diagnostics/trace.hpp"
+#include "tradutorlinux/runtime/environment.hpp"
 #include "tradutorlinux/runtime/guest_context.hpp"
 #include "tradutorlinux/runtime/winapi.hpp"
 #include "../src/runtime/core/environment_internal.hpp"
 #include "../src/runtime/core/runtime_handle_state.hpp"
 #include "../src/runtime/core/runtime_thread_state.hpp"
 
+#include <string_view>
 #include <thread>
+#include <utility>
+#include <vector>
 
 namespace tradutorlinux {
 namespace {
@@ -609,6 +613,39 @@ TEST(Win32ProcessTest, SupportsCommandLineTokenizationAndNullApplicationName) {
     EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
 }
 
+// Auditoria 2026-10-18 (5.2): o bloco lpEnvironment é validado com limites
+// estritos e antes da resolução do caminho; a variante W encaminha o bloco
+// como UTF-16 (sem depender do bit CREATE_UNICODE_ENVIRONMENT).
+TEST(Win32ProcessTest, CreateProcessValidatesEnvironmentBlockBeforePath) {
+    std::array<std::byte, 24> process_information{};
+
+    // Entrada sem '=': kErrorInvalidParameter mesmo com executável ausente.
+    char malformed_block[] = "TL_ENV_PROBE=1\0TL_NO_EQUAL_SIGN";
+    EXPECT_EQ(tl_CreateProcessA("C:\\missing.exe", nullptr, nullptr, nullptr,
+                                0, 0, malformed_block, nullptr, nullptr,
+                                process_information.data()), 0);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
+
+    // Bloco ANSI válido: passa da validação e falha apenas no caminho.
+    char ansi_block[] = "TL_ENV_PROBE=1\0TL_ENV_PROBE2=2";
+    EXPECT_EQ(tl_CreateProcessA("C:\\missing.exe", nullptr, nullptr, nullptr,
+                                0, 0, ansi_block, nullptr, nullptr,
+                                process_information.data()), 0);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorFileNotFound);
+
+    // Bloco UTF-16 válido (CreateProcessW sempre trata lpEnvironment como
+    // UTF-16) — mesmo caminho de falha esperado. O caractere não-ASCII é o
+    // que distingue a leitura wide de uma segunda leitura ANSI.
+    std::uint16_t wide_block[] = {'T', 'L', '=', 0x00E9, 0,
+                                  'X', '=', '2', 0, 0};
+    std::uint16_t missing_application[] = {
+        'C', ':', '\\', 'm', 'i', 's', 's', 'i', 'n', 'g', '.', 'e', 'x', 'e', 0};
+    EXPECT_EQ(tl_CreateProcessW(missing_application, nullptr, nullptr, nullptr,
+                                0, 0, wide_block, nullptr, nullptr,
+                                process_information.data()), 0);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorFileNotFound);
+}
+
 TEST(Win32ResourceTest, ProtectedResourceNamesRejectUnmappedPointers) {
     auto* const invalid = reinterpret_cast<const std::uint16_t*>(static_cast<std::uintptr_t>(0x100000U));
     EXPECT_EQ(tl_FindResourceW(nullptr, invalid,
@@ -706,6 +743,43 @@ TEST(Win32EnvTest, GetEnvironmentVariableAInsufficientBuffer) {
         EXPECT_EQ(result, needed);
         EXPECT_EQ(tl_GetLastError(), abi::kErrorInsufficientBuffer);
     }
+}
+
+// Auditoria 2026-10-18 (5.2): CreateProcessA/W passando lpEnvironment
+// substitui o ambiente visto pelo filho; o reset precisa dispensar o mapa
+// inteiro (não só acrescentar entradas) e reconstruir os blocos.
+TEST(Win32EnvTest, ResetGuestEnvironmentReplacesWholeMap) {
+    std::vector<std::pair<std::string, std::string>> restore_state;
+    if (char** block = runtime::guest_environment_block_a(); block != nullptr) {
+        for (std::size_t i = 0; block[i] != nullptr; ++i) {
+            const std::string_view entry{block[i]};
+            const std::size_t equal = entry.find('=');
+            ASSERT_NE(equal, std::string_view::npos);
+            restore_state.emplace_back(std::string{entry.substr(0, equal)},
+                                       std::string{entry.substr(equal + 1)});
+        }
+    }
+    ASSERT_FALSE(restore_state.empty());
+
+    const std::vector<std::pair<std::string, std::string>> replacement{
+        {"TL_RESET_NEW", "novo"}};
+    runtime::reset_guest_environment(replacement);
+
+    std::array<char, 32> buffer{};
+    const std::uint32_t len =
+        tl_GetEnvironmentVariableA("TL_RESET_NEW", buffer.data(), buffer.size());
+    EXPECT_EQ(len, std::strlen("novo"));
+    EXPECT_STREQ(buffer.data(), "novo");
+    EXPECT_EQ(tl_GetEnvironmentVariableA("PATH", buffer.data(), buffer.size()), 0U);
+
+    const std::vector<std::u16string> wide_entries = runtime::guest_environment_entries_w();
+    ASSERT_EQ(wide_entries.size(), 1U);
+    EXPECT_EQ(wide_entries[0], std::u16string(u"TL_RESET_NEW=novo"));
+
+    runtime::reset_guest_environment(restore_state);
+    const std::uint32_t path_len = tl_GetEnvironmentVariableA("PATH", nullptr, 0);
+    EXPECT_GT(path_len, 0U);
+    EXPECT_EQ(tl_GetEnvironmentVariableA("TL_RESET_NEW", buffer.data(), buffer.size()), 0U);
 }
 
 TEST(Win32RegistryTest, TodoAutorunValueRoundTrips) {

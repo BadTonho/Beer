@@ -1,6 +1,8 @@
 #include "kernel32_process_internal.hpp"
 #include "kernel32_thread_internal.hpp"
 
+#include "tradutorlinux/runtime/environment.hpp"
+
 namespace tradutorlinux {
 
 namespace {
@@ -8,6 +10,79 @@ namespace {
 constexpr std::uint32_t kStillActive = 259U;
 constexpr std::uint32_t kChildProcessFailure = 0xC0000001U;
 constexpr std::size_t kChildProcessProtocolSize = 5;
+// Auditoria 2026-10-18 (5.2): CREATE_UNICODE_ENVIRONMENT (0x00000400).
+constexpr std::uint32_t kCreateUnicodeEnvironment = 0x00000400U;
+constexpr std::size_t kMaxEnvironmentEntries = 4096;
+constexpr std::size_t kMaxEnvironmentEntryLength = 32768;
+constexpr std::size_t kMaxEnvironmentTotalBytes = 1024 * 1024;
+
+using EnvironmentEntryPair = std::pair<std::string, std::string>;
+
+// Auditoria 2026-10-18 (5.2): "".NAME=VALUE". Entrada "=C:=" (caminho
+// corrente por unidade, sintaxe especial do Windows) é pulada: irrelevante
+// para o runtime atual.
+[[nodiscard]] bool accept_environment_entry(const std::string_view entry,
+                                            std::size_t& total_bytes,
+                                            std::vector<EnvironmentEntryPair>& result) {
+    const std::size_t equal = entry.find('=');
+    if (equal == 0) {
+        return true;
+    }
+    if (equal == std::string_view::npos) {
+        return false;
+    }
+    if (result.size() >= kMaxEnvironmentEntries ||
+        entry.size() > kMaxEnvironmentEntryLength ||
+        entry.size() > kMaxEnvironmentTotalBytes - total_bytes) {
+        return false;
+    }
+    total_bytes += entry.size();
+    result.emplace_back(std::string{entry.substr(0, equal)}, std::string{entry.substr(equal + 1)});
+    return true;
+}
+
+[[nodiscard]] bool parse_ansi_environment_block(const char* const environment,
+                                                std::vector<EnvironmentEntryPair>& result) {
+    std::size_t total_bytes = 0;
+    const char* cursor = environment;
+    for (std::size_t count = 0; count <= kMaxEnvironmentEntries; ++count) {
+        std::string entry;
+        if (!runtime::copy_guest_cstring(cursor, kMaxEnvironmentEntryLength, entry)) {
+            return false;
+        }
+        cursor += entry.size() + 1;
+        if (entry.empty()) {
+            // fim do bloco (terminação em NUL duplo)
+            return true;
+        }
+        if (!accept_environment_entry(entry, total_bytes, result)) {
+            return false;
+        }
+    }
+    return false;
+}
+
+[[nodiscard]] bool parse_wide_environment_block(const std::uint16_t* const environment,
+                                                std::vector<EnvironmentEntryPair>& result) {
+    std::size_t total_bytes = 0;
+    const std::uint16_t* cursor = environment;
+    for (std::size_t count = 0; count <= kMaxEnvironmentEntries; ++count) {
+        std::u16string entry;
+        if (!runtime::copy_guest_wstring(cursor, kMaxEnvironmentEntryLength, entry)) {
+            return false;
+        }
+        cursor += entry.size() + 1;
+        if (entry.empty()) {
+            return true;
+        }
+        const std::string narrow =
+            util::wide_to_utf8(reinterpret_cast<const std::uint16_t*>(entry.c_str()), entry.size());
+        if (!accept_environment_entry(narrow, total_bytes, result)) {
+            return false;
+        }
+    }
+    return false;
+}
 
 [[nodiscard]] std::uint64_t relocate_tls_va_for_child(
     const std::uint64_t value, const pe::PeInfo& info,
@@ -135,7 +210,15 @@ bool read_guest_file_for_process(const char* path, std::vector<std::byte>& bytes
 
 [[noreturn]] void run_created_guest_child(const std::string& path, const int result_fd,
                                           const std::string& working_directory,
-                                          std::vector<std::string> arguments) noexcept {
+                                          std::vector<std::string> arguments,
+                                          std::vector<EnvironmentEntryPair> environment_override) noexcept {
+    if (!environment_override.empty()) {
+        // Auditoria 5.2: lpEnvironment substitui o ambiente inteiro do
+        // filho; sem bloco explícito o filho mantém o mapa herdado — nunca
+        // o ::environ cru do hospedeiro (variáveis internas TL_* ficam de
+        // fora do mapa do convidado).
+        runtime::reset_guest_environment(environment_override);
+    }
     runtime::invalidate_memory_map_cache();
     if (g_guest_image_base != nullptr && g_guest_image_size > 0) {
         ::munmap(const_cast<std::byte*>(g_guest_image_base), g_guest_image_size);
@@ -334,8 +417,6 @@ TL_MSABI int tl_CreateProcessA(const char* application_name, char* command_line,
                                const void* startup_info, void* process_information) noexcept {
     (void)startup_info;
     (void)inherit_handles;
-    (void)creation_flags;
-    (void)environment;
     if (process_attributes != nullptr || thread_attributes != nullptr ||
         process_information == nullptr ||
         (application_name == nullptr && command_line == nullptr)) {
@@ -360,6 +441,30 @@ TL_MSABI int tl_CreateProcessA(const char* application_name, char* command_line,
     if (command_line != nullptr) {
         if (!runtime::copy_guest_cstring(command_line, 32768, cmd_line_str)) {
             set_last_error(abi::kErrorInvalidParameter);
+            return 0;
+        }
+    }
+
+    // Auditoria 2026-10-18 (5.2): lpEnvironment é validado antes de
+    // qualquer resolução de caminho — bloco malformado é kErrorInvalidParameter
+    // mesmo com executável inexistente.
+    std::vector<EnvironmentEntryPair> child_environment;
+    if (environment != nullptr) {
+        const bool wide = (creation_flags & kCreateUnicodeEnvironment) != 0U;
+        if (wide
+                ? !parse_wide_environment_block(static_cast<const std::uint16_t*>(environment),
+                                                child_environment)
+                : !parse_ansi_environment_block(static_cast<const char*>(environment),
+                                                child_environment)) {
+            set_last_error(abi::kErrorInvalidParameter);
+            trace_guest_failure("CreateProcessA", "environment-block",
+                                "bloco de ambiente malformado");
+            return 0;
+        }
+        if (child_environment.empty()) {
+            set_last_error(abi::kErrorInvalidParameter);
+            trace_guest_failure("CreateProcessA", "environment-block",
+                                "bloco de ambiente vazio");
             return 0;
         }
     }
@@ -504,7 +609,7 @@ TL_MSABI int tl_CreateProcessA(const char* application_name, char* command_line,
     if (child == 0) {
         ::close(result_pipe[0]);
         run_created_guest_child(normalized_path, result_pipe[1], child_working_directory,
-                                std::move(arguments));
+                                std::move(arguments), std::move(child_environment));
     }
     ::close(result_pipe[1]);
     {
@@ -838,6 +943,10 @@ TL_MSABI int tl_CreateProcessW(const std::uint16_t* application_name,
     char* command_pointer = (command_line != nullptr && !command.empty()) ? command.data() : nullptr;
     const char* application_pointer = (application_name != nullptr && !application.empty()) ? application.c_str() : nullptr;
     const char* directory_pointer = directory.empty() ? nullptr : directory.c_str();
+    // Auditoria 5.2: o bloco lpEnvironment da variante W é sempre UTF-16,
+    // independentemente do bit CREATE_UNICODE_ENVIRONMENT informado pela
+    // chamada; A decide pelo bit.
+    creation_flags |= kCreateUnicodeEnvironment;
     return tl_CreateProcessA(application_pointer, command_pointer, process_attributes, thread_attributes,
                              inherit_handles, creation_flags, environment, directory_pointer, startup_info,
                              process_information);
