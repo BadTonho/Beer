@@ -822,5 +822,143 @@ TEST(LogitechGHUBCoverageTest, AllApisAndModules) {
     EXPECT_EQ(tl_InitCommonControlsEx(init_comctl), 1);
 }
 
+TEST(RTSSHooks64CoverageTest, HooksRectAndDirectXStubs) {
+    // USER32 Hooks
+    void* hook = tl_SetWindowsHookExA(0, nullptr, nullptr, 0);
+    EXPECT_NE(hook, nullptr);
+    EXPECT_EQ(tl_CallNextHookEx(hook, 0, 0, 0), 0);
+    EXPECT_EQ(tl_UnhookWindowsHookEx(hook), 1);
+
+    // USER32 Rect Operations
+    abi::GuestRect r1{ 10, 20, 50, 60 };
+    EXPECT_EQ(tl_IsRectEmpty(&r1), 0);
+    abi::GuestRect empty_r{ 50, 60, 10, 20 };
+    EXPECT_EQ(tl_IsRectEmpty(&empty_r), 1);
+    EXPECT_EQ(tl_OffsetRect(&r1, 5, 10), 1);
+    EXPECT_EQ(r1.left, 15);
+    EXPECT_EQ(r1.top, 30);
+    EXPECT_EQ(r1.right, 55);
+    EXPECT_EQ(r1.bottom, 70);
+
+    abi::GuestRect r2{ 20, 25, 40, 50 };
+    abi::GuestRect r_out{};
+    EXPECT_EQ(tl_IntersectRect(&r_out, &r1, &r2), 1);
+    EXPECT_EQ(r_out.left, 20);
+    EXPECT_EQ(r_out.top, 30);
+    EXPECT_EQ(r_out.right, 40);
+    EXPECT_EQ(r_out.bottom, 50);
+    EXPECT_EQ(tl_SubtractRect(&r_out, &r1, &r2), 1);
+
+    // DirectX & Graphics Stubs
+    void* code = reinterpret_cast<void*>(0x1);
+    void* errors = reinterpret_cast<void*>(0x1);
+    EXPECT_NE(tl_D3DCompile(nullptr, 0, nullptr, nullptr, nullptr, nullptr, nullptr, 0, 0, &code, &errors), 0);
+    EXPECT_EQ(code, nullptr);
+    EXPECT_EQ(errors, nullptr);
+
+    void* blob = reinterpret_cast<void*>(0x1);
+    void* d3d12_err = reinterpret_cast<void*>(0x1);
+    EXPECT_NE(tl_D3D12SerializeRootSignature(nullptr, 1, &blob, &d3d12_err), 0);
+    EXPECT_EQ(blob, nullptr);
+
+    void* factory = reinterpret_cast<void*>(0x1);
+    EXPECT_NE(tl_CreateDXGIFactory1(nullptr, &factory), 0);
+    EXPECT_EQ(factory, nullptr);
+
+    void* dd = reinterpret_cast<void*>(0x1);
+    EXPECT_NE(tl_DirectDrawCreateEx(nullptr, &dd, nullptr, nullptr), 0);
+    EXPECT_EQ(dd, nullptr);
+
+    EXPECT_EQ(tl_Direct3DCreate9(0x900), 0);
+
+    void* d3d9 = reinterpret_cast<void*>(0x1);
+    EXPECT_NE(tl_Direct3DCreate9Ex(0x900, &d3d9), 0);
+    EXPECT_EQ(d3d9, nullptr);
+
+    void* sc = reinterpret_cast<void*>(0x1);
+    void* dev = reinterpret_cast<void*>(0x1);
+    EXPECT_NE(tl_D3D10CreateDeviceAndSwapChain(nullptr, 0, nullptr, 0, 0, nullptr, &sc, &dev), 0);
+    EXPECT_EQ(sc, nullptr);
+    EXPECT_EQ(dev, nullptr);
+
+    sc = reinterpret_cast<void*>(0x1);
+    dev = reinterpret_cast<void*>(0x1);
+    EXPECT_NE(tl_D3D11CreateDeviceAndSwapChain(nullptr, 0, nullptr, 0, nullptr, 0, 0, nullptr, &sc, &dev, nullptr, nullptr), 0);
+    EXPECT_EQ(sc, nullptr);
+    EXPECT_EQ(dev, nullptr);
+
+    // GDI32 Objects
+    void* brush = tl_CreateSolidBrush(0x00FFFFFF);
+    EXPECT_NE(brush, nullptr);
+    EXPECT_EQ(tl_DeleteObject(brush), 1);
+    void* pen = tl_CreatePen(0, 1, 0x00FF0000);
+    EXPECT_NE(pen, nullptr);
+    EXPECT_EQ(tl_DeleteObject(pen), 1);
+    void* font = tl_CreateFontA(12, 0, 0, 0, 400, 0, 0, 0, 0, 0, 0, 0, 0, "Arial");
+    EXPECT_NE(font, nullptr);
+    EXPECT_EQ(tl_DeleteObject(font), 1);
+}
+
+TEST(SevenZipCoverageTest, CharSemaphoreAndTimeApis) {
+    std::uint16_t test_w[] = { 'h', 'e', 'l', 'l', 'o', 0 };
+    EXPECT_EQ(tl_CharUpperW(test_w), test_w);
+    EXPECT_EQ(test_w[0], 'H');
+
+    const char str_a[] = "test";
+    EXPECT_EQ(tl_CharPrevExA(0, str_a, str_a + 2, 0), str_a + 1);
+
+    void* sem = tl_CreateSemaphoreW(nullptr, 2, 5, nullptr);
+    EXPECT_NE(sem, nullptr);
+    std::int32_t prev_count = 0;
+    EXPECT_EQ(tl_ReleaseSemaphore(sem, 1, &prev_count), 1);
+    EXPECT_EQ(prev_count, 2);
+    EXPECT_EQ(tl_CloseHandle(sem), 1);
+
+    const std::uint64_t file_time = 0x01D9D456789ABCDEULL;
+    std::uint16_t dos_date = 0;
+    std::uint16_t dos_time = 0;
+    EXPECT_EQ(tl_FileTimeToDosDateTime(&file_time, &dos_date, &dos_time), 1);
+    std::uint64_t roundtrip_ft = 0;
+    EXPECT_EQ(tl_DosDateTimeToFileTime(dos_date, dos_time, &roundtrip_ft), 1);
+
+    constexpr char16_t non_existent_file[] = u"C:\\windows\\temp\\nonexistent_file.tmp";
+    void* find_stream = tl_FindFirstStreamW(reinterpret_cast<const std::uint16_t*>(non_existent_file), 0, nullptr, 0);
+    EXPECT_EQ(find_stream, reinterpret_cast<void*>(static_cast<std::intptr_t>(-1)));
+}
+
+TEST(EverythingSearchCoverageTest, SCMAndServiceApis) {
+    constexpr char16_t scm_name[] = u"ServicesActive";
+    void* scm = tl_OpenSCManagerW(nullptr, reinterpret_cast<const std::uint16_t*>(scm_name), 0xF003F);
+    EXPECT_NE(scm, nullptr);
+
+    constexpr char16_t svc_name[] = u"Everything";
+    void* svc = tl_OpenServiceW(scm, reinterpret_cast<const std::uint16_t*>(svc_name), 0x20014);
+    EXPECT_EQ(svc, nullptr);
+    EXPECT_EQ(tl_GetLastError(), 1060);
+
+    svc = tl_CreateServiceW(scm, reinterpret_cast<const std::uint16_t*>(svc_name), nullptr, 0, 0, 0, 0,
+                            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+    EXPECT_EQ(svc, nullptr);
+    EXPECT_EQ(tl_GetLastError(), 5);
+
+    EXPECT_EQ(tl_StartServiceW(nullptr, 0, nullptr), 0);
+    EXPECT_EQ(tl_ControlService(nullptr, 1, nullptr), 0);
+    EXPECT_EQ(tl_SetServiceStatus(reinterpret_cast<void*>(0x123), nullptr), 1);
+
+    std::uint32_t needed = 0;
+    EXPECT_EQ(tl_QueryServiceStatusEx(nullptr, 0, nullptr, 0, &needed), 0);
+    EXPECT_EQ(tl_QueryServiceConfigW(nullptr, nullptr, 0, &needed), 0);
+    EXPECT_EQ(tl_RegisterServiceCtrlHandlerW(reinterpret_cast<const std::uint16_t*>(svc_name), nullptr), nullptr);
+    EXPECT_EQ(tl_StartServiceCtrlDispatcherW(nullptr), 0);
+    EXPECT_EQ(tl_DeleteService(reinterpret_cast<void*>(0x123)), 1);
+    EXPECT_EQ(tl_CloseServiceHandle(scm), 1);
+
+    void* key = nullptr;
+    EXPECT_EQ(tl_RegOpenKeyA(reinterpret_cast<const void*>(0x80000002ULL), "Software", &key), 0U);
+    EXPECT_NE(key, nullptr);
+    EXPECT_EQ(tl_RegCloseKey(key), 0U);
+}
+
 }  // namespace
 }  // namespace tradutorlinux
+
