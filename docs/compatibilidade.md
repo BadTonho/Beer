@@ -89,6 +89,13 @@ que não haja arquivos residuais, extração ou cadastro parcial nas rejeições
 preserva o fallback genérico somente para instaladores cujo payload PE32+ seja
 validado antes do cadastro.
 
+O teste `popular_apps_archive_install_matrix` complementa a matriz validando a
+instalação completa e extração em prefixo de instaladores de arquivo auto-extraíveis
+NSIS/SFX do corpus (`7-Zip_x64_Installer.exe`, `Notepad++_x64_Installer.exe`,
+`Everything_Search_x64.exe` e `RTSSSetup737.exe`), verificando a descoberta do payload
+PE32+ (x86-64), cadastro no catálogo (`tradutorlinux app list`), execução de smoke do
+binário CLI (`7z.exe` com exit `0`) e desinstalação limpa (`tradutorlinux app remove`).
+
 ## Documentos temáticos
 
 | Documento | Conteúdo |
