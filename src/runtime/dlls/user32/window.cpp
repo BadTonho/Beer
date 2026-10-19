@@ -4,6 +4,8 @@ namespace tradutorlinux {
 namespace {
 
 thread_local bool g_create_window_w_bridge = false;
+thread_local const void* g_create_window_w_orig_class = nullptr;
+thread_local const void* g_create_window_w_orig_name = nullptr;
 
 }  // namespace
 
@@ -267,6 +269,8 @@ TL_MSABI abi::HWnd tl_CreateWindowExA(const std::uint32_t ex_style,
     const int resolved_x = normalize_geometry ? 0 : x;
     const int resolved_y = normalize_geometry ? 0 : y;
     const bool strings_from_bridge = g_create_window_w_bridge;
+    const void* const bridge_orig_class = g_create_window_w_orig_class;
+    const void* const bridge_orig_name = g_create_window_w_orig_name;
     std::string class_name_copy;
     std::string window_name_copy;
     const char* effective_class_name = class_name;
@@ -275,7 +279,7 @@ TL_MSABI abi::HWnd tl_CreateWindowExA(const std::uint32_t ex_style,
         (class_val > 0xFFFFU && !strings_from_bridge &&
          !runtime::copy_guest_cstring(class_name, 4096U, class_name_copy)) ||
         (window_name != nullptr && window_val > 0xFFFFU && !strings_from_bridge &&
-         !runtime::copy_guest_cstring(window_name, 4096U, window_name_copy))) {
+         !runtime::copy_guest_cstring(window_name, 65535U, window_name_copy))) {
         set_last_error(abi::kErrorInvalidParameter);
         trace_guest_failure("CreateWindowExA", "strings", "nome de classe ou janela inválido");
         return nullptr;
@@ -296,6 +300,8 @@ TL_MSABI abi::HWnd tl_CreateWindowExA(const std::uint32_t ex_style,
         return nullptr;
     }
     g_create_window_w_bridge = false;
+    g_create_window_w_orig_class = nullptr;
+    g_create_window_w_orig_name = nullptr;
     const auto free_it = std::find_if(g_windows.begin(), g_windows.end(),
                                       [](const WindowSlot& slot) { return !slot.used; });
     if (free_it == g_windows.end()) {
@@ -363,8 +369,8 @@ TL_MSABI abi::HWnd tl_CreateWindowExA(const std::uint32_t ex_style,
             cs.y = y;
             cs.x = x;
             cs.style = style;
-            cs.lpszName = effective_window_name;
-            cs.lpszClass = effective_class_name;
+            cs.lpszName = strings_from_bridge ? reinterpret_cast<const char*>(bridge_orig_name) : window_name;
+            cs.lpszClass = strings_from_bridge ? reinterpret_cast<const char*>(bridge_orig_class) : class_name;
             cs.dwExStyle = ex_style;
             const abi::Lresult nc_create_result = call_wndproc(
                 slot.wndproc, &slot, abi::kWmNcCreate, 0,
@@ -508,8 +514,8 @@ TL_MSABI abi::HWnd tl_CreateWindowExA(const std::uint32_t ex_style,
     cs.y = resolved_y;
     cs.x = resolved_x;
     cs.style = style;
-    cs.lpszName = caption;
-    cs.lpszClass = cls->name.c_str();
+    cs.lpszName = strings_from_bridge ? reinterpret_cast<const char*>(bridge_orig_name) : window_name;
+    cs.lpszClass = strings_from_bridge ? reinterpret_cast<const char*>(bridge_orig_class) : class_name;
     cs.dwExStyle = ex_style;
     const bool skip_toplevel_create = std::getenv("TL_SKIP_TOPLEVEL_WM_CREATE") != nullptr &&
                                       slot.parent == nullptr;
@@ -592,12 +598,26 @@ TL_MSABI abi::HWnd tl_CreateWindowExW(const std::uint32_t ex_style,
     const auto window_val = reinterpret_cast<std::uintptr_t>(window_name);
     std::u16string class_name_copy;
     std::u16string window_name_copy;
-    if (class_name == nullptr ||
-        (class_val > 0xFFFFU && !runtime::copy_guest_wstring(class_name, 4096U, class_name_copy)) ||
-        (window_name != nullptr && window_val > 0xFFFFU &&
-         !runtime::copy_guest_wstring(window_name, 4096U, window_name_copy))) {
+    if (class_name == nullptr) {
         set_last_error(abi::kErrorInvalidParameter);
-        trace_guest_failure("CreateWindowExW", "strings", "nome de classe ou janela inválido");
+        trace_guest_failure("CreateWindowExW", "strings", "class_name nulo");
+        return nullptr;
+    }
+    if (class_val > 0xFFFFU && !runtime::copy_guest_wstring(class_name, 4096U, class_name_copy)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        trace_guest_failure("CreateWindowExW", "strings", "class_name inacessível");
+        return nullptr;
+    }
+    if (window_name != nullptr && window_val > 0xFFFFU &&
+        !runtime::copy_guest_wstring(window_name, 65535U, window_name_copy)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        const std::string utf8_class_dbg = class_val <= 0xFFFFU
+            ? ("atom " + std::to_string(class_val))
+            : util::wide_to_utf8(reinterpret_cast<const std::uint16_t*>(class_name_copy.data()), class_name_copy.size());
+        const std::string msg = "window_name inacessível: " + util::format_hex(window_val) +
+            " class: " + utf8_class_dbg + " caller: " +
+            util::format_hex(reinterpret_cast<std::uintptr_t>(__builtin_return_address(0)));
+        trace_guest_failure("CreateWindowExW", "strings", msg.c_str());
         return nullptr;
     }
     std::string utf8_window;
@@ -611,21 +631,27 @@ TL_MSABI abi::HWnd tl_CreateWindowExW(const std::uint32_t ex_style,
             win_cstr = utf8_window.c_str();
         }
     }
+    const bool previous_bridge = g_create_window_w_bridge;
+    const void* const previous_orig_class = g_create_window_w_orig_class;
+    const void* const previous_orig_name = g_create_window_w_orig_name;
+    g_create_window_w_bridge = true;
+    g_create_window_w_orig_class = class_name;
+    g_create_window_w_orig_name = window_name;
     if (class_val <= 0xFFFFU) {
-        const bool previous_bridge = g_create_window_w_bridge;
-        g_create_window_w_bridge = true;
         abi::HWnd result = tl_CreateWindowExA(ex_style, reinterpret_cast<const char*>(class_val), win_cstr,
                                               style, x, y, width, height, parent, menu, instance, param);
         g_create_window_w_bridge = previous_bridge;
+        g_create_window_w_orig_class = previous_orig_class;
+        g_create_window_w_orig_name = previous_orig_name;
         return result;
     }
     const std::string utf8_class = util::wide_to_utf8(
         reinterpret_cast<const std::uint16_t*>(class_name_copy.data()), class_name_copy.size());
-    const bool previous_bridge = g_create_window_w_bridge;
-    g_create_window_w_bridge = true;
     abi::HWnd result = tl_CreateWindowExA(ex_style, utf8_class.c_str(), win_cstr, style, x, y, width,
                                           height, parent, menu, instance, param);
     g_create_window_w_bridge = previous_bridge;
+    g_create_window_w_orig_class = previous_orig_class;
+    g_create_window_w_orig_name = previous_orig_name;
     return result;
 }
 
