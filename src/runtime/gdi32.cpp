@@ -180,13 +180,13 @@ TL_MSABI int tl_TextOut(const void* const dc, const int x, const int y,
             return 0;
         }
     }
-    const WindowDrawingTarget target = window_drawing_target(dc);
-    if (target.native == nullptr) {
+    if (dc == nullptr) {
         set_last_error(abi::kErrorInvalidHandle);
         trace_guest_failure("TextOut", "dc", "HDC inválido");
         return 0;
     }
-    if (length > 0) {
+    const WindowDrawingTarget target = window_drawing_target(dc);
+    if (target.native != nullptr && length > 0) {
         gui::platform::draw_text_len(target.native, text_copy.data(), length, x + target.offset_x,
                                      y + target.offset_y);
         gui::platform::flush_window(target.native);
@@ -1594,12 +1594,13 @@ TL_MSABI void* tl_CreateDCA(const char* const driver, const char* const device, 
 }
 
 TL_MSABI int tl_Rectangle(const void* dc, int left, int top, int right, int bottom) noexcept {
-    const WindowDrawingTarget target = window_drawing_target(dc);
-    if (target.native == nullptr) {
+    if (dc == nullptr) {
         set_last_error(abi::kErrorInvalidHandle);
+        trace_guest_failure("Rectangle", "dc", "HDC inválido");
         return 0;
     }
-    if (right > left && bottom > top) {
+    const WindowDrawingTarget target = window_drawing_target(dc);
+    if (target.native != nullptr && right > left && bottom > top) {
         gui::platform::draw_rectangle(target.native, left + target.offset_x,
                                       top + target.offset_y, right - left, bottom - top);
         gui::platform::flush_window(target.native);
@@ -1635,12 +1636,41 @@ TL_MSABI int tl_GetTextFaceW(void* const hdc, const int count, std::uint16_t* co
 
 TL_MSABI int tl_TextOutW(const void* const dc, const int x, const int y,
                         const std::uint16_t* const text, const int length) noexcept {
-    (void)dc;
-    (void)x;
-    (void)y;
-    (void)text;
-    (void)length;
+    if (dc == nullptr) {
+        set_last_error(abi::kErrorInvalidHandle);
+        trace_guest_failure("TextOutW", "dc", "HDC inválido");
+        return 0;
+    }
+    if (text == nullptr || length < 0) {
+        set_last_error(abi::kErrorInvalidParameter);
+        trace_guest_failure("TextOutW", "text", "ponteiro ou comprimento inválido");
+        return 0;
+    }
+    std::u16string text_copy;
+    if (!copy_gdi_utf16_count(text, length, text_copy)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        trace_guest_failure("TextOutW", "text", "buffer convidado inacessível");
+        return 0;
+    }
+    const WindowDrawingTarget target = window_drawing_target(dc);
+    if (target.native != nullptr && length > 0) {
+        std::string narrow;
+        narrow.reserve(text_copy.size());
+        for (const char16_t c : text_copy) {
+            narrow.push_back(c < 128 ? static_cast<char>(c) : '?');
+        }
+        gui::platform::draw_text_len(target.native, narrow.data(), static_cast<int>(narrow.size()),
+                                     x + target.offset_x, y + target.offset_y);
+        gui::platform::flush_window(target.native);
+    }
     set_last_error(abi::kErrorSuccess);
+    const std::array<diagnostics::TraceField, 4> fields{
+        diagnostics::TraceField{"symbol", "TextOutW"},
+        diagnostics::TraceField{"x", std::to_string(x)},
+        diagnostics::TraceField{"y", std::to_string(y)},
+        diagnostics::TraceField{"length", std::to_string(length)},
+    };
+    runtime_trace("TextOutW", fields, 4);
     return 1;
 }
 

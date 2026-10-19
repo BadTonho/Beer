@@ -1571,7 +1571,14 @@ TEST(WinrarSupportTest, KernelUserGdiApisBehaveAsExpected) {
     // GDI32: GetTextFaceW, TextOutW, GetMapMode
     std::uint16_t face[32]{};
     EXPECT_GT(tl_GetTextFaceW(nullptr, 32, face), 0);
-    EXPECT_EQ(tl_TextOutW(nullptr, 0, 0, reinterpret_cast<const std::uint16_t*>(u"test"), 4), 1);
+    EXPECT_EQ(tl_TextOutW(nullptr, 0, 0, reinterpret_cast<const std::uint16_t*>(u"test"), 4), 0);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidHandle);
+    void* const comp_dc = tl_CreateCompatibleDC(nullptr);
+    ASSERT_NE(comp_dc, nullptr);
+    EXPECT_EQ(tl_TextOutW(comp_dc, 0, 0, reinterpret_cast<const std::uint16_t*>(u"test"), 4), 1);
+    EXPECT_EQ(tl_TextOut(comp_dc, 0, 0, "test", 4), 1);
+    EXPECT_EQ(tl_Rectangle(comp_dc, 0, 0, 10, 10), 1);
+    EXPECT_EQ(tl_DeleteDC(comp_dc), 1);
     EXPECT_EQ(tl_GetMapMode(nullptr), 1);
 }
 
