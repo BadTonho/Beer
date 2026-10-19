@@ -1141,12 +1141,24 @@ ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_strea
                         }
                     }
                 }
+                std::filesystem::path best_candidate;
+                if (effective_cmd.installed_executable_path.has_value()) {
+                    const auto manual_resolved = resolve_installed_executable(
+                        *effective_cmd.installed_executable_path, prefix_dir);
+                    if (manual_resolved.has_value()) {
+                        best_candidate = *manual_resolved;
+                        write_install_trace(effective_cmd.trace_enabled, stderr_stream,
+                                            diagnostics::TraceLevel::Info, "selected",
+                                            {{"prefix", prefix_dir.string()},
+                                             {"app-id", installation_id},
+                                             {"path", best_candidate.string()}});
+                    }
+                }
                 const prefix::EnvironmentPaths inst_paths = prefix::get_environment_paths(prefix_dir);
                 const ExecutableSnapshot after = snapshot_executables(inst_paths.drive_c);
                 const std::vector<std::filesystem::path> candidates = changed_executables(
                     installation_before.value_or(ExecutableSnapshot{}), after);
-                if (!candidates.empty()) {
-                    std::filesystem::path best_candidate;
+                if (best_candidate.empty() && !candidates.empty()) {
                     for (const auto& cand : candidates) {
                         const auto cand_bytes = read_file(cand);
                         if (cand_bytes) {
@@ -1160,6 +1172,8 @@ ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_strea
                     if (best_candidate.empty()) {
                         best_candidate = candidates.front();
                     }
+                }
+                if (!best_candidate.empty()) {
                     catalog::AppCatalog app_catalog;
                     (void)app_catalog.load_from_file();
                     catalog::AppEntry entry;
