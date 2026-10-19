@@ -69,15 +69,20 @@ Linux / POSIX
 - Garantir estabilidade: loader, ABI, memória, imports, TLS, unwind/SEH e diagnósticos com `exit code` `71/72` e `fault-address` antes de ampliar famílias de DLL.
 - Manter qualidade de produção: warnings rigorosos, `CTest` `sanitize`, `LSAN_OPTIONS`, `Xvfb` e matriz `docs/compatibilidade.md` atualizada a cada API.
 
-### 3.3. Primeiro MVP
+### 3.3. Primeiro MVP (concluído — histórico)
 
-Executar `tl_hello.exe`, um binário de teste próprio para x86-64 que importe apenas:
+O primeiro marco funcional foi executar `tl_hello.exe`, um binário de teste
+próprio para x86-64 que importava apenas:
 
 - `GetStdHandle`
 - `WriteFile`
 - `ExitProcess`
 
-O resultado deve imprimir a saída esperada, retornar o código correto e gerar um trace reproduzível. Se uma importação desconhecida aparecer, o runtime deve encerrar de forma controlada e explicar qual módulo, símbolo e mecanismo não foram suportados.
+O marco está fechado e permanece protegido em regressão (suite unitária e
+trace reproduzível). A fila vigente está no [`ROADMAP.md`](ROADMAP.md); o
+histórico de fases fica em `feitos/`. Se uma importação desconhecida
+aparecer, o runtime continua encerrando de forma controlada e explicando
+qual módulo, símbolo e mecanismo não foram suportados.
 
 ### 3.4. Fora de escopo no estágio atual
 
@@ -135,37 +140,50 @@ Cada marco deve ser reproduzível sem Windows. `mingw-w64` pode gerar os binári
 
 ```text
 TradutorLinux/
-├── PROJETO.md
-├── ROADMAP.md
-├── feitos/
-│   ├── ROADMAP-LEGADO.md
-│   └── PROXIMAS-ETAPAS.md
-├── README.md
+├── PROJETO.md, README.md, ROADMAP.md
+├── Cargo.toml                      # crate Rust opt-in (TL_BUILD_RUST)
 ├── CMakeLists.txt
 ├── CMakePresets.json
-├── docs/
-│   ├── arquitetura/
-│   ├── formatos/
-│   ├── api/
-│   └── compatibilidade.md
+├── AGENTS.md
+├── docs/                           # contratos, auditoria e matrizes
+│   ├── arquitetura/                # ABI, SEH/x64, aplicativos-bloqueios
+│   ├── auditoria-2026-10-18.md     # varredura estática com erratas de correção
+│   ├── compatibilidade.md, compatibilidade-runtime.md
+│   ├── compatibilidade-aplicativos.md, compatibilidade-backends.md
+│   ├── diagnostico.md, catalog.md, requisitos-aplicativos.md
+│   └── (formatos/, api/ nas fases em que os contratos demandarem)
 ├── src/
-│   ├── cli.cpp
+│   ├── backend/                    # proton/proton_runtime (stubs de integração)
+│   ├── catalog/                    # parsers de catálogo (TLAC) e FFI Rust
+│   ├── cli/                        # runner, opções, relatórios
+│   ├── compat/                     # validador e parser de perfil Rust FFI
 │   ├── diagnostics/
+│   ├── gui/                        # X11 e estados de GUI
+│   ├── loader/                     # grafo de módulos, image_mapper, import_resolver
 │   ├── main.cpp
-│   └── (pe/, loader/, runtime/ e abi/ nas fases posteriores)
-└── tests/
-    ├── apps/
-    │   └── (smokes e fixtures isolados por aplicativo)
-    ├── samples/
-    ├── test_cli.cpp
-    ├── test_trace.cpp
-    └── (malformed-pe/ a partir da Fase 1)
+│   ├── package/                    # msix/appx (FFI Rust)
+│   ├── pe/                         # leitor PE e parser diferencial Rust
+│   ├── prefix/
+│   ├── process/
+│   ├── runtime/                    # dlls/, core/, seh/
+│   ├── rust/                       # código-fonte do crate (pe/msix/profile parsers)
+│   └── util/
+├── tests/
+│   ├── apps/<app-id>/              # smokes e fixtures isolados por aplicativo
+│   ├── samples/
+│   ├── test_*.cpp
+│   └── pe_builder.hpp, test_support.hpp, CMakeLists.txt
+├── compat/
+│   └── apps/<app-id>/              # extensões por aplicativo (reservado às etapas)
+└── feitos/                         # ROADMAP-R1-R24.md, ROADMAP-LEGADO.md (histórico)
+```
 
 Extensões específicas de aplicativos, quando autorizadas em uma etapa futura,
 ficarão separadas em `compat/apps/<app-id>/`. Essa árvore não é ligada ao
 runtime geral por padrão e permanece sem DLLs enquanto não houver um contrato,
-um alvo e testes que justifiquem a extensão.
-```
+um alvo e testes que justifiquem a extensão. O crate Rust (`src/rust/`,
+desde `TL_BUILD_RUST=ON`) é opt-in e acompanha os últimos contratos de parser
+registrados em `docs/compatibilidade-backends.md`.
 
 ## 8. Stack inicial
 
@@ -189,11 +207,11 @@ um alvo e testes que justifiquem a extensão.
 
 ## 10. Critérios de sucesso
 
-- **Marco 1:** o leitor identifica corretamente um PE32+ válido e rejeita entradas inválidas com segurança.
-- **Marco 2:** uma imagem mínima é mapeada, relocada e tem seus imports resolvidos sem executar código fora do escopo.
-- **MVP:** `./tradutorlinux tests/samples/tl_hello.exe` escreve a saída correta e encerra com o código esperado.
-- **Qualidade do MVP:** todas as APIs usadas pelo exemplo possuem testes; imports ausentes são diagnosticados; o trace é reproduzível.
-- **Expansão:** cada nova aplicação suportada entra na matriz de compatibilidade e na suíte de regressão.
+- **Marco 1 (concluído):** o leitor identifica corretamente um PE32+ válido e rejeita entradas inválidas com segurança.
+- **Marco 2 (concluído):** uma imagem mínima é mapeada, relocada e tem seus imports resolvidos sem executar código fora do escopo.
+- **MVP (concluído):** `./tradutorlinux tests/samples/tl_hello.exe` escreve a saída correta e encerra com o código esperado.
+- **Qualidade do MVP (concluído):** todas as APIs usadas pelo exemplo possuem testes; imports ausentes são diagnosticados; o trace é reproduzível.
+- **Expansão (vigente):** cada nova aplicação suportada entra na matriz de compatibilidade e na suíte de regressão; a varredura de correções da auditoria 2026-10-18 (`docs/auditoria-2026-10-18.md`) é a fila em execução.
 
 ## 11. Exemplo de uso futuro
 

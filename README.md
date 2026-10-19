@@ -6,15 +6,15 @@ experimental no Linux x86-64.
 
 O objetivo de longo prazo é ampliar esse subconjunto para classes cada vez mais abrangentes de aplicativos Windows, sempre com testes, limitações publicadas e regressões reproduzíveis.
 
-O estado atual é a **Fase 13**. A subetapa **13.14 (TLS genérico e Worker RSL)**
-foi concluída para as fixtures reutilizáveis; o caso comercial do Roblox
-continua como benchmark com execução não concluída. O ciclo de reconciliação,
-portfólio, limites de recursos, instalação MSIX/AppX, validação X11 e
-expectativas de fixtures (`B1`, `B4`, `B5`, `B7`, `B8`, `B10`, `B12`, `B15` e
-`B16` no roadmap legado já têm entregas validadas. As próximas etapas são
-condicionadas: B2 exige decisão de produto, B6 exige a amostra comercial
-Worker/RSL, B9 exige evidência adicional de unwind e B11, B13, B14 e B17–B19
-exigem alvo ou benefício medido. Parser,
+O estado de execução segue o [`ROADMAP.md`](ROADMAP.md): as etapas **R25–R29**
+estão concluídas com evidências registradas — transporte SSH inicial do PuTTY
+(R25), despacho polimórfico e cleanups C++ FH4 estendidos (R26), controles
+comuns `SysListView32`/`COMCTL32` (R27), pacotes MSIX de grande porte e
+validação de Affinity x64 (R28) e tolerância do leitor PE para diretórios em
+seções virtuais UPX de `HWiNFO64.exe`/`Rufus_x64.exe` (R29). O histórico
+anterior está em `feitos/ROADMAP-R1-R24.md` e `feitos/ROADMAP-LEGADO.md`. A
+fila atual é a varredura de correções da
+[auditoria 2026-10-18](docs/auditoria-2026-10-18.md), em andamento. Parser,
 mapeamento, imports, console, runtime básico, diagnóstico, relatório de
 cobertura, instaladores em prefixos e GUI Win32 experimental já têm entregas
 validadas. O suporte continua restrito às aplicações, APIs e limitações

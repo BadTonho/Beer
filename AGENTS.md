@@ -67,6 +67,13 @@ Compatibilidade ampla é o objetivo de longo prazo, não uma autorização para 
 ## Regras técnicas
 
 - Use C++20 como linguagem principal. Use C somente em estruturas binárias ou fronteiras com ABI simples; use assembly x86-64 apenas quando atributos do compilador não forem suficientes.
+- O código Rust em `src/rust/` é um subsistema opt-in: só entra no build com
+  `TL_BUILD_RUST=ON` (crate em `Cargo.toml`, validadores/parsers via FFI em
+  `src/{catalog,compat,package,pe}/rust_*.cpp`). Nenhuma dependência do
+  runtime pode assumir que Rust está habilitado; os parsers C++ são a
+  referência e os contratos Rust precisam manter paridade com eles
+  (`docs/compatibilidade-backends.md`, teste de paridade de limites em
+  `tests/test_rust_pe_parser.cpp`).
 - Mantenha toda fronteira entre ABI Microsoft x64 e System V AMD64 explícita, pequena e testada. Nenhuma exceção C++ pode atravessá-la.
 - Trate cada arquivo PE como entrada hostil: valide tamanhos, offsets, alinhamentos, inteiros e permissões antes de acessar ou mapear qualquer dado.
 - Não execute o entry point antes de mapear a imagem, aplicar relocations, resolver imports e preparar o contexto mínimo definido para a fase.

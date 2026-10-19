@@ -281,8 +281,37 @@ recebe "sucesso" onde não há implementação — violando a regra do projeto
 | B4 | médio-alto | **Qt6 `REQUIRED` incondicional** — impossível build headless (CLI/.Left unitários) sem Qt; falta opção `TL_ENABLE_GUI=OFF` | `CMakeLists.txt:10` |
 | B5 | médio | **Preset `tsan` existe, nunca roda no CI** — única cobertura de concorrência por sanitizador ausente do CI | `CMakePresets.json:66-72`; `ci.yml` |
 | B6 | médio | **Docs desatualizados** — PROJETO.md §7 mostra árvore pequena (`src/{cli,main,diagnostics}`) que não existe mais; PROJETO.md §3.3/§10 narram o MVP como vigente; README "Fase 13/13.14" está atrás do ROADMAP (R25–R29 concluídos) | `PROJETO.md:134-168, 72-80, 190-196`; `README.md:9` |
+
+> **Errata (2026-10-18, varredura de correção):** trees de `PROJETO.md` §7
+> reescrita com o layout real (backend/catalog/cli/compat/diagnostics/gui/
+> loader/package/pe/prefix/process/runtime/rust/util), §3.3 marcado como
+> marco concluído (histórico) e §10 anota o status de cada critério; README
+> substitui "Fase 13/13.14" pelo estado R25–R29 concluídos (com títulos
+> copiados do `ROADMAP.md`) e aponta a fila atual (varredura desta
+> auditoria).
 | B7 | médio | **`docs/compatibilidade*.md` divergentes entre si pós-R29** — Rufus/HWiNFO64 ainda "malformed/not-attempted" nos docs vs ROADMAP R29 (`--report` exit 0) e testes esperando 0; contagens conflitantes E31 ("24/3" vs "25/2"); "668 testes" vs 1.016 reais; APIs citadas sem rastro de teste (`DLGTEMPLATEEX`, `TerminateThread` 0 hits em tests/) | `compatibilidade-aplicativos.md:191-192, 289, 263-265, 105-109`; `compatibilidade.md:55-57` |
+
+> **Errata (2026-10-18, varredura de correção):** corrigido em quatro frentes.
+> (1) O script `verify_popular_apps_recursive_report.cmake` carregava
+> expectativas obsoletas para `NppConverter.dll` e `NppShell.dll` (R47 as
+> resolveu 100% e os casos passaram a exit 0); expectativas atualizadas e a
+> matriz recursiva roda 64/64. (2) Contagens datadas: `compatibilidade.md`
+> publica a distribuição atual (38 exit 0, 26 exit 5, nenhum exit 4 em
+> 2026-10-18) e o E31 fica como retrato de 2026-09-07 com remissão; a nota
+> 668/659 declara o build da B20.6 e aponta para os 1038 testes de
+> `ctest -N` de hoje. (3) Linhas 6/7 (Rufus/HWiNFO64) descrevem o estado R29
+> +5.5: exit 0 com aviso `pe/warning`, execução real permanece fora do
+> escopo. (4) Trilhas explicitadas: `DLGTEMPLATEEX` tem regressão
+> (`Win32DialogTemplateTest`, fixture `valid_dialog_ex_template`);
+> `TerminateThread` é stub controlado sem regressão de comportamento —
+> a matriz valida resolução de símbolo, e o doc agora o diz.
 | B8 | médio | **AGENTS.md não menciona subsistema Rust opt-in** (`TL_BUILD_RUST`, `Cargo.toml`, `src/rust/`) — diretriz de linguagens desatualizada | `AGENTS.md:69-75` |
+
+> **Errata (2026-10-18, varredura de correção):** AGENTS.md "Regras técnicas"
+> agora tem item próprio do subsistema Rust opt-in: `TL_BUILD_RUST=ON`,
+> crate `Cargo.toml`, mensageria FFI em `src/*/rust_*.cpp`, obrigação de
+> paridade com os parsers C++ (`docs/compatibilidade-backends.md` e teste de
+> paridade de limites `tests/test_rust_pe_parser.cpp`).
 | B9 | médio-baixo | **Corpus `Aplicativos_Windows_Populares` é local-only, sem SHA-256 pinado** — claims de smoke 7zFM/putty/WinRAR/Notepad++ não reexecutáveis fora da máquina do dono; degradação de teste está correta (não-registro quando ausente; skip 77) | `tests/CMakeLists.txt:9-91`; `tests/apps/README.md` |
 | B10 | baixo | README.md linka `CONTRIBUTING.md`/`CODE_OF_CONDUCT.md`/`SECURITY.md` inexistentes | `README.md:96-98` |
 | B11 | baixo | 5 checagens tautológicas (`size > uint64::max` em 64-bit) nos adapters — dead code com falsa confiança de defesa | `rust_path_validator.cpp:89`; `rust_profile_parser.cpp:665`; `rust_msix_parser.cpp:485`; `rust_pe_parser.cpp:888`; `rust_app_catalog_parser.cpp:654` |

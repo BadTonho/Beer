@@ -51,10 +51,14 @@ builds Rust ON e C++ OFF.
 O teste `popular_apps_recursive_report_matrix` amplia essa verificação para
 todos os 64 arquivos PE, DLL e MSIX encontrados recursivamente no corpus
 pinado, incluindo os diretórios extraídos de 7-Zip e Notepad++. Ele executa
-somente `--report`, sem iniciar DLLs, instaladores ou pacotes rejeitados; após a
-validação file-backed do diretório de exceções do Rufus, os builds Rust ON e
-C++ OFF retornam `24` sucessos, `3` rejeições estruturais e `37`
-formatos/arquiteturas não suportados em ambos os casos.
+somente `--report`, sem iniciar DLLs, instaladores ou pacotes rejeitados. A
+tolerância R29 ao Rufus e a resolução R47 de `NppConverter.dll`/`NppShell.dll`
+moveram casos do estado de rejeição para exit 0, e a varredura de correções da
+auditoria 2026-10-18 corrigiu expectativas obsoletas do script (achado B7). Em
+18 de outubro de 2026, os dois builds retornam `38` casos com exit 0 (sucesso
+de leitura/relatório), `26` com exit 5 (`Unsupported`) e nenhum com exit 4;
+o script `verify_popular_apps_recursive_report.cmake` é a fonte oficial das
+expectativas por arquivo.
 
 O teste `popular_apps_native_matrix` cobre seis casos de execução direta ou
 rejeição pré-entry: 7-Zip e os dois WinRAR terminam com `0`, Rockstar preserva
