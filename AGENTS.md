@@ -49,7 +49,7 @@ Antes de iniciar qualquer trabalho, leia `PROJETO.md`, `ROADMAP.md`, `docs/compa
 
 ## Escopo atual
 
-`ROADMAP.md` é a fonte de verdade para o ciclo vigente e seus critérios de saída. O ciclo atual é o de experiência desktop, com marcos ED1–ED5; confirme nele o próximo marco pendente antes de implementar mudanças. As capacidades já entregues permanecem como base de regressão, com seus limites definidos pelos contratos e pela matriz de compatibilidade. Os documentos em `feitos/` preservam o histórico e não reabrem etapas concluídas nem substituem o escopo vigente.
+`ROADMAP.md` é a fonte de verdade para o ciclo vigente e seus critérios de saída; confirme nele a próxima etapa pendente antes de implementar mudanças. As capacidades já entregues permanecem como base de regressão, com seus limites definidos pelos contratos e pela matriz de compatibilidade. Os documentos em `feitos/` preservam o histórico e não reabrem etapas concluídas nem substituem o escopo vigente.
 
 O primeiro marco funcional do projeto foi um `tl_hello.exe` próprio, sem CRT, que importa somente:
 

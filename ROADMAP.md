@@ -1,169 +1,147 @@
-# Roadmap de Experiência Desktop — TradutorLinux
+# Roadmap de uso diário — TradutorLinux
 
-## Direção
+## Objetivo
 
-Este roadmap orienta o próximo ciclo do TradutorLinux: tornar mais simples e
-confiável usar no desktop Linux os aplicativos Win32 **PE32+ x86-64** que o
-projeto já executa parcialmente. O foco é completar tarefas de usuário, integrar
-os aplicativos à sessão Linux e publicar evidências comparáveis.
+Tornar confiável o uso, no desktop Linux, dos aplicativos PE32+ x86-64 que o
+TradutorLinux já executa parcialmente. O ciclo prioriza tarefas completas de
+ponta a ponta: instalar, cadastrar, abrir, trabalhar com arquivos, diagnosticar
+problemas e remover um aplicativo da biblioteca.
 
-O objetivo é competir em experiência e em fluxos selecionados. Este ciclo não
-busca paridade geral com Wine nem amplia a arquitetura suportada.
+O roadmap não declara compatibilidade geral com aplicativos Windows. Cada
+fluxo promovido precisa de um resultado verificável, repetição em ambiente
+controlado e limitações registradas na matriz.
 
-## Escopo deste ciclo
+## Base atual
 
-- Manter Linux x86-64 e executáveis PE32+ x86-64.
-- Trabalhar com aplicativos já presentes no corpus e na matriz, incluindo
-  7-Zip, WinRAR, Notepad++, Everything e Rockstar Games Launcher.
-- Usar interfaces e serviços compartilhados para toda capacidade genérica.
-- Manter extensões específicas em `compat/apps/<app-id>/`, somente com seleção
-  explícita e contrato documentado.
-- Comparar fluxos de usuário reproduzíveis com uma versão identificada do Wine.
-
-PE32/x86, ARM, WOW64, .NET, COM amplo, drivers, serviços Windows, anti-cheat,
-DirectX nativo, áudio e GPU continuam fora deste ciclo. Incluí-los exigirá uma
-decisão de escopo e um roadmap próprio.
-
-## Base já implementada
-
-Os próximos marcos partem destas capacidades existentes; não as reabrem como
-trabalho novo:
-
-- O launcher Qt oferece biblioteca e busca, seleção de executável, análise,
-  execução, instalação, cadastro e diagnóstico do host.
+- O launcher Qt oferece biblioteca, busca, análise, execução, instalação,
+  cadastro e diagnóstico do host.
 - O catálogo CLI oferece `app add`, `app list`, `app run` e `app remove`, usa
-  prefixos por aplicativo e gera entradas `.desktop` ao cadastrar.
-- O runtime tem backends gráficos Linux X11 e Wayland, controles Win32
-  experimentais e smokes reais de GUI para aplicativos do corpus.
-- A matriz já registra tarefas concretas, como operação limitada de cópia no
-  7-Zip File Manager, extração WinRAR, inicialização e interação do launcher
-  Rockstar, inicialização GUI do Notepad++ e indexação CLI do Everything.
+  prefixos por aplicativo e cria entradas `.desktop` ao cadastrar.
+- Há backends gráficos X11 e Wayland e smokes de GUI para aplicativos do
+  corpus; a matriz descreve o estado e os limites de cada cenário.
+- Existem fluxos parciais de cópia no 7-Zip File Manager, extração no WinRAR,
+  GUI de Notepad++ e Everything, e interação inicial com o Rockstar Games
+  Launcher.
 
-Estados e limites continuam registrados em
-[`docs/compatibilidade.md`](docs/compatibilidade.md),
-[`docs/compatibilidade-aplicativos.md`](docs/compatibilidade-aplicativos.md) e
-[`docs/compatibilidade-runtime.md`](docs/compatibilidade-runtime.md).
-
-## Regras de execução
-
-Cada marco deve produzir implementação ou ferramenta de validação, testes
-automatizados ou um critério manual reproduzível, atualização dos contratos
-afetados e registro honesto na matriz de compatibilidade. Imports resolvidos,
-janela criada ou encerramento limpo isoladamente não comprovam uma tarefa de
-uso diário.
-
-Novas APIs Win32 precisam de um fluxo-alvo existente e regressão. Comportamento
-específico de aplicativo não pode entrar nos módulos comuns. Nenhum marco pode
-declarar suporte sem verificar o resultado produzido pelo aplicativo.
+Use [`docs/compatibilidade.md`](docs/compatibilidade.md) e suas matrizes
+temáticas como fonte do estado técnico atual. Os roadmaps em `feitos/` são
+histórico e não definem trabalho novo.
 
 ## Fila de trabalho
 
-### ED1 — Comparação reproduzível de fluxos com Wine
+### U1 — Biblioteca e atalhos consistentes
 
-**Objetivo:** criar uma linha de base que indique em quais tarefas o
-TradutorLinux já entrega uma experiência competitiva e onde o runtime ainda
-falha.
+**Objetivo:** administrar os cadastros pela GUI ou CLI sem deixar estado
+desatualizado no catálogo ou no menu do desktop.
 
-- [ ] Selecionar três fluxos GUI/desktop já cobertos parcialmente pela matriz,
-  preferindo tarefas verificáveis em arquivos ou estado observável.
-- [ ] Fixar as versões dos executáveis-alvo, do TradutorLinux e do Wine usados
-  na comparação.
-- [ ] Executar cada fluxo em ambiente limpo, com configuração e prefixo
-  separados, registrando preparação, interação, resultado, tempo e limitações.
-- [ ] Criar um relatório ou script reproduzível que mantenha os resultados do
-  Wine fora dos testes obrigatórios quando Wine não estiver instalado.
-- [ ] Publicar os resultados sem transformar uma pontuação agregada em alegação
-  de compatibilidade geral.
+- [ ] Permitir remover um cadastro pelo launcher Qt usando o contrato de
+  `app remove`.
+- [ ] Remover o `.desktop` correspondente quando o cadastro for removido pela
+  CLI ou pela GUI.
+- [ ] Preservar os arquivos instalados e o prefixo ao remover somente o
+  cadastro.
+- [ ] Cobrir cadastro, localização na biblioteca, execução e remoção em
+  diretórios de configuração temporários.
+- [ ] Tratar falhas de persistência sem exibir sucesso ou estado divergente.
 
-**Saída:** protocolo e primeira comparação versionados; cada resultado pode ser
-repetido no mesmo ambiente.
+**Saída:** GUI, CLI, catálogo e menu refletem o mesmo estado; os dados do
+aplicativo permanecem intactos após remover o cadastro.
 
-### ED2 — Ciclo de vida completo da biblioteca desktop
+### U2 — Abrir arquivos pelo desktop Linux
 
-**Objetivo:** permitir que a pessoa administre os aplicativos pela interface
-gráfica e manter catálogo e menu do Linux sincronizados.
+**Objetivo:** permitir iniciar um aplicativo cadastrado com arquivos escolhidos
+no gerenciador de arquivos ou em uma entrada do menu.
 
-- [ ] Adicionar remoção de cadastro no launcher Qt, usando o mesmo contrato do
-  comando `app remove`.
-- [ ] Remover a entrada `.desktop` correspondente quando o cadastro for
-  removido pelo CLI ou pelo launcher.
-- [ ] Manter os arquivos instalados e o prefixo ao remover o cadastro; remoção
-  de dados fica fora deste marco.
-- [ ] Cobrir instalar, cadastrar, localizar na biblioteca, executar, remover e
-  confirmar ausência no catálogo e no menu em diretórios de configuração
-  temporários.
-- [ ] Tratar falhas de gravação do catálogo ou remoção da entrada de desktop sem
-  deixar a interface mostrar um estado concluído incorreto.
+- [ ] Definir e documentar os argumentos de `app run` para um ou mais arquivos.
+- [ ] Encaminhar argumentos sem shell intermediário e converter caminhos para
+  a visão do prefixo do aplicativo.
+- [ ] Registrar associações de arquivo somente para aplicativos e tipos
+  escolhidos pela pessoa usuária.
+- [ ] Cobrir espaços, caracteres Unicode e arquivos fora do prefixo.
+- [ ] Verificar que o aplicativo-alvo abre o arquivo correto e que gravações
+  chegam ao destino esperado.
 
-**Saída:** o ciclo cadastro/execução/remoção funciona pela GUI e CLI, com
-catálogo e atalhos consistentes e dados do prefixo preservados.
+**Saída:** ao menos um aplicativo cadastrado abre e salva um arquivo iniciado
+no desktop, com os casos de caminho testados documentados.
 
-### ED3 — Abrir arquivos Linux com aplicativos Windows cadastrados
+### U3 — GUI confiável na sessão Linux
 
-**Objetivo:** integrar os aplicativos selecionados ao fluxo de abrir arquivos
-do desktop Linux.
+**Objetivo:** validar o ciclo de vida e a interação das janelas nos backends
+gráficos existentes, com limites claros por ambiente.
 
-- [ ] Definir o contrato de argumentos de `app run` para um ou mais arquivos,
-  incluindo espaços, Unicode e caminhos fora do prefixo.
-- [ ] Passar argumentos sem shell intermediário e convertê-los para caminhos
-  visíveis ao convidado segundo o contrato do prefixo.
-- [ ] Permitir que a entrada `.desktop` encaminhe arquivos somente para os
-  aplicativos e tipos escolhidos pela pessoa usuária.
-- [ ] Adicionar uma fixture de regressão para argumentos e uma integração com
-  um aplicativo existente do corpus, verificando que o arquivo certo foi
-  aberto e que gravações chegam ao destino esperado.
-- [ ] Documentar os tipos de arquivo e limites efetivamente testados.
+- [ ] Manter X11/Xvfb como cenário automatizado independente.
+- [ ] Criar cenário automatizado sob Wayland quando houver compositor de teste
+  disponível.
+- [ ] Validar criação, título, foco, redimensionamento, teclado, mouse e
+  fechamento para um aplicativo real escolhido a partir da matriz.
+- [ ] Corrigir somente diferenças observadas no fluxo-alvo e adicionar
+  regressão para cada comportamento alterado.
+- [ ] Registrar resultados e limitações de cada backend na matriz e no contrato
+  de GUI.
 
-**Saída:** pelo menos um aplicativo cadastrado abre e salva um arquivo iniciado
-no desktop Linux, com caminhos Unicode e com espaços protegidos por teste.
+**Saída:** pelo menos um fluxo real tem evidência reproduzível em cada backend
+declarado como coberto.
 
-### ED4 — GUI convidada confiável em X11 e Wayland
+### U4 — Fluxos cotidianos completos
 
-**Objetivo:** evoluir os backends existentes usando problemas observados em
-fluxos reais, sem declarar equivalência Win32 gráfica geral.
+**Objetivo:** transformar os smokes parciais existentes em tarefas verificadas
+do início ao resultado observável.
 
-- [ ] Criar um cenário automatizado de aplicativo real sob Wayland quando houver
-  compositor de teste disponível; manter X11/Xvfb como cenário independente.
-- [ ] Validar ciclo de vida, título, fechamento, foco, redimensionamento,
-  teclado e mouse no aplicativo-alvo escolhido.
-- [ ] Acrescentar clipboard, escala DPI, diálogos ou outras integrações somente
-  quando um fluxo-alvo exigir o comportamento e houver fixture de regressão.
-- [ ] Registrar diferenças por backend na matriz e no contrato de GUI.
+- [ ] Priorizar cópia no 7-Zip File Manager, extração no WinRAR, edição e
+  gravação no Notepad++ e geração de lista `.efu` no Everything.
+- [ ] Para cada tarefa, verificar entradas, interação ou argumentos, artefato
+  final, código de saída e encerramento.
+- [ ] Repetir o cenário em prefixo limpo e após reiniciar o aplicativo quando
+  isso fizer parte do fluxo.
+- [ ] Manter comportamento específico de aplicativo em `compat/apps/<app-id>/`
+  e ativado somente por seleção explícita.
+- [ ] Promover na matriz somente os fluxos que passaram integralmente; imports
+  resolvidos e janela aberta, isoladamente, não bastam.
 
-**Saída:** ao menos um fluxo real tem resultado reproduzível em X11 e Wayland;
-limitações por backend aparecem no trace e na documentação.
+**Saída:** pelo menos três tarefas do portfólio são repetíveis de ponta a ponta
+e têm evidência e limites publicados.
 
-### ED5 — Promover fluxos cotidianos por evidência
+### U5 — Instalação e diagnóstico para uso contínuo
 
-**Objetivo:** promover aplicativos existentes somente depois que tarefas
-representativas forem repetíveis do início ao fim.
+**Objetivo:** tornar a instalação e a recuperação de problemas claras para
+quem usa o aplicativo no dia a dia.
 
-- [ ] Priorizar fluxos existentes do 7-Zip File Manager, WinRAR, Notepad++ e
-  Everything; não adicionar aplicativos ao corpus apenas para aumentar a lista.
-- [ ] Para cada fluxo, verificar entrada, interação, arquivo ou estado final,
-  encerramento, repetição em prefixo limpo e comportamento após reinício.
-- [ ] Executar os mesmos passos na versão fixada do Wine definida em ED1 e
-  publicar diferenças e limitações.
-- [ ] Atualizar nível funcional na matriz somente para as tarefas que passaram;
-  manter `--report`, execução e uso diário como dimensões distintas.
-- [ ] Preparar uma versão empacotada com instruções claras para instalar,
-  cadastrar, abrir, diagnosticar e remover aplicativos.
+- [ ] Definir um caminho reproduzível de instalação e inicialização do
+  TradutorLinux em Linux x86-64.
+- [ ] Documentar requisitos do host, instalação de aplicativos, prefixos,
+  biblioteca, atualização e remoção de cadastro.
+- [ ] Garantir que erros comuns indiquem aplicativo, etapa, módulo ou símbolo
+  envolvido e a próxima limitação conhecida.
+- [ ] Validar instruções em uma instalação limpa e manter exemplos alinhados
+  com os comandos realmente disponíveis.
 
-**Saída:** pelo menos três fluxos cotidianos do portfólio têm evidência de
-integração repetível e comparação publicada. Isso não implica suporte geral aos
-aplicativos nem paridade com Wine.
+**Saída:** uma pessoa consegue instalar, cadastrar, abrir, diagnosticar e
+remover um aplicativo seguindo as instruções publicadas.
+
+## Regras para avançar os marcos
+
+- Trabalhar somente na etapa pendente ou em dependência direta dela.
+- Cada API Win32 nova precisa de fluxo-alvo existente e teste de regressão.
+- Manter o runtime genérico; isolar adaptações específicas em extensões
+  explícitas por aplicativo, conforme os contratos do projeto.
+- Atualizar contratos e matriz de compatibilidade quando o comportamento ou o
+  estado de uma aplicação mudar.
+- Marcar uma tarefa concluída somente com código ou ferramenta, evidência
+  reproduzível e validação exigida pelas regras do projeto.
+- Preservar Linux x86-64 e PE32+ x86-64. Ampliar arquitetura ou incluir classes
+  atualmente fora do escopo exige decisão explícita e critérios próprios.
 
 ## Critério de conclusão do ciclo
 
-O ciclo termina quando ED1–ED5 têm evidência reproduzível, o launcher e o menu
-Linux mantêm o estado dos aplicativos de forma consistente, pelo menos três
-fluxos cotidianos passam em X11 e Wayland conforme sua cobertura declarada, e a
-matriz publica limitações e comparação sem extrapolar os resultados.
+U1–U5 têm evidência reproduzível; catálogo e menu permanecem consistentes; pelo
+menos três fluxos cotidianos são concluídos nos ambientes declarados; e as
+instruções publicadas permitem instalação, uso e diagnóstico sem extrapolar a
+matriz de compatibilidade.
 
 ## Histórico
 
-O roadmap anterior, cobrindo as etapas R25–R29 e a rodada de corpus de setembro
-de 2026, foi preservado em
-[`feitos/ROADMAP-R25-R29.md`](feitos/ROADMAP-R25-R29.md). O histórico anterior
-continua em [`feitos/ROADMAP-R1-R24.md`](feitos/ROADMAP-R1-R24.md) e
-[`feitos/ROADMAP-LEGADO.md`](feitos/ROADMAP-LEGADO.md).
+O roadmap anterior de experiência desktop foi substituído neste ciclo. Os
+roadmaps R25–R29 e R1–R24 continuam preservados em
+[`feitos/ROADMAP-R25-R29.md`](feitos/ROADMAP-R25-R29.md) e
+[`feitos/ROADMAP-R1-R24.md`](feitos/ROADMAP-R1-R24.md); o histórico fundacional
+está em [`feitos/ROADMAP-LEGADO.md`](feitos/ROADMAP-LEGADO.md).
