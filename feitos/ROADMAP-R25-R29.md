@@ -1,0 +1,296 @@
+# Roadmap R25–R29 — histórico
+
+> Este documento preserva o roadmap que esteve ativo de 2026-09-19 a 2026-10-20. Ele foi arquivado quando o foco do produto mudou. O roadmap vigente está em [`../ROADMAP.md`](../ROADMAP.md).
+
+## Estado do documento
+
+Este documento registra o roadmap de desenvolvimento e estabilização que
+esteve ativo de 2026-09-19 a 2026-10-20. Suas etapas R25–R29 foram concluídas;
+o documento foi arquivado e não define mais o trabalho vigente.
+
+O histórico das etapas concluídas está preservado em:
+- [ROADMAP-R1-R24.md](ROADMAP-R1-R24.md) — Auditoria e ciclo R1 a R24 (2026-09-12 a 2026-09-15);
+- [ROADMAP-LEGADO.md](ROADMAP-LEGADO.md) — Fases fundacionais e marcos legados.
+
+As regras de escopo continuam rigorosas: nenhuma capacidade deve ser declarada
+sem teste de integração e registro na matriz de compatibilidade em
+[`docs/compatibilidade.md`](../docs/compatibilidade.md).
+
+## Regras de execução
+
+Cada etapa deve produzir:
+
+1. implementação mínima no runtime ou no fixture de teste;
+2. teste unitário ou de robustez;
+3. fixture ou integração com aplicativo-alvo quando a mudança afetar uma API
+   Win32 observável;
+4. atualização da documentação técnica na pasta `docs/` e da matriz de
+   compatibilidade;
+5. validação reproduzível no Linux x86-64;
+6. um commit próprio antes do início da etapa seguinte.
+
+Uma exportação resolvida nunca pode ser tratada como suporte funcional. Quando a
+operação ainda não existir, o runtime deve retornar uma falha controlada,
+atualizar o erro correspondente (`GetLastError`) e registrar a limitação no
+diagnóstico.
+
+---
+
+## Fila de trabalho atual
+
+### ~~R25~~ — Definir chave de host de teste e contrato de assinatura para o PuTTY ✓
+
+**Contexto:** A etapa R24 concluiu a seleção nominal de algoritmos comuns do
+`SSH_MSG_KEXINIT` entre o cliente PuTTY e o listener do smoke. O próximo passo do
+transporte SSH exige que o servidor forneça uma chave de host válida para o
+algoritmo negociado e prepare a troca Diffie-Hellman (`SSH_MSG_KEXDH_INIT`). O
+fixture deve manter a execução controlada sem introduzir cifras reais,
+autenticação ou código específico do PuTTY no runtime.
+
+**Tarefas:**
+
+- [x] definir uma chave de host de teste determinística compatível com os
+  algoritmos comuns negociados em R24 (ex.: `rsa-sha2-256` ou `ssh-ed25519`);
+- [x] estruturar a resposta do servidor do smoke para empacotar o blob de chave
+  pública de host com enquadramento SSH válido;
+- [x] receber e validar o primeiro pacote `SSH_MSG_KEXDH_INIT` (tipo 30) emitido
+  pelo cliente PuTTY após o processamento da chave de host;
+- [x] responder com encerramento controlado via `SSH_MSG_DISCONNECT` e verificar
+  a exibição do diálogo de erro esperado;
+- [x] atualizar os contratos em `docs/arquitetura/aplicativos-bloqueios.md` e a
+  matriz em `docs/compatibilidade-aplicativos.md`.
+
+**Critério de aceite:** ✓ O listener valida o banner, troca `KEXINIT` com os
+algoritmos selecionados, aguarda o `SSH_MSG_KEXDH_INIT` do PuTTY com
+`parse_kexdh_init_packet` (mpint `e` de 256–258 bytes), encerra com
+`SSH_MSG_DISCONNECT` e observa o diálogo `PuTTY Fatal Error` no X11. Smoke
+`putty_ssh_local_probe` (test 647) passou em 2026-09-19 reportando
+`KEXDH_INIT received, guest-timeout 72 (limitation recorded)` — Evidência E46.
+
+---
+
+### ~~R26 — Despacho polimórfico e ampliação de cleanups C++ FH4~~ ✓ Concluído
+
+**Contexto:** As etapas R6 e R7 implementaram decodificação host-side de
+cabeçalhos FH4, despacho de catches tipados e execução do prefixo seguro de até
+quatro cleanups de término observados no Notepad++. O aplicativo possui uma
+cadeia mais longa de destruição observada (até 13 estados) que anteriormente acionava
+o limite protetivo `fh4-cleanup-limit`.
+
+**Tarefas:**
+
+- [x] analisar os estados subsequentes da cadeia de cleanups do frame-alvo com
+  fixture reproduzível de C++ EH e inspecionar o matching de `target_frame`;
+- [x] validar com segurança os funclets de destruição seguintes, assegurando o
+  alinhamento estrito de 16 bytes da pilha, a preservação de registradores não-voláteis
+  e a delimitação ao `target_state` (`try_low`);
+- [x] estender o limite seguro de cleanups de 4 para 16 ações (profundidade observada),
+  mantendo a proteção contra ciclos infinitos e mapas corrompidos;
+- [x] verificar a integridade da stack no retorno via `catchret` e a transição
+  estável para o fluxo seguinte do Notepad++;
+- [x] registrar os novos eventos e limites em `docs/arquitetura/unwinding-x64.md`,
+  `docs/diagnostico-runtime.md`, `docs/compatibilidade-aplicativos.md` e `docs/compatibilidade.md`.
+
+**Critério de aceite:** O smoke `notepadpp_fh4_headless_smoke` executa a
+cadeia estendida de cleanups (`fh4-termination-cleanup`) sem atingir `fh4-cleanup-limit`, mantendo exit code
+`0`, ausência de `guest-signal 71` e sem corrupção do frame do chamador (validado com CTest 635: Passed).
+
+---
+
+### ~~R27 — Expansão do modelo de controles comuns Win32 (`SysListView32` / `COMCTL32`)~~ ✓ Concluído
+
+**Contexto:** O 7-Zip File Manager (`7zFM_x64.exe`) e outros utilitários Win32
+dependem de controles comuns de lista para exibição e navegação de itens. O
+runtime possui modelo lógico para `SysTreeView32`, toolbars e caixas de diálogo,
+mas a interação avançada de listagem exige tratamento das mensagens básicas
+`LVM_*` para evitar consultas sem resposta ou ponteiros nulos.
+
+**Tarefas:**
+
+- [x] inventariar as mensagens `LVM_*` consumidas pelo 7-Zip File Manager no fluxo
+  de visualização de pastas (`LVM_GETITEMCOUNT`, `LVM_GETITEMW`, `LVM_SETITEMSTATE`);
+- [x] implementar tratamento controlado dessas mensagens no controle lógico de
+  lista do runtime (`src/runtime/gui_controls.cpp`);
+- [x] assegurar que cópias de texto e estruturas `LVITEMW` utilizem a primitiva
+  segura de memória convidada (`write_guest_memory`);
+- [x] adicionar testes unitários cobrindo o controle em `tests/test_gui_controls.cpp`;
+- [x] atualizar a documentação de controles em `docs/arquitetura/gui-x11.md`.
+
+**Critério de aceite:** ✓ O controle de lista responde às mensagens de contagem,
+inserção, obtenção, texto, ordenação e seleção sem expor memória inválida do host;
+testes unitários em `tests/test_gui_controls.cpp` e testes de layout em `tests/test_win32_gui.cpp`
+passam 100% (validado no commit `e2939ee`).
+
+---
+
+### ~~R28 — Suporte a pacotes MSIX de grande porte e validação de Affinity x64~~ ✓ Concluído
+
+**Contexto:** O pacote `Affinity x64.msix` possui 642 MiB comprimido, 1.45 GiB
+descompactado e 1284 entradas com arquivos de até 342 MiB. Anteriormente o runtime
+impunha um limite conservador de 512 MiB total e 512 MiB por entrada, além de
+falhar em entradas DEFLATE vazias (`expected_size == 0`) devido à rejeição
+por `Z_STREAM_ERROR` na zlib quando `avail_out == 0`.
+
+**Tarefas:**
+
+- [x] ampliar os limites seguros de arquivo e descompressão MSIX para 4 GiB total,
+  2 GiB por entrada e 20000 entradas (`src/package/msix.cpp`);
+- [x] tratar streams DEFLATE com saída esperada de 0 bytes usando buffer auxiliar seguro
+  com `avail_out = 1` tanto no parser C++ (`inflate_raw`) quanto na ponte Rust (`tl_msix_inflate_raw`);
+- [x] verificar que `--report` no pacote real reconhece o manifesto AppX (Canva.Affinity v3.2.3.4646, App\Affinity.exe) com exit code `0`;
+- [x] verificar que `install` extrai todas as 1284 entradas com segurança e registra o aplicativo no catálogo com exit code `0`;
+- [x] atualizar testes de matriz do corpus real (`verify_popular_apps_report.cmake`, `verify_popular_apps_recursive_report.cmake`, `verify_popular_apps_native.cmake` e `verify_popular_apps_install.cmake`);
+- [x] atualizar matrizes de compatibilidade em `docs/compatibilidade.md` e `docs/compatibilidade-aplicativos.md`.
+
+**Critério de aceite:** ✓ `popular_apps_report_matrix`, `popular_apps_recursive_report_matrix`,
+`popular_apps_native_matrix` e `popular_apps_install_matrix` passam 100% (4/4 CTests);
+extração e cadastro de `Affinity x64.msix` validadas com sucesso sem vazamento de memória ou arquivos residuais.
+
+---
+
+### ~~R29 — Tolerância no leitor PE para diretórios de dados em seções virtuais UPX (`HWiNFO64.exe` e `Rufus_x64.exe`)~~ ✓ Concluído
+
+**Contexto:** Binários comprimidos com UPX frequentemente declaram seções com
+`SizeOfRawData == 0` e `VirtualSize > 0` (como `UPX0`), contendo páginas alocadas
+que serão preenchidas na memória em tempo de execução. O `pe_reader.cpp` anteriormente
+rejeitava executáveis cujos Data Directories apontem para dentro dessas seções virtuais
+(`parse-failed status="malformed" detail="diretório de exports fora da imagem"` no HWiNFO64
+e `diretório de exceções fora da imagem` no Rufus_x64).
+
+**Tarefas:**
+
+- [x] mapear os limites e características das seções UPX em `HWiNFO64.exe` e `Rufus_x64.exe`;
+- [x] permitir tolerância segura no leitor PE quando um diretório opcional (como exports ou exceções)
+  aponta para seção com `raw_data_size == 0`, tratando-o como não populado estaticamente em vez de erro de formato;
+- [x] adicionar testes de regressão para parsing estático de PE com seções virtuais zeradas (`PeReaderTest.ToleratesDataDirectoriesInUninitializedVirtualSection`);
+- [x] validar `--report` em `HWiNFO64.exe` e `Rufus_x64.exe` e atualizar os testes de matriz do corpus.
+
+**Critério de aceite:** ✓ `--report` em `HWiNFO64.exe` e `Rufus_x64.exe` conclui com diagnóstico
+claro sem aborto por imagem malformada e 100% de imports resolvidos (28/28 e 14/14);
+testes de matriz do corpus (`popular_apps_report_matrix`, `popular_apps_recursive_report_matrix`,
+`popular_apps_native_matrix` e `popular_apps_install_matrix`) passam 100%. Execução direta rejeitada de forma controlada por W^X (`entry point fora de uma página executável`, exit 4).
+
+---
+
+## Fora desta rodada
+
+Continuam estritamente fora do escopo desta rodada:
+
+- otimizações sem benchmark reproduzível;
+- grandes refatorações estruturais ou reescrita de subsistemas estáveis;
+- suporte a binários PE32 de 32 bits (x86), ARM ou WOW64;
+- emulação de drivers de kernel, serviços Windows, anticheat e DirectX nativo;
+---
+
+## Auditoria de Erros e Bloqueios do Corpus Real (2026-09-19)
+
+Executada via `./build/debug/src/tradutorlinux` sobre os 27 alvos do corpus
+`Aplicativos_Windows_Populares/`. A rodada cobriu:
+1. `--report`: análise estática de PE, seções, mitigação, recursos e imports;
+2. execução direta: limites de segurança `--timeout 3 --cpu 3 --memory 512 --trace` em ambiente isolado;
+3. `install`: tentativa de instalação com prefixos temporários isolados em `/tmp/` para pacotes e instaladores.
+
+### Tabela de Resultados
+
+| Aplicativo / Pacote | Análise (`--report`) | Execução (`run`) | Instalação (`install`) | Diagnóstico do Erro Principal |
+|---|---|---|---|---|
+| `7z_x64.exe` | exit 0 (100% imports) | exit 0 | — | Sucesso funcional |
+| `7zFM_x64.exe` | exit 0 (100% imports) | exit 0 | — | Sucesso sob display / `CreateWindowExA` requer backend gráfico |
+| `7z.dll` | exit 0 (100% imports) | — | — | DLL dependente válida |
+| `winrar-x64-723.exe` | exit 0 (100% imports) | exit 0 | — | Sucesso SFX |
+| `WinRAR_x64.exe` | exit 0 (100% imports) | exit 0 | — | Sucesso SFX |
+| `putty_x64.exe` | exit 0 (100% imports) | exit 72 (`GuestTimeout`) | — | `clock_nanosleep` timeout aguardando transporte de rede/diálogo |
+| `notepad++.exe` | exit 0 (100% imports) | exit 0 | — | Inicialização headless válida / `CreateWindowExA` requer display |
+| `Notepad++/notepad++.exe` | exit 0 (100% imports) | exit 0 | — | Inicialização headless válida |
+| `Notepad++/updater/GUP.exe` | exit 0 (100% imports) | exit 255 (ExitProcess -1) | — | Sucesso na resolução PE64 + libcurl.dll side-by-side |
+| `7-Zip/7zG.exe` | exit 0 (100% imports) | exit 0 | — | Operação gráfica do 7-Zip |
+| `RTSS.exe` | exit 5 (`unsupported-arch`) | exit 5 | — | Arquitetura 32-bit x86 (`0x14c`) não suportada |
+| `RTSSHooks64.dll` | exit 0 (100% imports) | — | — | DLL x64 válida |
+| `RobloxPlayerInstaller.exe` | exit 0 (100% imports) | exit 3 (`ExitProcess 3`) | exit 3 | `RBXCRASH: FatalRuntimeError (RSL - panic: e374e9c-Worker,28)` |
+| `Rockstar-Games-Launcher.exe` | exit 0 (100% imports) | exit 3 (`ExitProcess 3`) | — | `ExitProcess(3)` explícito do convidado |
+| `Logitech_GHUB_x64.exe` | exit 0 (100% imports) | exit 1 (`ExitProcess 1`) | exit 1 | `failed stage="setup" exit-code="1"` |
+| `lghub_installer.exe` | exit 0 (100% imports) | exit 1 (`ExitProcess 1`) | exit 1 | `failed stage="setup" exit-code="1"` |
+| `7-Zip_x64_Installer.exe` | exit 5 (`unsupported-arch`) | exit 5 | exit 0 | Bootstrap 32-bit; payload PE64 registrado no install |
+| `Notepad++_x64_Installer.exe` | exit 5 (`unsupported-arch`) | exit 5 | exit 0 | Bootstrap NSIS 32-bit; payload PE64 registrado no install |
+| `Affinity x64.msix` | exit 0 (100% manifesto) | — | exit 0 | Sucesso na extração e cadastro do pacote MSIX |
+| `CapCut_*_installer.exe` | exit 5 (`unsupported-arch`) | exit 5 | exit 5 | Arquitetura 32-bit x86 (`0x14c`) não suportada |
+| `Creative_Cloud_Set-Up_7474.exe`| exit 5 (`unsupported-arch`) | exit 5 | exit 5 | Arquitetura 32-bit x86 (`0x14c`) não suportada |
+| `EpicInstaller-*.exe` | exit 5 (`unsupported-arch`) | exit 5 | exit 5 | Arquitetura 32-bit x86 (`0x14c`) não suportada |
+| `Everything_Search_x64.exe` | exit 5 (`unsupported-arch`) | exit 5 | — | Arquitetura 32-bit x86 (`0x14c`) não suportada |
+| `CPU-Z_2.18_en.exe` | exit 5 (`unsupported-arch`) | exit 5 | — | Arquitetura 32-bit x86 (`0x14c`) não suportada |
+| `GPU-Z_2.70.0.exe` | exit 5 (`unsupported-arch`) | exit 5 | — | Arquitetura 32-bit x86 (`0x14c`) não suportada |
+| `HWMonitor_1.67.exe` | exit 5 (`unsupported-arch`) | exit 5 | — | Arquitetura 32-bit x86 (`0x14c`) não suportada |
+| `HWiNFO64.exe` | exit 0 (100% imports) | exit 4 (`map-failed: W^X`) | exit 0 (prepare) | Seções UPX tratadas estaticamente (R29); bloqueio por W^X na execução direta |
+| `officedeploymenttool_*.exe` | exit 5 (`unsupported-arch`) | exit 5 | exit 5 | Arquitetura 32-bit x86 (`0x14c`) não suportada |
+| `RTSSSetup737.exe` | exit 5 (`unsupported-arch`) | exit 5 | exit 0 | Bootstrap 32-bit; payload PE64 registrado no install |
+| `Rufus_x64.exe` | exit 0 (100% imports) | exit 4 (`map-failed: W^X`) | — | Seções UPX tratadas estaticamente (R29); bloqueio por W^X na execução direta |
+
+---
+
+### Detalhamento dos Erros por Causa-Raiz Técnica
+
+#### 1. Rejeição Estrutural: Arquitetura 32-bit (x86 / Machine 0x14c) — Exit Code 5
+- **Mensagem do Runtime:**
+  ```text
+  [tl][pe][error] parse-failed status="unsupported-architecture" detail="arquitetura de máquina 0x14c não suportada (esperado AMD64)"
+  ```
+- **Aplicativos afetados:** 12 binários (`CapCut`, `Creative Cloud`, `EpicInstaller`, `Everything Search`, `CPU-Z`, `GPU-Z`, `HWMonitor`, `Office Deployment`, `RTSS.exe`, e os bootstraps de instalação de `7-Zip`, `Notepad++` e `RTSS`).
+- **Causa Técnica:** O cabeçalho COFF possui `Machine = 0x14c` (i386). O TradutorLinux tem como alvo estrito PE32+ (AMD64 0x8664). O comando `install` consegue contornar instaladores cujo payload PE32+ seja descompactável para o prefixo, mas a execução direta do wrapper 32-bit é rejeitada por contrato.
+
+#### 2. Packers / Seções UPX e Segurança W^X (`HWiNFO64.exe`, `Rufus_x64.exe`)
+- **Análise Estática (Resolvida em R29):** O cabeçalho PE apontava diretórios de dados (exports em HWiNFO64 e `.pdata` em Rufus) para dentro de seções virtuais (`UPX0`, com `SizeOfRawData == 0`). O parser agora tolera diretórios opcionais não mapeados em disco sem falha de imagem malformada, alcançando 100% de resolução de imports (exit code 0).
+- **Execução Direta (Bloqueio Controlado por W^X):** O entry point dessas imagens fica em páginas compactadas `UPX1` marcadas pelo packer com flags W+X (Read+Write+Execute). O runtime aplica estritamente a política W^X, mapeando essas seções como RW inicial e bloqueando a execução de código em memória gravável (`map-failed: entry point fora de uma página executável`, exit code 4).
+
+#### 3. Limite de Pacote MSIX / AppX — Resolvido em R28
+  ```text
+  [tl][install][error] failed stage="package-parse" prefix="/tmp/.../pfx" app-id="test_affinity_x64"
+  erro: pacote MSIX / AppX inválido ou não suportado
+  ```
+  - **Causa:** O parser ZIP64/MSIX impõe um limite máximo de segurança descompactado de 512 MiB para contenção contra abusos de descompressão (ZIP bomb). O arquivo do Affinity excede esse limite e requer streaming ou ajuste do validador.
+
+#### 4. Erros de Inicialização e Término do Convidado (Exit Codes 3 e 1)
+- **RobloxPlayerInstaller.exe:**
+  - **Relatório de Imports:** 100% resolvidos (430/430).
+  - **Erro observado:**
+    ```text
+    RBXCRASH: FatalRuntimeError (RSL - panic: e374e9c-Worker,28)
+    [tl][runtime][info] ExitProcess symbol="ExitProcess" exit-code="3" status="success" mechanism="guest-transfer"
+    [tl][install][error] failed stage="setup" exit-code="3"
+    ```
+  - **Causa:** O worker interno do instalador da Roblox falha ao consultar componentes de sessão/rede ou slots de TLS específicos, disparando o panic `RBXCRASH` interno do binário Windows.
+- **Rockstar-Games-Launcher.exe:**
+  - **Relatório de Imports:** 100% resolvidos (338/338).
+  - **Erro observado:** Encerramento imediato do entry point com `ExitProcess(3)` sem mensagem adicional de erro.
+- **Logitech_GHUB_x64.exe / lghub_installer.exe:**
+  - **Relatório de Imports:** 100% resolvidos (114/114).
+  - **Erro observado:**
+    ```text
+    [tl][runtime][info] ExitProcess symbol="ExitProcess" exit-code="1" status="success" mechanism="guest-transfer"
+    [tl][install][error] failed stage="setup" exit-code="1"
+    ```
+  - **Causa:** O instalador detecta falta de serviços de background (`advapi32!OpenSCManagerW` / gerenciador de serviços) ou caminhos de diretório de instalação não inicializados e aborta com código 1.
+
+#### 5. Dependências Dinâmicas Ausentes / Lado a Lado — Resolvido
+- **Notepad++/updater/GUP.exe:**
+  - **Status:** 100% resolvido (153/153 imports).
+  - **Resolução Técnica:** O validador de imports (`loader::inspect_imports`) agora inspeciona DLLs convidadas presentes lado a lado no diretório do executável (`libcurl.dll`). Com as exportações de criptografia (`Normaliz.dll`, `bcrypt.dll`, `WLDAP32` e `CRYPT32`), a cadeia de `libcurl.dll` e `GUP.exe` resolve integralmente tanto em `--report` quanto em execução direta.
+
+#### 6. Timeout de Conexão e Espera de Mensagens — Exit Code 72
+- **putty_x64.exe:**
+  - **Erro observado:**
+    ```text
+    [tl][process][error] terminated category="guest-timeout" timeout-ms="3000" timeout-samples="13" timeout-pe-samples="0" timeout-host-samples="13" host-symbol="clock_nanosleep"
+    ```
+  - **Causa:** Em execução direta sem servidor SSH local ou sem interação GUI, a thread principal entra no loop ocioso de espera (`clock_nanosleep` / `GetMessageA`) até o timeout do hospedeiro (`72`).
+
+---
+
+## Referências
+
+- [PROJETO.md](../PROJETO.md) — Missão, escopo e limites do produto;
+- [docs/compatibilidade.md](../docs/compatibilidade.md) — Matriz geral de compatibilidade;
+- [docs/compatibilidade-runtime.md](../docs/compatibilidade-runtime.md) — Contratos do runtime;
+- [docs/arquitetura/aplicativos-bloqueios.md](../docs/arquitetura/aplicativos-bloqueios.md) — Histórico de bloqueios e evidências de rede/GUI;
+- [docs/arquitetura/unwinding-x64.md](../docs/arquitetura/unwinding-x64.md) — Contrato de unwinding e C++ EH;
+- [feitos/ROADMAP-R1-R24.md](ROADMAP-R1-R24.md) — Registro das etapas concluídas R1 a R24;
+- [feitos/ROADMAP-LEGADO.md](ROADMAP-LEGADO.md) — Histórico legado do projeto.

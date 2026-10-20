@@ -4,7 +4,7 @@
 
 O TradutorLinux é um runtime de compatibilidade **sério e de produção**: um runtime capaz de executar, de forma progressiva e confiável, **classes cada vez mais amplas de aplicativos Win32 reais** no Linux, sem máquina virtual e sem emular a CPU — com foco em uso diário, não apenas educacional.
 
-O objetivo estratégico é tornar o runtime útil para o portfólio real `Aplicativos_Windows_Populares/` (`Roblox`, `WinRAR`, `HWiNFO64`, `7-Zip`, `putty`, `RTSSHooks`) avançando por classes de uso com `--report`/`--trace` e `exit code` reproduzíveis. Isso é uma meta de produto de longo prazo, não uma alegação de compatibilidade universal imediata: cada capacidade precisa ser implementada, testada e publicada antes de ser considerada suportada.
+O objetivo estratégico é tornar útil no desktop Linux um conjunto crescente de aplicativos reais do corpus `Aplicativos_Windows_Populares/`, completando fluxos verificáveis de instalação, abertura, interação e gravação. `--report`, `--trace`, `exit code` e resultados observáveis sustentam cada declaração de compatibilidade. Isso não é uma alegação de paridade geral com Wine: cada capacidade precisa ser implementada, testada e publicada antes de ser considerada suportada.
 
 O alvo inicial é deliberadamente restrito:
 
@@ -53,19 +53,20 @@ Linux / POSIX
 
 ### 3.1. Objetivos de produto
 
-- Manter os alvos já suportados e ampliar progressivamente um portfólio de
-  console, arquivos, rede, instaladores e GUI, priorizando capacidades úteis a
-  várias aplicações em vez de ajustes exclusivos para um programa.
+- Manter os alvos já suportados e priorizar fluxos de desktop Linux completos
+  para aplicativos PE32+ x86-64 já presentes no corpus.
 - Buscar cobertura prática de classes comuns de aplicativos Win32 PE32+ x86-64
   de espaço de usuário, sem declarar que todo `.exe` dessas classes funciona
   antes de haver evidência reproduzível.
+- Integrar instalação, biblioteca, execução, arquivos e remoção ao desktop Linux
+  sem perder o isolamento de prefixos e os diagnósticos do runtime.
 - Informar com clareza quando um executável ou API ainda não é suportado.
 - Produzir rastros de execução que expliquem imports, chamadas e falhas.
 - Manter uma matriz de compatibilidade e testes automatizados para cada função implementada.
 
 ### 3.2. Objetivos de produto sério
 
-- Entregar valor para o portfólio real: `Roblox`, `WinRAR`, `HWiNFO64`, `7-Zip`, `putty`, `RTSSHooks`, medindo separadamente resolução de imports, nível de execução e limitações reproduzíveis via `--trace` em `docs/diagnostico.md`.
+- Entregar valor para fluxos representativos do portfólio real, medindo separadamente resolução de imports, execução, resultado observável e limitações via `--trace` em `docs/diagnostico.md`; comparar os mesmos fluxos com versões identificadas do Wine.
 - Garantir estabilidade: loader, ABI, memória, imports, TLS, unwind/SEH e diagnósticos com `exit code` `71/72` e `fault-address` antes de ampliar famílias de DLL.
 - Manter qualidade de produção: warnings rigorosos, `CTest` `sanitize`, `LSAN_OPTIONS`, `Xvfb` e matriz `docs/compatibilidade.md` atualizada a cada API.
 
@@ -96,9 +97,8 @@ qual módulo, símbolo e mecanismo não foram suportados.
 
 Esses limites descrevem o estágio atual, não o limite definitivo do produto. A expansão para novas classes exige uma fase ou aplicativo-alvo explícito, contratos técnicos, testes de integração e atualização da matriz de compatibilidade.
 
-O plano de execução legado, dividido em fases, marcos e entregas verificáveis,
-está em [ROADMAP-LEGADO.md](feitos/ROADMAP-LEGADO.md). As próximas etapas
-válidas estão no [ROADMAP.md](ROADMAP.md).
+O histórico das etapas anteriores está em [`feitos/`](feitos/). O plano vigente
+de experiência desktop está no [ROADMAP.md](ROADMAP.md).
 
 ## 4. Arquitetura proposta
 
@@ -147,7 +147,6 @@ TradutorLinux/
 ├── AGENTS.md
 ├── docs/                           # contratos, auditoria e matrizes
 │   ├── arquitetura/                # ABI, SEH/x64, aplicativos-bloqueios
-│   ├── auditoria-2026-10-18.md     # varredura estática com erratas de correção
 │   ├── compatibilidade.md, compatibilidade-runtime.md
 │   ├── compatibilidade-aplicativos.md, compatibilidade-backends.md
 │   ├── diagnostico.md, catalog.md, requisitos-aplicativos.md
@@ -175,7 +174,7 @@ TradutorLinux/
 │   └── pe_builder.hpp, test_support.hpp, CMakeLists.txt
 ├── compat/
 │   └── apps/<app-id>/              # extensões por aplicativo (reservado às etapas)
-└── feitos/                         # ROADMAP-R1-R24.md, ROADMAP-LEGADO.md (histórico)
+└── feitos/                         # roadmaps R1–R29 e marcos fundacionais (histórico)
 ```
 
 Extensões específicas de aplicativos, quando autorizadas em uma etapa futura,
@@ -211,7 +210,7 @@ registrados em `docs/compatibilidade-backends.md`.
 - **Marco 2 (concluído):** uma imagem mínima é mapeada, relocada e tem seus imports resolvidos sem executar código fora do escopo.
 - **MVP (concluído):** `./tradutorlinux tests/samples/tl_hello.exe` escreve a saída correta e encerra com o código esperado.
 - **Qualidade do MVP (concluído):** todas as APIs usadas pelo exemplo possuem testes; imports ausentes são diagnosticados; o trace é reproduzível.
-- **Expansão (vigente):** cada nova aplicação suportada entra na matriz de compatibilidade e na suíte de regressão; a varredura de correções da auditoria 2026-10-18 (`docs/auditoria-2026-10-18.md`) é a fila em execução.
+- **Experiência desktop (vigente):** completar e comparar fluxos cotidianos de aplicativos PE32+ x86-64, integrar biblioteca e arquivos ao desktop Linux e publicar limitações por backend na matriz de compatibilidade.
 
 ## 11. Exemplo de uso futuro
 

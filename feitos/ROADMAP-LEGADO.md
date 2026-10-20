@@ -3,7 +3,9 @@
 Este arquivo preserva integralmente os roadmaps fundacionais anteriores.
 O ciclo intermediário de auditoria e estabilização (etapas R1 a R24, concluído em 2026-09-15)
 está preservado em [ROADMAP-R1-R24.md](ROADMAP-R1-R24.md).
-As etapas ativas estão no [ROADMAP.md](../ROADMAP.md) principal.
+O roadmap R25–R29, ativo de 2026-09-19 a 2026-10-20, está preservado em
+[ROADMAP-R25-R29.md](ROADMAP-R25-R29.md). As etapas ativas de experiência
+desktop estão no [ROADMAP.md](../ROADMAP.md) principal.
 
 ---
 
