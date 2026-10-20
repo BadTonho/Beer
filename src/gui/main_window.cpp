@@ -16,6 +16,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QAbstractItemView>
+#include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -108,6 +109,9 @@ void MainWindow::setup_ui() {
     app_count_label_->setObjectName(QStringLiteral("app_count_label"));
     app_count_label_->setStyleSheet(QStringLiteral("color: #64748b;"));
     library_layout->addWidget(app_count_label_);
+    remove_button_ = new QPushButton(QStringLiteral("Remover cadastro"), library_box);
+    remove_button_->setObjectName(QStringLiteral("remove_button"));
+    library_layout->addWidget(remove_button_);
 
     auto* const action_box = new QGroupBox(QStringLiteral("Executável"), splitter);
     auto* const action_layout = new QVBoxLayout(action_box);
@@ -209,6 +213,7 @@ void MainWindow::setup_ui() {
     connect(install_button_, &QPushButton::clicked, this, &MainWindow::on_install_clicked);
     connect(register_button_, &QPushButton::clicked, this,
             &MainWindow::on_register_clicked);
+    connect(remove_button_, &QPushButton::clicked, this, &MainWindow::on_remove_clicked);
     connect(doctor_button_, &QPushButton::clicked, this, &MainWindow::on_doctor_clicked);
     connect(clear_button_, &QPushButton::clicked, this, &MainWindow::on_clear_clicked);
     connect(exit_button_, &QPushButton::clicked, this, &QWidget::close);
@@ -362,6 +367,41 @@ void MainWindow::on_register_clicked() {
     update_action_state();
 }
 
+void MainWindow::on_remove_clicked() {
+    if (process_is_running() || selected_app_id_.isEmpty()) {
+        return;
+    }
+    const std::optional<catalog::AppEntry> selected =
+        catalog_.find_app(selected_app_id_.toStdString());
+    if (!selected.has_value()) {
+        refresh_app_list();
+        set_status(QStringLiteral("O cadastro selecionado não está mais disponível"));
+        return;
+    }
+
+    QMessageBox confirmation(QMessageBox::Question, QStringLiteral("Remover cadastro"),
+                             QStringLiteral("Remover '%1' da biblioteca e do menu?\n\n"
+                                            "Os arquivos instalados e o prefixo serão mantidos.")
+                                 .arg(qstring_from_std_string(selected->name)),
+                             QMessageBox::Yes | QMessageBox::No, this);
+    confirmation.setObjectName(QStringLiteral("remove_confirmation"));
+    confirmation.setDefaultButton(QMessageBox::No);
+    confirmation.setEscapeButton(QMessageBox::No);
+    if (confirmation.exec() != QMessageBox::Yes) {
+        return;
+    }
+
+    catalog_removal_in_progress_ = true;
+    process_start_failed_ = false;
+    set_status(QStringLiteral("Removendo cadastro..."));
+    append_message(QStringLiteral("Removendo cadastro '%1'...")
+                       .arg(qstring_from_std_string(selected->name)));
+    process_.start(runtime_executable(),
+                   QStringList{QStringLiteral("app"), QStringLiteral("remove"),
+                               selected_app_id_});
+    update_action_state();
+}
+
 void MainWindow::on_clear_clicked() {
     selected_app_id_.clear();
     path_input_->clear();
@@ -409,6 +449,12 @@ void MainWindow::on_process_error(const QProcess::ProcessError error) {
         return;
     }
     process_start_failed_ = true;
+    if (catalog_removal_in_progress_) {
+        catalog_removal_in_progress_ = false;
+        refresh_app_list();
+        set_status(QStringLiteral("Falha ao remover o cadastro"));
+        append_message(QStringLiteral("O estado da biblioteca foi recarregado após a falha."));
+    }
     set_status(QStringLiteral("Falha ao iniciar o runtime"));
     append_message(QStringLiteral("Erro ao iniciar o runtime: %1").arg(process_.errorString()));
     update_action_state();
@@ -421,12 +467,26 @@ void MainWindow::on_process_finished(const int exit_code,
         process_start_failed_ = false;
         install_in_progress_ = false;
         catalog_registration_in_progress_ = false;
+        catalog_removal_in_progress_ = false;
         doctor_in_progress_ = false;
         update_action_state();
         return;
     }
 
-    if (status == QProcess::CrashExit) {
+    if (catalog_removal_in_progress_) {
+        catalog_removal_in_progress_ = false;
+        if (status == QProcess::CrashExit || exit_code != 0) {
+            refresh_app_list();
+            set_status(QStringLiteral("Falha ao remover o cadastro"));
+            append_message(QStringLiteral("A remoção falhou; a biblioteca mostra o estado persistido."));
+        } else {
+            selected_app_id_.clear();
+            path_input_->clear();
+            refresh_app_list();
+            set_status(QStringLiteral("Cadastro removido; arquivos e prefixo foram mantidos"));
+        }
+        append_message(QStringLiteral("[launcher] código de saída: %1").arg(exit_code));
+    } else if (status == QProcess::CrashExit) {
         set_status(QStringLiteral("Runtime terminou por sinal"));
         append_message(QStringLiteral("[launcher] processo terminou por sinal ou crash."));
     } else {
@@ -472,6 +532,7 @@ void MainWindow::update_action_state() {
     run_button_->setEnabled(has_path && !running);
     install_button_->setEnabled(has_path && !running);
     register_button_->setEnabled(has_path && !running);
+    remove_button_->setEnabled(!selected_app_id_.isEmpty() && !running);
     doctor_button_->setEnabled(!running);
     clear_button_->setEnabled(!running);
     exit_button_->setEnabled(true);

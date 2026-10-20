@@ -5,12 +5,16 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <initializer_list>
 #include <iterator>
+#include <optional>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 namespace tradutorlinux {
@@ -18,6 +22,43 @@ namespace {
 
 [[nodiscard]] ParseResult parse_arguments(const std::vector<const char*>& arguments) {
     return parse_command_line(static_cast<int>(arguments.size()), arguments.data());
+}
+
+class ScopedEnvironment final {
+public:
+    explicit ScopedEnvironment(std::initializer_list<std::pair<std::string, std::string>> values) {
+        for (const auto& [key, value] : values) {
+            const char* const previous = std::getenv(key.c_str());
+            previous_.emplace_back(key, previous == nullptr
+                                             ? std::nullopt
+                                             : std::optional<std::string>{previous});
+            (void)::setenv(key.c_str(), value.c_str(), 1);
+        }
+    }
+
+    ~ScopedEnvironment() {
+        for (const auto& [key, value] : previous_) {
+            if (value.has_value()) {
+                (void)::setenv(key.c_str(), value->c_str(), 1);
+            } else {
+                (void)::unsetenv(key.c_str());
+            }
+        }
+    }
+
+private:
+    std::vector<std::pair<std::string, std::optional<std::string>>> previous_;
+};
+
+[[nodiscard]] catalog::AppEntry make_removal_test_entry(const std::string& id,
+                                                        const std::filesystem::path& root) {
+    catalog::AppEntry entry;
+    entry.id = id;
+    entry.name = id;
+    entry.executable_path = (root / "installed" / (id + ".exe")).string();
+    entry.prefix_path = (root / "prefixes" / id).string();
+    entry.working_directory = root.string();
+    return entry;
 }
 
 TEST(CommandLineTest, AcceptsTraceAndExecutable) {
@@ -276,6 +317,131 @@ TEST(CommandRunTest, ReturnsInputUnavailableForMissingPath) {
     EXPECT_EQ(exit_code, ExitCode::InputUnavailable);
     EXPECT_TRUE(stdout_stream.str().empty());
     EXPECT_NE(stderr_stream.str().find("não foi possível acessar o arquivo"), std::string::npos);
+}
+
+TEST(CommandRunTest, AppRemoveSynchronizesCatalogAndDesktopAndPreservesApplicationFiles) {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() /
+        ("tradutorlinux-app-remove-" + std::to_string(static_cast<long long>(::getpid())));
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    const std::filesystem::path home = root / "home";
+    const std::filesystem::path config_home = root / "config";
+    const std::filesystem::path data_home = root / "data";
+    std::filesystem::create_directories(home, error);
+    ASSERT_FALSE(error);
+    std::filesystem::create_directories(config_home, error);
+    ASSERT_FALSE(error);
+    std::filesystem::create_directories(data_home, error);
+    ASSERT_FALSE(error);
+    const ScopedEnvironment environment{{"HOME", home.string()},
+                                        {"XDG_CONFIG_HOME", config_home.string()},
+                                        {"XDG_DATA_HOME", data_home.string()}};
+
+    const std::filesystem::path executable = root / "installed" / "tool.exe";
+    const std::filesystem::path prefix_marker = root / "prefixes" / "remove_ok" / "keep.dat";
+    std::filesystem::create_directories(executable.parent_path(), error);
+    ASSERT_FALSE(error);
+    std::filesystem::create_directories(prefix_marker.parent_path(), error);
+    ASSERT_FALSE(error);
+    {
+        std::ofstream executable_file(executable);
+        executable_file << "fixture executable";
+        std::ofstream prefix_file(prefix_marker);
+        prefix_file << "preserve prefix contents";
+        ASSERT_TRUE(executable_file.good());
+        ASSERT_TRUE(prefix_file.good());
+    }
+
+    catalog::AppCatalog app_catalog;
+    catalog::AppEntry removable = make_removal_test_entry("remove_ok", root);
+    removable.executable_path = executable.string();
+    ASSERT_TRUE(app_catalog.add_app(removable));
+    ASSERT_TRUE(app_catalog.save_to_file());
+    ASSERT_TRUE(catalog::AppCatalog::create_desktop_entry(removable));
+    const std::filesystem::path desktop_entry =
+        catalog::AppCatalog::default_desktop_entries_dir() / "tradutorlinux-remove_ok.desktop";
+    EXPECT_EQ(catalog::AppCatalog::default_desktop_entries_dir(), data_home / "applications");
+    ASSERT_TRUE(std::filesystem::is_regular_file(desktop_entry));
+    ASSERT_EQ(::unsetenv("XDG_DATA_HOME"), 0);
+    EXPECT_EQ(catalog::AppCatalog::default_desktop_entries_dir(),
+              home / ".local" / "share" / "applications");
+    ASSERT_EQ(::setenv("XDG_DATA_HOME", data_home.c_str(), 1), 0);
+
+    CommandLine command_line;
+    command_line.mode = CommandMode::AppRemove;
+    command_line.app_id = "remove_ok";
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    EXPECT_EQ(run_command(command_line, stdout_stream, stderr_stream), ExitCode::Success);
+    EXPECT_NE(stdout_stream.str().find("removido da biblioteca com sucesso"), std::string::npos);
+    EXPECT_TRUE(stderr_stream.str().empty());
+    EXPECT_FALSE(std::filesystem::exists(desktop_entry));
+    EXPECT_TRUE(std::filesystem::is_regular_file(executable));
+    EXPECT_TRUE(std::filesystem::is_regular_file(prefix_marker));
+
+    catalog::AppCatalog reloaded;
+    ASSERT_TRUE(reloaded.load_from_file());
+    EXPECT_FALSE(reloaded.find_app("remove_ok").has_value());
+
+    command_line.app_id = "missing_app";
+    stdout_stream.str({});
+    stderr_stream.str({});
+    EXPECT_EQ(run_command(command_line, stdout_stream, stderr_stream), ExitCode::Usage);
+    EXPECT_NE(stderr_stream.str().find("não encontrado na biblioteca"), std::string::npos);
+
+    catalog::AppEntry without_shortcut = make_removal_test_entry("without_shortcut", root);
+    ASSERT_TRUE(reloaded.add_app(without_shortcut));
+    ASSERT_TRUE(reloaded.save_to_file());
+    command_line.app_id = without_shortcut.id;
+    stdout_stream.str({});
+    stderr_stream.str({});
+    EXPECT_EQ(run_command(command_line, stdout_stream, stderr_stream), ExitCode::Success);
+    ASSERT_TRUE(reloaded.load_from_file());
+    EXPECT_FALSE(reloaded.find_app(without_shortcut.id).has_value());
+
+    catalog::AppEntry blocked = make_removal_test_entry("blocked_shortcut", root);
+    ASSERT_TRUE(reloaded.add_app(blocked));
+    ASSERT_TRUE(reloaded.save_to_file());
+    const std::filesystem::path blocked_shortcut =
+        catalog::AppCatalog::default_desktop_entries_dir() /
+        "tradutorlinux-blocked_shortcut.desktop";
+    std::filesystem::create_directories(blocked_shortcut / "child", error);
+    ASSERT_FALSE(error);
+
+    command_line.app_id = blocked.id;
+    stdout_stream.str({});
+    stderr_stream.str({});
+    EXPECT_EQ(run_command(command_line, stdout_stream, stderr_stream), ExitCode::InternalError);
+    EXPECT_TRUE(stdout_stream.str().empty());
+    EXPECT_NE(stderr_stream.str().find("não foi possível remover o atalho"), std::string::npos);
+    ASSERT_TRUE(reloaded.load_from_file());
+    EXPECT_TRUE(reloaded.find_app(blocked.id).has_value());
+
+    if (::geteuid() != 0) {
+        catalog::AppEntry save_failure = make_removal_test_entry("save_failure", root);
+        ASSERT_TRUE(reloaded.add_app(save_failure));
+        ASSERT_TRUE(reloaded.save_to_file());
+        ASSERT_TRUE(catalog::AppCatalog::create_desktop_entry(save_failure));
+        const std::filesystem::path catalog_directory = config_home / "tradutorlinux";
+        ASSERT_EQ(::chmod(catalog_directory.c_str(), S_IRUSR | S_IXUSR), 0);
+
+        command_line.app_id = save_failure.id;
+        stdout_stream.str({});
+        stderr_stream.str({});
+        const ExitCode save_exit = run_command(command_line, stdout_stream, stderr_stream);
+        ASSERT_EQ(::chmod(catalog_directory.c_str(), S_IRUSR | S_IWUSR | S_IXUSR), 0);
+        EXPECT_EQ(save_exit, ExitCode::InternalError);
+        EXPECT_TRUE(stdout_stream.str().empty());
+        EXPECT_NE(stderr_stream.str().find("o cadastro foi mantido"), std::string::npos);
+        ASSERT_TRUE(reloaded.load_from_file());
+        EXPECT_TRUE(reloaded.find_app(save_failure.id).has_value());
+        EXPECT_TRUE(std::filesystem::is_regular_file(
+            catalog::AppCatalog::default_desktop_entries_dir() /
+            "tradutorlinux-save_failure.desktop"));
+    }
+
+    std::filesystem::remove_all(root, error);
 }
 
 TEST(CommandRunTest, RejectsReadableNonPeInputAsMalformed) {

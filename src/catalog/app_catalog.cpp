@@ -6,6 +6,7 @@
 #endif
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <chrono>
 #include <cstddef>
@@ -366,7 +367,13 @@ bool AppCatalog::save_to_file(const std::filesystem::path& path) const {
         if (ec) return false;
     }
 
-    std::ofstream file(path, std::ios::out | std::ios::trunc);
+    static std::atomic<std::uint64_t> temporary_sequence{0};
+    std::filesystem::path temporary_path = path;
+    const auto timestamp = std::chrono::steady_clock::now().time_since_epoch().count();
+    temporary_path += ".tmp-" + std::to_string(timestamp) + "-" +
+                      std::to_string(temporary_sequence.fetch_add(1));
+
+    std::ofstream file(temporary_path, std::ios::out | std::ios::trunc);
     if (!file) {
         return false;
     }
@@ -407,6 +414,36 @@ bool AppCatalog::save_to_file(const std::filesystem::path& path) const {
     file << "  ]\n";
     file << "}\n";
 
+    file.flush();
+    const bool write_succeeded = file.good();
+    file.close();
+    if (!write_succeeded || file.fail()) {
+        std::filesystem::remove(temporary_path, ec);
+        return false;
+    }
+
+    ec.clear();
+    const std::filesystem::file_status existing_status = std::filesystem::status(path, ec);
+    if (!ec && existing_status.type() != std::filesystem::file_type::not_found) {
+        std::filesystem::permissions(temporary_path, existing_status.permissions(), ec);
+        if (ec) {
+            std::error_code cleanup_error;
+            std::filesystem::remove(temporary_path, cleanup_error);
+            return false;
+        }
+    } else if (ec && ec != std::errc::no_such_file_or_directory) {
+        std::error_code cleanup_error;
+        std::filesystem::remove(temporary_path, cleanup_error);
+        return false;
+    }
+
+    ec.clear();
+    std::filesystem::rename(temporary_path, path, ec);
+    if (ec) {
+        std::error_code cleanup_error;
+        std::filesystem::remove(temporary_path, cleanup_error);
+        return false;
+    }
     return true;
 }
 
@@ -579,6 +616,10 @@ bool AppCatalog::load_from_file(const std::filesystem::path& path) {
 }
 
 std::filesystem::path AppCatalog::default_desktop_entries_dir() {
+    const char* xdg = std::getenv("XDG_DATA_HOME");
+    if (xdg != nullptr && *xdg != '\0') {
+        return std::filesystem::path(xdg) / "applications";
+    }
     const char* home = std::getenv("HOME");
     if (home != nullptr && *home != '\0') {
         return std::filesystem::path(home) / ".local" / "share" / "applications";
@@ -629,7 +670,49 @@ bool AppCatalog::create_desktop_entry(const AppEntry& app, const std::filesystem
     out << "Categories=Utility;Game;Wine;\n";
     out << "StartupNotify=true\n";
 
-    return true;
+    out.flush();
+    if (!out.good()) {
+        return false;
+    }
+    out.close();
+    return !out.fail();
+}
+
+bool AppCatalog::remove_desktop_entry(const std::string_view id,
+                                      const std::filesystem::path& destination_dir,
+                                      bool* const existed) {
+    if (!is_safe_app_id(id)) {
+        return false;
+    }
+    const std::filesystem::path dir =
+        destination_dir.empty() ? default_desktop_entries_dir() : destination_dir;
+    if (dir.empty()) {
+        return false;
+    }
+
+    const std::filesystem::path file_path =
+        dir / ("tradutorlinux-" + std::string(id) + ".desktop");
+    std::error_code error;
+    const std::filesystem::file_status status = std::filesystem::symlink_status(file_path, error);
+    if (error == std::errc::no_such_file_or_directory) {
+        error.clear();
+        if (existed != nullptr) {
+            *existed = false;
+        }
+        return true;
+    }
+    if (error) {
+        return false;
+    }
+    const bool file_exists = status.type() != std::filesystem::file_type::not_found;
+    if (existed != nullptr) {
+        *existed = file_exists;
+    }
+    if (!file_exists) {
+        return true;
+    }
+    std::filesystem::remove(file_path, error);
+    return !error;
 }
 
 }  // namespace tradutorlinux::catalog

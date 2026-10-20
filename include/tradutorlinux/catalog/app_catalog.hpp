@@ -42,6 +42,9 @@ public:
 
     [[nodiscard]] static std::string generate_id(std::string_view name_or_filename);
     [[nodiscard]] static bool create_desktop_entry(const AppEntry& app, const std::filesystem::path& destination_dir = {});
+    [[nodiscard]] static bool remove_desktop_entry(std::string_view id,
+                                                   const std::filesystem::path& destination_dir = {},
+                                                   bool* existed = nullptr);
 
 private:
     std::vector<AppEntry> apps_;

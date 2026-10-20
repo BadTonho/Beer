@@ -37,6 +37,12 @@ Os limites são aplicados no processo convidado isolado e herdados por processos
 criados pelo convidado. Eles são contenção de recursos do runtime, não uma
 sandbox ou uma fronteira de segurança.
 
+`app remove <id>` remove o registro do catálogo e o atalho
+`tradutorlinux-<id>.desktop`, sem apagar o executável instalado nem o prefixo.
+Os atalhos individuais usam `$XDG_DATA_HOME/applications`, com fallback para
+`$HOME/.local/share/applications`. Um atalho ausente é aceito; falhas de
+remoção ou persistência retornam erro e não são reportadas como sucesso.
+
 ## Console
 
 | Aplicativo | Versão | Imports | Estado | Fixture/Target |

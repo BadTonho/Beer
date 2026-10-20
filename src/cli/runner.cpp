@@ -669,11 +669,59 @@ ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_strea
             return ExitCode::Usage;
         }
         catalog::AppCatalog app_catalog;
-        (void)app_catalog.load_from_file();
-        if (!app_catalog.remove_app(command_line.app_id) || !app_catalog.save_to_file()) {
+        const std::filesystem::path catalog_path = catalog::AppCatalog::default_catalog_path();
+        if (!app_catalog.load_from_file(catalog_path)) {
+            std::error_code error;
+            const bool catalog_exists = std::filesystem::exists(catalog_path, error);
+            if (error || catalog_exists) {
+                stderr_stream << "erro: não foi possível carregar o catálogo de aplicativos\n";
+                return ExitCode::InternalError;
+            }
             stderr_stream << "erro: aplicativo com ID '" << command_line.app_id
                           << "' não encontrado na biblioteca\n";
             return ExitCode::Usage;
+        }
+
+        const std::optional<catalog::AppEntry> entry = app_catalog.find_app(command_line.app_id);
+        if (!entry.has_value()) {
+            stderr_stream << "erro: aplicativo com ID '" << command_line.app_id
+                          << "' não encontrado na biblioteca\n";
+            return ExitCode::Usage;
+        }
+
+        bool shortcut_existed = false;
+        if (!catalog::AppCatalog::remove_desktop_entry(command_line.app_id, {},
+                                                       &shortcut_existed)) {
+            stderr_stream << "erro: não foi possível remover o atalho do aplicativo '"
+                          << command_line.app_id << "'; o cadastro foi mantido\n";
+            return ExitCode::InternalError;
+        }
+
+        const auto restore_shortcut = [&entry, shortcut_existed]() {
+            return !shortcut_existed || catalog::AppCatalog::create_desktop_entry(*entry);
+        };
+        if (!app_catalog.remove_app(command_line.app_id)) {
+            const bool shortcut_restored = restore_shortcut();
+            stderr_stream << "erro: não foi possível remover o aplicativo do catálogo '"
+                          << command_line.app_id << "'";
+            if (!shortcut_restored) {
+                stderr_stream << "; falha também ao restaurar o atalho\n";
+            } else {
+                stderr_stream << "; atalho restaurado\n";
+            }
+            return ExitCode::InternalError;
+        }
+
+        if (!app_catalog.save_to_file(catalog_path)) {
+            const bool shortcut_restored = restore_shortcut();
+            stderr_stream << "erro: não foi possível salvar a remoção do aplicativo '"
+                          << command_line.app_id << "'; o cadastro foi mantido";
+            if (!shortcut_restored) {
+                stderr_stream << ", mas falhou a restauração do atalho\n";
+            } else {
+                stderr_stream << " e o atalho foi restaurado\n";
+            }
+            return ExitCode::InternalError;
         }
         stdout_stream << "Aplicativo '" << command_line.app_id
                       << "' removido da biblioteca com sucesso.\n";

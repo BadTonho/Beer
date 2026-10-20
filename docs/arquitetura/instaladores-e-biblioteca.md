@@ -97,7 +97,16 @@ O catálogo é persistido em formato JSON em `~/.config/tradutorlinux/library.js
 | `tradutorlinux app list` | Lista todos os aplicativos cadastrados na biblioteca. |
 | `tradutorlinux app run <id_ou_nome> [args...]` | Executa um aplicativo cadastrado na biblioteca. |
 | `tradutorlinux app add <app.exe> [--name <Nome>] [--prefix <dir>] [--id <id>]` | Cadastra manualmente um executável na biblioteca. Sem `--prefix`, cria prefixo exclusivo. |
-| `tradutorlinux app remove <id>` | Remove o aplicativo do catálogo da biblioteca. |
+| `tradutorlinux app remove <id>` | Remove o cadastro e o atalho individual do menu. O executável instalado e o prefixo são preservados. |
+
+Os atalhos individuais ficam em `$XDG_DATA_HOME/applications`; quando a
+variável não estiver definida, o destino é `$HOME/.local/share/applications`.
+Se o atalho do ID já estiver ausente, `app remove` ainda pode remover o
+cadastro. Falha ao remover o atalho mantém o catálogo intacto. A gravação do
+catálogo usa arquivo temporário e substituição atômica; se ela falhar após a
+remoção do atalho, o comando tenta restaurá-lo e retorna erro em vez de
+informar sucesso. Se a restauração também falhar, o diagnóstico identifica a
+falha parcial.
 
 `app run` usa o runtime próprio por padrão. Um perfil schema 3 pode selecionar
 explicitamente `backend.kind="proton"`; nesse caso, o launcher Proton é
@@ -157,6 +166,9 @@ assíncronas:
   `registered`, atualiza a biblioteca; com vários `candidate`, pede a escolha
   e finaliza o cadastro sem executar novamente o setup;
 - **Cadastrar**: salva ou atualiza a entrada no `library.json`;
+- **Remover cadastro**: após confirmação, remove o cadastro e o atalho do menu,
+  mantendo os arquivos instalados e o prefixo; em falha, recarrega o estado
+  persistido e apresenta erro;
 - **Limpar**: restaura o formulário sem apagar a biblioteca.
 
 A execução usa `QProcess`, procura o binário `tradutorlinux` no mesmo diretório

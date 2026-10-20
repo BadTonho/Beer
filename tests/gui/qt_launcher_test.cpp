@@ -13,7 +13,9 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMessageBox>
 #include <QPlainTextEdit>
+#include <QProcess>
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QThread>
@@ -68,6 +70,14 @@ public:
                  &QtLauncherSmoke::loads_filters_and_selects);
         run_case(QStringLiteral("cadastro e persistência"),
                  &QtLauncherSmoke::registers_and_persists);
+        run_case(QStringLiteral("remoção cancelada preserva cadastro e atalho"),
+                 &QtLauncherSmoke::cancel_removal_preserves_app);
+        run_case(QStringLiteral("remoção desabilitada durante operação ativa"),
+                 &QtLauncherSmoke::disables_removal_while_busy);
+        run_case(QStringLiteral("remoção pela biblioteca preserva dados instalados"),
+                 &QtLauncherSmoke::removes_registered_app);
+        run_case(QStringLiteral("falha na remoção mantém a biblioteca sincronizada"),
+                 &QtLauncherSmoke::reports_removal_failure);
         run_case(QStringLiteral("limpeza do formulário"), &QtLauncherSmoke::clears_form);
         run_case(QStringLiteral("relatório assíncrono"), &QtLauncherSmoke::analyzes_report);
         run_case(QStringLiteral("execução e canais de saída"), &QtLauncherSmoke::runs_fixture);
@@ -104,7 +114,57 @@ private:
         require(QDir().mkpath(config_dir_.path()),
                 QStringLiteral("não foi possível recriar a configuração"));
         qputenv("XDG_CONFIG_HOME", config_dir_.path().toUtf8());
+        qputenv("XDG_DATA_HOME", QDir(config_dir_.path()).filePath(QStringLiteral("data")).toUtf8());
+        qputenv("HOME", config_dir_.path().toUtf8());
         qputenv("TL_PREFIX", QDir(config_dir_.path()).filePath(QStringLiteral("prefix-root")).toUtf8());
+    }
+
+    [[nodiscard]] tradutorlinux::catalog::AppEntry add_removal_fixture() const {
+        const QString executable_path =
+            QDir(config_dir_.path()).filePath(QStringLiteral("installed/removal-fixture.exe"));
+        const QString prefix_path =
+            QDir(config_dir_.path()).filePath(QStringLiteral("prefixes/removal-fixture"));
+        require(QDir().mkpath(QFileInfo(executable_path).absolutePath()),
+                QStringLiteral("não foi possível criar diretório do executável"));
+        require(QDir().mkpath(QDir(prefix_path).filePath(QStringLiteral("drive_c"))),
+                QStringLiteral("não foi possível criar prefixo da fixture"));
+        QFile executable(executable_path);
+        require(executable.open(QIODevice::WriteOnly),
+                QStringLiteral("não foi possível criar executável da fixture"));
+        require(executable.write("fixture", 7) == 7,
+                QStringLiteral("não foi possível gravar executável da fixture"));
+        executable.close();
+        const QString prefix_marker = QDir(prefix_path).filePath(QStringLiteral("keep.dat"));
+        QFile marker(prefix_marker);
+        require(marker.open(QIODevice::WriteOnly),
+                QStringLiteral("não foi possível criar marcador do prefixo"));
+        require(marker.write("keep", 4) == 4,
+                QStringLiteral("não foi possível gravar marcador do prefixo"));
+        marker.close();
+
+        tradutorlinux::catalog::AppEntry entry;
+        entry.id = "removal_fixture";
+        entry.name = "Removal Fixture";
+        entry.executable_path = executable_path.toStdString();
+        entry.prefix_path = prefix_path.toStdString();
+        entry.working_directory = config_dir_.path().toStdString();
+        tradutorlinux::catalog::AppCatalog catalog;
+        require(catalog.add_app(entry), QStringLiteral("não foi possível adicionar fixture"));
+        require(catalog.save_to_file(), QStringLiteral("não foi possível salvar fixture"));
+        require(tradutorlinux::catalog::AppCatalog::create_desktop_entry(entry),
+                QStringLiteral("não foi possível criar atalho da fixture"));
+        return entry;
+    }
+
+    void answer_remove_confirmation(const QMessageBox::StandardButton answer) const {
+        QTimer::singleShot(0, [answer] {
+            auto* const dialog = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+            if (dialog != nullptr) {
+                if (QPushButton* const answer_button = dialog->button(answer)) {
+                    answer_button->click();
+                }
+            }
+        });
     }
 
     [[nodiscard]] QString runtime_path() const {
@@ -275,6 +335,105 @@ private:
                 QStringLiteral("atualização perdeu o prefixo"));
         require(updated->working_directory == app->working_directory,
                 QStringLiteral("atualização perdeu o diretório de trabalho"));
+    }
+
+    void cancel_removal_preserves_app() {
+        const auto entry = add_removal_fixture();
+        tradutorlinux::gui::MainWindow window(runtime_path());
+        window.show();
+        QListWidget* const list = app_list(window);
+        require(list->count() == 1, QStringLiteral("fixture não apareceu na biblioteca"));
+        require(!button(window, "remove_button")->isEnabled(),
+                QStringLiteral("remoção habilitada sem seleção"));
+        list->setCurrentRow(0);
+        require(button(window, "remove_button")->isEnabled(),
+                QStringLiteral("remoção não foi habilitada para seleção"));
+
+        answer_remove_confirmation(QMessageBox::No);
+        button(window, "remove_button")->click();
+
+        tradutorlinux::catalog::AppCatalog catalog;
+        require(catalog.load_from_file(), QStringLiteral("catálogo não pôde ser lido"));
+        require(catalog.find_app(entry.id).has_value(),
+                QStringLiteral("cancelar removeu o cadastro"));
+        require(QFileInfo::exists(QDir(tradutorlinux::catalog::AppCatalog::default_desktop_entries_dir())
+                                      .filePath(QStringLiteral("tradutorlinux-removal_fixture.desktop"))),
+                QStringLiteral("cancelar removeu o atalho"));
+    }
+
+    void disables_removal_while_busy() {
+        (void)add_removal_fixture();
+        tradutorlinux::gui::MainWindow window(runtime_path());
+        window.show();
+        app_list(window)->setCurrentRow(0);
+        QPushButton* const remove = button(window, "remove_button");
+        require(remove->isEnabled(), QStringLiteral("remoção não foi habilitada para seleção"));
+        QProcess* const process = window.findChild<QProcess*>();
+        require(process != nullptr, QStringLiteral("processo do launcher não foi encontrado"));
+        process->start(QStringLiteral("/bin/sleep"), QStringList{QStringLiteral("5")});
+        wait_until([process] { return process->state() != QProcess::NotRunning; }, 1000,
+                   QStringLiteral("processo de ocupação não iniciou"));
+        require(!remove->isEnabled(), QStringLiteral("remoção ficou habilitada durante operação"));
+        process->kill();
+        require(process->waitForFinished(1000),
+                QStringLiteral("processo de ocupação não encerrou"));
+        QApplication::processEvents();
+        require(remove->isEnabled(), QStringLiteral("remoção não reabilitou após operação"));
+    }
+
+    void removes_registered_app() {
+        const auto entry = add_removal_fixture();
+        const QString desktop_path = QDir(
+            tradutorlinux::catalog::AppCatalog::default_desktop_entries_dir())
+                                         .filePath(QStringLiteral("tradutorlinux-removal_fixture.desktop"));
+        const QString executable_path = QString::fromStdString(entry.executable_path);
+        const QString prefix_marker = QDir(QString::fromStdString(entry.prefix_path))
+                                          .filePath(QStringLiteral("keep.dat"));
+        tradutorlinux::gui::MainWindow window(runtime_path());
+        window.show();
+        app_list(window)->setCurrentRow(0);
+        answer_remove_confirmation(QMessageBox::Yes);
+        button(window, "remove_button")->click();
+
+        wait_until([&window] {
+            return status_label(window)->text().startsWith(QStringLiteral("Cadastro removido"));
+        }, 10000, QStringLiteral("remoção do cadastro não terminou"));
+
+        tradutorlinux::catalog::AppCatalog catalog;
+        require(catalog.load_from_file(), QStringLiteral("catálogo não pôde ser lido"));
+        require(!catalog.find_app(entry.id).has_value(),
+                QStringLiteral("cadastro permaneceu após remoção"));
+        require(!QFileInfo::exists(desktop_path), QStringLiteral("atalho permaneceu após remoção"));
+        require(QFileInfo::exists(executable_path), QStringLiteral("executável instalado foi removido"));
+        require(QFileInfo::exists(prefix_marker), QStringLiteral("prefixo foi removido"));
+        require(app_list(window)->count() == 0, QStringLiteral("biblioteca não foi atualizada"));
+        require(path_input(window)->text().isEmpty(), QStringLiteral("caminho removido continuou selecionado"));
+    }
+
+    void reports_removal_failure() {
+        const auto entry = add_removal_fixture();
+        const QString desktop_path = QDir(
+            tradutorlinux::catalog::AppCatalog::default_desktop_entries_dir())
+                                         .filePath(QStringLiteral("tradutorlinux-removal_fixture.desktop"));
+        require(QDir().mkpath(QDir(desktop_path).filePath(QStringLiteral("child"))),
+                QStringLiteral("não foi possível preparar falha de remoção"));
+        tradutorlinux::gui::MainWindow window(runtime_path());
+        window.show();
+        app_list(window)->setCurrentRow(0);
+        answer_remove_confirmation(QMessageBox::Yes);
+        button(window, "remove_button")->click();
+
+        wait_until([&window] {
+            return status_label(window)->text() == QStringLiteral("Falha ao remover o cadastro");
+        }, 10000, QStringLiteral("falha de remoção não foi apresentada"));
+        tradutorlinux::catalog::AppCatalog catalog;
+        require(catalog.load_from_file(), QStringLiteral("catálogo não pôde ser lido após falha"));
+        require(catalog.find_app(entry.id).has_value(),
+                QStringLiteral("falha na remoção também apagou o cadastro"));
+        require(app_list(window)->count() == 1,
+                QStringLiteral("biblioteca não refletiu cadastro mantido após falha"));
+        require(QFileInfo(desktop_path).isDir(),
+                QStringLiteral("atalho com falha de remoção não foi preservado"));
     }
 
     void clears_form() {
