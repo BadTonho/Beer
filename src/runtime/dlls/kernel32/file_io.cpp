@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <new>
 #include <sys/mman.h>
+#include <unistd.h>
 #include <vector>
 
 namespace tradutorlinux {

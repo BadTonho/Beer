@@ -52,17 +52,20 @@ void wait_until(const std::function<bool()>& condition, const int timeout_ms,
 class QtLauncherSmoke final {
 public:
     QtLauncherSmoke() {
+        test_filter_ = qEnvironmentVariable("TL_QT_SMOKE_FILTER");
         require(config_dir_.isValid(), QStringLiteral("diretório temporário inválido"));
         require(QFileInfo::exists(runtime_path()),
                 QStringLiteral("o executável tradutorlinux não foi compilado"));
-        require(QFileInfo::exists(fixture_path(QStringLiteral("tl_hello.exe"))),
-                QStringLiteral("a fixture tl_hello.exe não foi compilada"));
-        require(QFileInfo::exists(fixture_path(QStringLiteral("tl_install_setup.exe"))),
-                QStringLiteral("a fixture tl_install_setup.exe não foi compilada"));
-        require(QFileInfo::exists(fixture_path(QStringLiteral("tl_install_setup_multi.exe"))),
-                QStringLiteral("a fixture multi-install não foi compilada"));
-        require(QFileInfo::exists(fixture_path(QStringLiteral("tl_install_app.exe"))),
-                QStringLiteral("a fixture tl_install_app.exe não foi compilada"));
+        if (test_filter_.isEmpty()) {
+            require(QFileInfo::exists(fixture_path(QStringLiteral("tl_hello.exe"))),
+                    QStringLiteral("a fixture tl_hello.exe não foi compilada"));
+            require(QFileInfo::exists(fixture_path(QStringLiteral("tl_install_setup.exe"))),
+                    QStringLiteral("a fixture tl_install_setup.exe não foi compilada"));
+            require(QFileInfo::exists(fixture_path(QStringLiteral("tl_install_setup_multi.exe"))),
+                    QStringLiteral("a fixture multi-install não foi compilada"));
+            require(QFileInfo::exists(fixture_path(QStringLiteral("tl_install_app.exe"))),
+                    QStringLiteral("a fixture tl_install_app.exe não foi compilada"));
+        }
     }
 
     int run() {
@@ -91,6 +94,10 @@ public:
                  &QtLauncherSmoke::doctor_button_present);
         run_case(QStringLiteral("execução de diagnóstico do host"),
                  &QtLauncherSmoke::runs_doctor);
+        if (cases_run_ == 0) {
+            std::cerr << "FAIL nenhum caso corresponde a TL_QT_SMOKE_FILTER\n";
+            return 1;
+        }
         return failures_ == 0 ? 0 : 1;
     }
 
@@ -98,6 +105,10 @@ private:
     using Case = void (QtLauncherSmoke::*)();
 
     void run_case(const QString& name, const Case test_case) {
+        if (!test_filter_.isEmpty() && !name.contains(test_filter_, Qt::CaseInsensitive)) {
+            return;
+        }
+        ++cases_run_;
         try {
             reset_config();
             (this->*test_case)();
@@ -160,7 +171,7 @@ private:
         QTimer::singleShot(0, [answer] {
             auto* const dialog = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
             if (dialog != nullptr) {
-                if (QPushButton* const answer_button = dialog->button(answer)) {
+                if (auto* const answer_button = dialog->button(answer)) {
                     answer_button->click();
                 }
             }
@@ -395,7 +406,7 @@ private:
         answer_remove_confirmation(QMessageBox::Yes);
         button(window, "remove_button")->click();
 
-        wait_until([&window] {
+        wait_until([this, &window] {
             return status_label(window)->text().startsWith(QStringLiteral("Cadastro removido"));
         }, 10000, QStringLiteral("remoção do cadastro não terminou"));
 
@@ -415,6 +426,8 @@ private:
         const QString desktop_path = QDir(
             tradutorlinux::catalog::AppCatalog::default_desktop_entries_dir())
                                          .filePath(QStringLiteral("tradutorlinux-removal_fixture.desktop"));
+        require(QFile::remove(desktop_path),
+                QStringLiteral("não foi possível substituir o atalho da fixture"));
         require(QDir().mkpath(QDir(desktop_path).filePath(QStringLiteral("child"))),
                 QStringLiteral("não foi possível preparar falha de remoção"));
         tradutorlinux::gui::MainWindow window(runtime_path());
@@ -423,7 +436,7 @@ private:
         answer_remove_confirmation(QMessageBox::Yes);
         button(window, "remove_button")->click();
 
-        wait_until([&window] {
+        wait_until([this, &window] {
             return status_label(window)->text() == QStringLiteral("Falha ao remover o cadastro");
         }, 10000, QStringLiteral("falha de remoção não foi apresentada"));
         tradutorlinux::catalog::AppCatalog catalog;
@@ -618,6 +631,8 @@ private:
     }
 
     QTemporaryDir config_dir_;
+    QString test_filter_;
+    int cases_run_{0};
     int failures_{0};
 };
 

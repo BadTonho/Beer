@@ -2,6 +2,8 @@
 
 #include "tradutorlinux/util/unicode.hpp"
 
+#include <unistd.h>
+
 namespace tradutorlinux {
 using namespace file_internal;
 
