@@ -6,7 +6,9 @@ O TradutorLinux é um runtime de compatibilidade **sério e de produção** para
 
 O alvo inicial é estrito: **executáveis PE32+ x86-64 em Linux x86-64**. A meta estratégica é tornar o runtime útil para o portfólio real `Aplicativos_Windows_Populares/` (`Roblox`, `WinRAR`, `HWiNFO64`, `7-Zip`, `putty`, `RTSSHooks`) avançando por classes de uso com `--report`/`--trace` e `exit code` reproduzíveis, sem prometer compatibilidade universal imediata.
 
-Antes de iniciar qualquer trabalho, leia `PROJETO.md`, `feitos/ROADMAP-LEGADO.md`, `docs/compatibilidade.md` e os contratos técnicos relevantes em `docs/`. Até a criação do novo roadmap, o arquivo legado é apenas referência histórica.
+Esse portfólio é uma referência estratégica de longo prazo. As prioridades do ciclo atual são os fluxos desktop dos aplicativos definidos em `ROADMAP.md`, incluindo 7-Zip, WinRAR, Notepad++, Everything e Rockstar Games Launcher; a presença de um aplicativo no corpus não autoriza ampliar o escopo para suas dependências.
+
+Antes de iniciar qualquer trabalho, leia `PROJETO.md`, `ROADMAP.md`, `docs/compatibilidade.md` e os contratos técnicos relevantes em `docs/`, incluindo as matrizes temáticas afetadas. Consulte `feitos/` quando precisar de decisões ou evidências históricas; os roadmaps arquivados não definem a fila atual.
 
 ## O que mantém o projeto no rumo
 
@@ -40,10 +42,14 @@ Antes de iniciar qualquer trabalho, leia `PROJETO.md`, `feitos/ROADMAP-LEGADO.md
 - Criar a estrutura isolada ou um teste de regressão não autoriza, por si só,
   criar DLLs, shims ou código de compatibilidade exclusivo; isso exige uma
   etapa explícita do roadmap e aprovação correspondente.
+- Extensões já documentadas e testadas, como a extensão host-side do 7-Zip
+  selecionada por perfil schema 4, fazem parte da base existente. Sua manutenção
+  dentro do contrato pode atender ao marco atual; criar outra extensão ou
+  ampliar esse contrato continua sujeito às regras de autorização acima.
 
 ## Escopo atual
 
-Em cada momento, o roadmap vigente é a fonte de verdade para a fase em andamento. Durante a transição, `feitos/ROADMAP-LEGADO.md` contém somente o histórico; as restrições de cada fase anterior continuam sendo referência até o novo roadmap ser criado. As restrições de cada fase são gates reais: uma capacidade só pode ser usada ou declarada quando a fase correspondente e seus testes a autorizarem. Na Fase 0, por exemplo, o projeto fornecia apenas infraestrutura; o carregamento e a execução de PE só começaram nas fases seguintes.
+`ROADMAP.md` é a fonte de verdade para o ciclo vigente e seus critérios de saída. O ciclo atual é o de experiência desktop, com marcos ED1–ED5; confirme nele o próximo marco pendente antes de implementar mudanças. As capacidades já entregues permanecem como base de regressão, com seus limites definidos pelos contratos e pela matriz de compatibilidade. Os documentos em `feitos/` preservam o histórico e não reabrem etapas concluídas nem substituem o escopo vigente.
 
 O primeiro marco funcional do projeto foi um `tl_hello.exe` próprio, sem CRT, que importa somente:
 
@@ -57,7 +63,7 @@ Esse marco continua protegido por testes automáticos de saída, código de reto
 
 - Declarar suporte ou executar de forma presumidamente compatível um aplicativo Windows arbitrário sem análise de imports, implementação, teste de integração e registro na matriz.
 - PE32/x86, ARM, WOW64, emulação de CPU ou execução cruzada de arquitetura.
-- .NET, COM, ActiveX, drivers, serviços Windows, anticheat, DirectX, GPU, áudio, jogos e GDI completo permanecem fora do escopo atual; qualquer inclusão futura exige decisão explícita, aplicativo-alvo e testes.
+- .NET, COM/ActiveX amplo, automação `IDispatch`, drivers, serviços Windows, anticheat, DirectX nativo, GPU, áudio, jogos no runtime próprio e GDI completo permanecem fora do escopo atual; qualquer inclusão futura exige decisão explícita, aplicativo-alvo e testes. Os contratos mínimos de `ole32.dll` e streams em memória registrados na matriz permanecem válidos, sem constituir suporte geral a COM. As integrações já documentadas do backend Proton opcional mantêm seus contratos e evidências separados dos recursos do runtime próprio.
 - GUI Win32 ampla sem aplicativo-alvo e sem uma fase que defina seus contratos; a GUI mínima experimental já faz parte do roadmap.
 - Adicionar dependências grandes, frameworks, APIs ou compatibilidade de terceiros apenas por antecipação.
 - Tratar execução nativa de `.exe` como recurso de segurança. O runtime não é sandbox.
@@ -84,9 +90,10 @@ Compatibilidade ampla é o objetivo de longo prazo, não uma autorização para 
 ## Qualidade, testes e documentação
 
 - Todo código novo deve compilar com os warnings rigorosos configurados pelo projeto e passar em CTest.
-- Antes de declarar uma mudança pronta, execute os presets relevantes, incluindo `sanitize` quando houver código C/C++ novo — porém respeitando as restrições de build da seção seguinte.
-- Preserve `stdout` para a saída do futuro programa convidado; logs do runtime usam `stderr` e o formato de `docs/diagnostico.md`.
-- Atualize `docs/compatibilidade.md` quando uma fixture, aplicação ou API mudar de estado.
+- Na validação local, execute os testes relevantes aos alvos afetados, respeitando as restrições de build da seção seguinte. Binários existentes só validam mudanças de código quando estiverem atualizados com elas. Mudanças exclusivamente documentais não exigem build.
+- Código C/C++ novo exige validação com `sanitize`, localmente quando permitida pelas restrições de build ou no CI. A validação completa dos presets relevantes fica para o CI ou para execução local explicitamente autorizada. Registre os checks executados e os pendentes; sem a evidência exigida, não declare validação completa nem encerre o marco do roadmap.
+- Preserve `stdout` para a saída do programa convidado; logs do runtime usam `stderr` e o formato de `docs/diagnostico.md`.
+- Atualize a matriz temática correspondente, referenciada por `docs/compatibilidade.md`, quando uma fixture, aplicação ou API mudar de estado; ajuste o índice quando necessário.
 - Atualize documentos de ABI, API ou diagnóstico sempre que um contrato mudar.
 - Marque itens no roadmap vigente somente depois de haver evidência reproduzível: código, teste e validação no ambiente Linux/CI.
 

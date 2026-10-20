@@ -173,14 +173,18 @@ TradutorLinux/
 │   ├── test_*.cpp
 │   └── pe_builder.hpp, test_support.hpp, CMakeLists.txt
 ├── compat/
-│   └── apps/<app-id>/              # extensões por aplicativo (reservado às etapas)
+│   └── apps/<app-id>/              # extensões isoladas, com seleção explícita
 └── feitos/                         # roadmaps R1–R29 e marcos fundacionais (histórico)
 ```
 
-Extensões específicas de aplicativos, quando autorizadas em uma etapa futura,
-ficarão separadas em `compat/apps/<app-id>/`. Essa árvore não é ligada ao
-runtime geral por padrão e permanece sem DLLs enquanto não houver um contrato,
-um alvo e testes que justifiquem a extensão. O crate Rust (`src/rust/`,
+Extensões específicas de aplicativos ficam separadas em `compat/apps/<app-id>/`,
+em alvos próprios, sem dependência do `tradutorlinux_core` sobre elas. A extensão
+host-side do 7-Zip já integra essa base e só é ativada por perfil schema 4 com
+`"extension": "7zip"`, conforme o contrato em
+[`docs/arquitetura/perfis-compatibilidade.md`](docs/arquitetura/perfis-compatibilidade.md).
+Ela não fornece DLL. Novas extensões ou ampliações de contrato exigem etapa
+explícita do roadmap, aprovação correspondente, testes e registro na matriz;
+criar um diretório não autoriza gerar ou baixar DLLs. O crate Rust (`src/rust/`,
 desde `TL_BUILD_RUST=ON`) é opt-in e acompanha os últimos contratos de parser
 registrados em `docs/compatibilidade-backends.md`.
 
