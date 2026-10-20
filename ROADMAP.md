@@ -34,15 +34,15 @@ histórico e não definem trabalho novo.
 **Objetivo:** administrar os cadastros pela GUI ou CLI sem deixar estado
 desatualizado no catálogo ou no menu do desktop.
 
-- [ ] Permitir remover um cadastro pelo launcher Qt usando o contrato de
+- [x] Permitir remover um cadastro pelo launcher Qt usando o contrato de
   `app remove`.
-- [ ] Remover o `.desktop` correspondente quando o cadastro for removido pela
+- [x] Remover o `.desktop` correspondente quando o cadastro for removido pela
   CLI ou pela GUI.
-- [ ] Preservar os arquivos instalados e o prefixo ao remover somente o
+- [x] Preservar os arquivos instalados e o prefixo ao remover somente o
   cadastro.
-- [ ] Cobrir cadastro, localização na biblioteca, execução e remoção em
+- [x] Cobrir cadastro, localização na biblioteca, execução e remoção em
   diretórios de configuração temporários.
-- [ ] Tratar falhas de persistência sem exibir sucesso ou estado divergente.
+- [x] Tratar falhas de persistência sem exibir sucesso ou estado divergente.
 
 **Saída:** GUI, CLI, catálogo e menu refletem o mesmo estado; os dados do
 aplicativo permanecem intactos após remover o cadastro.
