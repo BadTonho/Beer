@@ -1,7 +1,9 @@
 #include "test_support.hpp"
+#include "tradutorlinux/diagnostics/trace.hpp"
 #include "tradutorlinux/loader/module.hpp"
 #include "tradutorlinux/loader/process.hpp"
 #include "tradutorlinux/process/isolate.hpp"
+#include "tradutorlinux/runtime/winapi.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -16,6 +18,7 @@
 #include <cerrno>
 #include <sys/mman.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 #include <gtest/gtest.h>
 
@@ -36,6 +39,14 @@ extern "C" __attribute__((ms_abi, noinline)) void guest_process_tree_hang() noex
     for (;;) {
         static_cast<void>(::pause());
     }
+}
+
+extern "C" __attribute__((ms_abi, noinline)) void guest_process_short_delay() noexcept {
+    struct ::timespec delay {0, 300'000'000};
+    while (::nanosleep(&delay, &delay) != 0 && errno == EINTR) {
+    }
+    tradutorlinux::guest_process_request_exit(0);
+    tradutorlinux::guest_process_exit_now();
 }
 
 bool process_has_gone(const pid_t pid) {
@@ -227,6 +238,23 @@ TEST(ExternalProcessTest, GuestTimeoutKillsDescendantProcessGroup) {
         static_cast<void>(::kill(descendant, SIGKILL));
     }
     EXPECT_TRUE(gone);
+}
+
+TEST(GuestProcessTest, TraceTimeoutSamplingPreservesAnEarlyExit) {
+    constexpr std::size_t kGuestStackSize = 0x2000000U;
+    void* const stack = ::mmap(nullptr, kGuestStackSize, PROT_READ | PROT_WRITE,
+                               MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    ASSERT_NE(stack, MAP_FAILED);
+
+    diagnostics::set_trace_requested(true);
+    const process::GuestOutcome outcome = process::run_guest_isolated(
+        reinterpret_cast<std::uintptr_t>(&guest_process_short_delay),
+        reinterpret_cast<std::uintptr_t>(stack) + kGuestStackSize, 2000);
+    diagnostics::set_trace_requested(false);
+
+    EXPECT_EQ(::munmap(stack, kGuestStackSize), 0);
+    EXPECT_EQ(outcome.kind, process::GuestOutcomeKind::Exited);
+    EXPECT_EQ(outcome.exit_code, 0U);
 }
 
 TEST(ExternalProcessTest, ReportsSignalTermination) {

@@ -113,6 +113,8 @@ struct TimeoutSnapshot {
     std::uint64_t rip{};
     bool stack_top_recorded{};
     std::uint64_t stack_top{};
+    bool child_exited{};
+    int child_wait_status{};
 };
 
 [[nodiscard]] bool read_timeout_stack_top(const ::pid_t child, const std::uintptr_t stack_pointer,
@@ -150,9 +152,16 @@ struct TimeoutSnapshot {
         waited = ::waitpid(child, &wait_status, WUNTRACED);
     } while (waited < 0 && errno == EINTR);
 
-    if (waited != child || !WIFSTOPPED(wait_status)) {
+    if (waited != child) {
         static_cast<void>(::ptrace(PTRACE_DETACH, child, nullptr, nullptr));
         return {};
+    }
+    if (!WIFSTOPPED(wait_status)) {
+        // The guest can exit between the caller's WNOHANG check and this
+        // ptrace wait. This wait has then consumed its exit status, so return
+        // it to the caller instead of making the main loop wait for it again.
+        static_cast<void>(::ptrace(PTRACE_DETACH, child, nullptr, nullptr));
+        return {.child_exited = true, .child_wait_status = wait_status};
     }
 
     struct ::user_regs_struct registers_snapshot {};
@@ -599,6 +608,10 @@ GuestOutcome run_guest_isolated(const std::uintptr_t entry_point,
         }
         if (collect_timeout_samples && poll_result == 0 && waited != child) {
             const TimeoutSnapshot sample = snapshot_timeout_rip(child);
+            if (sample.child_exited) {
+                status = sample.child_wait_status;
+                break;
+            }
             if (sample.recorded) {
                 timeout_rip_samples.push_back(sample.rip);
             }
