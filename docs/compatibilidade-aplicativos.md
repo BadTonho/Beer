@@ -204,6 +204,14 @@ continuam sendo a evidência necessária para registrá-lo como suportado.
 | 14a | `*_x64_Installer.exe` `CapCut/Epic/Creative/RTSS.exe` | PE32 (x86) | — | `unsupported-architecture` `0x14c` `exit 5` | `parse-failed status="unsupported-architecture"` `src/pe/pe_reader.cpp:685` |
 | 15 | `PresentMon-*.exe` (`PresentMon-1.10.0-x64.exe`, `PresentMon-2.3.1-x64.exe`, `PresentMon-2.3.1-x64-DLSS4.exe`) | PE32+ x86-64 | 144/144, 147/147, 149/149 (100%) | `supported` | `exit 0` (`--report`) | Módulos KERNEL32 (buffers e cursores de console, `HeapQueryInformation`), USER32 (`GetMessageExtraInfo`), ADVAPI32 (rastreamento ETW: `OpenTraceW`, `ProcessTrace`, `CloseTrace`, `StartTraceW`, `ControlTraceW`, `EnableTraceEx2`) e TDH (`TdhGetPropertySize`, `TdhGetEventInformation`, `TdhLoadManifestFromBinary`) 100% resolvidos e testados via `PresentMonCoverageTest` |
 
+O smoke do Notepad++ para U2 agora cadastra o executável em catálogo temporário,
+abre um arquivo externo com espaços e Unicode por `app run <id> -- <arquivo>`,
+envia edição e salvamento pela janela X11 e compara o conteúdo no caminho Linux
+original. O teste está implementado, mas ainda não foi validado neste ambiente:
+o Xvfb não conseguiu criar seu socket no `/tmp/.X11-unix` por falta de
+permissão, e por isso a linha do Notepad++ acima não foi promovida para esse
+fluxo.
+
 
 | 2a | `7-Zip/7zG.exe` | PE32+ x86-64 | 208/208 (100%) | `supported` | sob Xvfb uma execução controlada de `a` cria a janela `Progress`, gera um arquivo 7z válido e termina com exit `0`; `7z_x64.exe l` confirma `input.txt`; repetições controladas também terminam em `guest-timeout 72` | `lstrcatW`, `PostMessageA/W` cross-thread e o trace genérico de threads/eventos possuem fixtures; no caso intermitente o worker/eventos concluem, mas não há `WM_TIMER` antes do timeout e a fila modal permanece investigada |
 

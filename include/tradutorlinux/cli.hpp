@@ -33,6 +33,7 @@ enum class CommandMode {
     AppRun,      // Executar aplicativo da biblioteca
     AppAdd,      // Cadastrar aplicativo manualmente na biblioteca
     AppRemove,   // Remover aplicativo do catálogo da biblioteca
+    AppAssociate,// Alterar MIME types anunciados pelo atalho do aplicativo
     Doctor,      // Diagnosticar ambiente de execução no hospedeiro
 };
 
@@ -69,6 +70,11 @@ struct CommandLine {
     // que foram informados depois do executável. argv[0] é o caminho do
     // executável informado na linha de comando.
     std::vector<std::string> guest_arguments;
+    // Arquivos passados após `--` em `app run`; resolvidos em relação ao CWD
+    // do processo que iniciou o runtime e convertidos para caminhos Windows.
+    std::vector<std::filesystem::path> file_arguments;
+    std::string association_action;
+    std::string mime_type;
 };
 
 struct ParseResult {

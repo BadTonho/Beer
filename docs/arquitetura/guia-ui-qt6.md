@@ -71,7 +71,8 @@ de trabalho ou de `PATH`.
   `library.json`;
 - campo de caminho e `QFileDialog` com filtro para `.exe`;
 - campo opcional de nome da instalação e ações **Analisar**, **Executar**,
-  **Instalar**, **Cadastrar**, **Limpar** e **Sair**;
+  **Instalar**, **Cadastrar**, **Remover cadastro**, **Tipos de arquivo...**,
+  **Limpar** e **Sair**;
 - indicador de quantidade de aplicativos cadastrados;
 - status textual e console somente leitura para logs.
 
@@ -99,6 +100,14 @@ O catálogo continua sendo lido e salvo por `catalog::AppCatalog`. Um cadastro
 manual novo recebe `prefix::default_app_prefix(id)` e inicia em seu `drive_c`;
 uma entrada selecionada preserva ID, prefixo, argumentos e demais metadados.
 
+**Tipos de arquivo...** aparece habilitado quando há aplicativo selecionado e
+nenhum processo está ocupado. A pessoa escolhe adicionar uma extensão ou
+remover um MIME type já registrado. A inclusão usa `QMimeDatabase` e executa
+`app associate <id> add <mime>` pelo runtime; a remoção usa a ação `remove`.
+O launcher informa o resultado do processo e mostra a lista persistida. Essa
+operação só disponibiliza o app em “Abrir com”; ela não define o aplicativo
+padrão.
+
 **Instalar** inicia `tradutorlinux install <setup> --trace`. O launcher lê
 somente os eventos estruturados do componente `install` em `stderr`: no evento
 `registered`, recarrega a biblioteca; se o comando retornar `6` com mais de um
@@ -110,7 +119,8 @@ arquivo escolhido. Cancelar preserva o prefixo sem criar entrada no catálogo.
 O launcher mantém um único `QProcess` ativo. Enquanto ele está iniciando ou
 executando:
 
-- Analisar, Executar, Instalar, Cadastrar, Limpar, busca e seleção ficam desabilitados;
+- Analisar, Executar, Instalar, Cadastrar, Remover cadastro, Tipos de arquivo,
+  Limpar, busca e seleção ficam desabilitados;
 - stdout e stderr são lidos por sinais independentes;
 - o status informa que a operação está em andamento;
 - fechar a janela tenta terminar o subprocesso e, após um limite curto,
@@ -139,7 +149,9 @@ usa `QT_QPA_PLATFORM=offscreen` e cobre:
    prefixo temporário;
 7. seleção assíncrona do primeiro de dois candidatos, seguida de `app add`
    sem repetir o setup;
-8. falha controlada quando o caminho do runtime não pode ser iniciado.
+8. associação de extensão via `QMimeDatabase`, persistência do MIME type e
+   estado do botão conforme seleção e operação ativa;
+9. falha controlada quando o caminho do runtime não pode ser iniciado.
 
 O teste usa o runtime e as fixtures produzidos pelo mesmo build. O diretório
 de configuração é temporário, portanto os testes não alteram a biblioteca do

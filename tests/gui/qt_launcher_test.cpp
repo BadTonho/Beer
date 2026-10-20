@@ -3,6 +3,7 @@
 #include "tradutorlinux/catalog/app_catalog.hpp"
 
 #include <QApplication>
+#include <QAbstractButton>
 #include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
@@ -22,6 +23,7 @@
 #include <QTimer>
 
 #include <functional>
+#include <algorithm>
 #include <iostream>
 #include <stdexcept>
 
@@ -75,6 +77,10 @@ public:
                  &QtLauncherSmoke::registers_and_persists);
         run_case(QStringLiteral("remoção cancelada preserva cadastro e atalho"),
                  &QtLauncherSmoke::cancel_removal_preserves_app);
+        run_case(QStringLiteral("associação de extensão pelo launcher"),
+                 &QtLauncherSmoke::associates_extension_from_launcher);
+        run_case(QStringLiteral("falha na associação é exibida e revertida"),
+                 &QtLauncherSmoke::reports_association_failure);
         run_case(QStringLiteral("remoção desabilitada durante operação ativa"),
                  &QtLauncherSmoke::disables_removal_while_busy);
         run_case(QStringLiteral("remoção pela biblioteca preserva dados instalados"),
@@ -356,9 +362,13 @@ private:
         require(list->count() == 1, QStringLiteral("fixture não apareceu na biblioteca"));
         require(!button(window, "remove_button")->isEnabled(),
                 QStringLiteral("remoção habilitada sem seleção"));
+        require(!button(window, "file_types_button")->isEnabled(),
+                QStringLiteral("tipos de arquivo habilitado sem seleção"));
         list->setCurrentRow(0);
         require(button(window, "remove_button")->isEnabled(),
                 QStringLiteral("remoção não foi habilitada para seleção"));
+        require(button(window, "file_types_button")->isEnabled(),
+                QStringLiteral("tipos de arquivo não foi habilitado para seleção"));
 
         answer_remove_confirmation(QMessageBox::No);
         button(window, "remove_button")->click();
@@ -370,6 +380,88 @@ private:
         require(QFileInfo::exists(QDir(tradutorlinux::catalog::AppCatalog::default_desktop_entries_dir())
                                       .filePath(QStringLiteral("tradutorlinux-removal_fixture.desktop"))),
                 QStringLiteral("cancelar removeu o atalho"));
+        list->clearSelection();
+        require(!button(window, "file_types_button")->isEnabled(),
+                QStringLiteral("tipos de arquivo continuou habilitado após limpar seleção"));
+    }
+
+    void associates_extension_from_launcher() {
+        const auto entry = add_removal_fixture();
+        tradutorlinux::gui::MainWindow window(runtime_path());
+        window.show();
+        app_list(window)->setCurrentRow(0);
+        QTimer::singleShot(0, [] {
+            auto* const action = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+            if (action == nullptr) return;
+            for (QAbstractButton* candidate : action->buttons()) {
+                if (candidate->text() == QStringLiteral("Adicionar extensão")) {
+                    candidate->click();
+                    QTimer::singleShot(0, [] {
+                        auto* const input = qobject_cast<QInputDialog*>(QApplication::activeModalWidget());
+                        if (input == nullptr) return;
+                        if (QLineEdit* const line = input->findChild<QLineEdit*>())
+                            line->setText(QStringLiteral("txt"));
+                        input->accept();
+                    });
+                    return;
+                }
+            }
+        });
+        button(window, "file_types_button")->click();
+        wait_until([this, &window] {
+            return status_label(window)->text() == QStringLiteral("Tipos de arquivo atualizados") ||
+                   status_label(window)->text() == QStringLiteral("Falha ao atualizar tipos de arquivo");
+        }, 10000, QStringLiteral("associação não terminou"));
+        require(status_label(window)->text() == QStringLiteral("Tipos de arquivo atualizados"),
+                QStringLiteral("comando de associação retornou erro"));
+        const auto mime_types = tradutorlinux::catalog::AppCatalog::desktop_entry_mime_types(entry.id);
+        require(std::find(mime_types.begin(), mime_types.end(), "text/plain") != mime_types.end(),
+                QStringLiteral("MIME type text/plain não foi persistido"));
+    }
+
+    void reports_association_failure() {
+        const auto entry = add_removal_fixture();
+        const QByteArray previous_path = qgetenv("PATH");
+        const bool had_path = qEnvironmentVariableIsSet("PATH");
+        struct PathRestore final {
+            QByteArray value;
+            bool was_set;
+            ~PathRestore() {
+                if (was_set) qputenv("PATH", value);
+                else qunsetenv("PATH");
+            }
+        } path_restore{previous_path, had_path};
+        const QString blocked_tools = QDir(config_dir_.path()).filePath(QStringLiteral("no-tools"));
+        require(QDir().mkpath(blocked_tools), QStringLiteral("não criou diretório PATH vazio"));
+        qputenv("PATH", blocked_tools.toUtf8());
+
+        tradutorlinux::gui::MainWindow window(runtime_path());
+        window.show();
+        app_list(window)->setCurrentRow(0);
+        QTimer::singleShot(0, [] {
+            auto* const action = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+            if (action == nullptr) return;
+            for (QAbstractButton* candidate : action->buttons()) {
+                if (candidate->text() != QStringLiteral("Adicionar extensão")) continue;
+                candidate->click();
+                QTimer::singleShot(0, [] {
+                    auto* const input = qobject_cast<QInputDialog*>(QApplication::activeModalWidget());
+                    if (input == nullptr) return;
+                    if (QLineEdit* const line = input->findChild<QLineEdit*>())
+                        line->setText(QStringLiteral("txt"));
+                    input->accept();
+                });
+                return;
+            }
+        });
+        button(window, "file_types_button")->click();
+        wait_until([this, &window] {
+            return status_label(window)->text() == QStringLiteral("Falha ao atualizar tipos de arquivo");
+        }, 10000, QStringLiteral("falha de associação não foi apresentada"));
+        require(log_output(window)->toPlainText().contains(QStringLiteral("cache do desktop")),
+                QStringLiteral("diagnóstico da falha não apareceu no launcher"));
+        require(tradutorlinux::catalog::AppCatalog::desktop_entry_mime_types(entry.id).empty(),
+                QStringLiteral("falha deixou associação persistida parcialmente"));
     }
 
     void disables_removal_while_busy() {
@@ -385,6 +477,8 @@ private:
         wait_until([process] { return process->state() != QProcess::NotRunning; }, 1000,
                    QStringLiteral("processo de ocupação não iniciou"));
         require(!remove->isEnabled(), QStringLiteral("remoção ficou habilitada durante operação"));
+        require(!button(window, "file_types_button")->isEnabled(),
+                QStringLiteral("tipos de arquivo ficou habilitado durante operação"));
         process->kill();
         require(process->waitForFinished(1000),
                 QStringLiteral("processo de ocupação não encerrou"));

@@ -43,6 +43,18 @@ Os atalhos individuais usam `$XDG_DATA_HOME/applications`, com fallback para
 `$HOME/.local/share/applications`. Um atalho ausente é aceito; falhas de
 remoção ou persistência retornam erro e não são reportadas como sucesso.
 
+`app run <id> [opções e argumentos] -- <arquivo...>` encaminha cada arquivo
+como argumento separado do programa convidado. Os caminhos são interpretados
+relativos ao diretório atual de quem iniciou o runtime, precisam existir como
+arquivos regulares e são convertidos para a visão do prefixo (`C:\...` dentro
+de `drive_c`, `Z:\...` fora). Não há interpretação por shell.
+
+`app associate <id> add|remove <mime-type>` altera a lista `MimeType` do
+atalho `tradutorlinux-<id>.desktop`; a entrada `Exec` inclui `%F` como campo
+isolado uma única vez. A associação apenas faz o aplicativo aparecer em “Abrir
+com”. O TradutorLinux não grava `mimeapps.list` e não define o aplicativo como
+padrão. O cache MIME do diretório de atalhos é atualizado após as mudanças.
+
 ## Console
 
 | Aplicativo | Versão | Imports | Estado | Fixture/Target |

@@ -17,6 +17,8 @@
 #include <QListWidget>
 #include <QAbstractItemView>
 #include <QMessageBox>
+#include <QMimeDatabase>
+#include <QMimeType>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -112,6 +114,9 @@ void MainWindow::setup_ui() {
     remove_button_ = new QPushButton(QStringLiteral("Remover cadastro"), library_box);
     remove_button_->setObjectName(QStringLiteral("remove_button"));
     library_layout->addWidget(remove_button_);
+    file_types_button_ = new QPushButton(QStringLiteral("Tipos de arquivo..."), library_box);
+    file_types_button_->setObjectName(QStringLiteral("file_types_button"));
+    library_layout->addWidget(file_types_button_);
 
     auto* const action_box = new QGroupBox(QStringLiteral("Executável"), splitter);
     auto* const action_layout = new QVBoxLayout(action_box);
@@ -206,6 +211,13 @@ void MainWindow::setup_ui() {
             [this](QListWidgetItem* const current, QListWidgetItem* const) {
                 on_app_selected(current);
             });
+    connect(app_list_, &QListWidget::itemSelectionChanged, this, [this] {
+        QListWidgetItem* const current = app_list_->currentItem();
+        if (current == nullptr || !current->isSelected()) {
+            selected_app_id_.clear();
+            update_action_state();
+        }
+    });
     connect(path_input_, &QLineEdit::textChanged, this, &MainWindow::on_path_text_changed);
     connect(choose_button, &QPushButton::clicked, this, &MainWindow::on_choose_clicked);
     connect(analyze_button_, &QPushButton::clicked, this, &MainWindow::on_analyze_clicked);
@@ -214,6 +226,7 @@ void MainWindow::setup_ui() {
     connect(register_button_, &QPushButton::clicked, this,
             &MainWindow::on_register_clicked);
     connect(remove_button_, &QPushButton::clicked, this, &MainWindow::on_remove_clicked);
+    connect(file_types_button_, &QPushButton::clicked, this, &MainWindow::on_file_types_clicked);
     connect(doctor_button_, &QPushButton::clicked, this, &MainWindow::on_doctor_clicked);
     connect(clear_button_, &QPushButton::clicked, this, &MainWindow::on_clear_clicked);
     connect(exit_button_, &QPushButton::clicked, this, &QWidget::close);
@@ -270,6 +283,8 @@ void MainWindow::on_search_text_changed(const QString& query) {
 
 void MainWindow::on_app_selected(QListWidgetItem* const item) {
     if (item == nullptr) {
+        selected_app_id_.clear();
+        update_action_state();
         return;
     }
     selected_app_id_ = item->data(Qt::UserRole).toString();
@@ -354,6 +369,11 @@ void MainWindow::on_register_clicked() {
 
     if (!catalog::AppCatalog::create_desktop_entry(entry)) {
         append_message(QStringLiteral("Aviso: não foi possível criar o atalho do aplicativo."));
+    } else {
+        std::string cache_error;
+        if (!catalog::AppCatalog::refresh_desktop_database({}, &cache_error))
+            append_message(QStringLiteral("Aviso: atalho criado, mas o cache do desktop falhou: %1")
+                               .arg(qstring_from_std_string(cache_error)));
     }
 
     selected_app_id_ = qstring_from_std_string(entry.id);
@@ -399,6 +419,65 @@ void MainWindow::on_remove_clicked() {
     process_.start(runtime_executable(),
                    QStringList{QStringLiteral("app"), QStringLiteral("remove"),
                                selected_app_id_});
+    update_action_state();
+}
+
+void MainWindow::on_file_types_clicked() {
+    if (process_is_running() || selected_app_id_.isEmpty()) return;
+    const auto app = catalog_.find_app(selected_app_id_.toStdString());
+    if (!app) {
+        refresh_app_list();
+        set_status(QStringLiteral("O cadastro selecionado não está mais disponível"));
+        return;
+    }
+    const QStringList existing = [&]() {
+        QStringList values;
+        for (const auto& mime : catalog::AppCatalog::desktop_entry_mime_types(app->id))
+            values.push_back(qstring_from_std_string(mime));
+        return values;
+    }();
+    QMessageBox action_box(QMessageBox::Question, QStringLiteral("Tipos de arquivo"),
+        QStringLiteral("Associações atuais: %1\n\nEscolha uma operação. Isso só adiciona o aplicativo a 'Abrir com'; não muda o padrão.")
+            .arg(existing.isEmpty() ? QStringLiteral("nenhuma") : existing.join(QStringLiteral(", "))),
+        QMessageBox::NoButton, this);
+    QPushButton* const add = action_box.addButton(QStringLiteral("Adicionar extensão"), QMessageBox::AcceptRole);
+    QPushButton* const remove = action_box.addButton(QStringLiteral("Remover tipo"), QMessageBox::DestructiveRole);
+    action_box.addButton(QMessageBox::Cancel);
+    action_box.exec();
+    QString operation;
+    QString mime;
+    if (action_box.clickedButton() == add) {
+        bool accepted = false;
+        QString extension = QInputDialog::getText(this, QStringLiteral("Adicionar extensão"),
+            QStringLiteral("Extensão (por exemplo, txt):"), QLineEdit::Normal, {}, &accepted).trimmed();
+        if (!accepted || extension.isEmpty()) return;
+        if (extension.startsWith('.')) extension.remove(0, 1);
+        const QMimeType resolved = QMimeDatabase{}.mimeTypeForFile(
+            QStringLiteral("arquivo.") + extension, QMimeDatabase::MatchExtension);
+        if (!resolved.isValid() || resolved.name() == QStringLiteral("application/octet-stream")) {
+            QMessageBox::warning(this, QStringLiteral("Tipo desconhecido"),
+                QStringLiteral("Não foi possível identificar o MIME type dessa extensão."));
+            return;
+        }
+        operation = QStringLiteral("add");
+        mime = resolved.name();
+    } else if (action_box.clickedButton() == remove) {
+        if (existing.isEmpty()) return;
+        bool accepted = false;
+        mime = QInputDialog::getItem(this, QStringLiteral("Remover tipo"),
+            QStringLiteral("MIME type:"), existing, 0, false, &accepted);
+        if (!accepted || mime.isEmpty()) return;
+        operation = QStringLiteral("remove");
+    } else {
+        return;
+    }
+    association_in_progress_ = true;
+    process_start_failed_ = false;
+    set_status(QStringLiteral("Atualizando tipos de arquivo..."));
+    append_message(QStringLiteral("Executando: app associate %1 %2 %3")
+        .arg(selected_app_id_, operation, mime));
+    process_.start(runtime_executable(), QStringList{QStringLiteral("app"),
+        QStringLiteral("associate"), selected_app_id_, operation, mime});
     update_action_state();
 }
 
@@ -455,7 +534,12 @@ void MainWindow::on_process_error(const QProcess::ProcessError error) {
         set_status(QStringLiteral("Falha ao remover o cadastro"));
         append_message(QStringLiteral("O estado da biblioteca foi recarregado após a falha."));
     }
-    set_status(QStringLiteral("Falha ao iniciar o runtime"));
+    if (association_in_progress_) {
+        association_in_progress_ = false;
+        set_status(QStringLiteral("Falha ao iniciar atualização de tipos de arquivo"));
+    } else {
+        set_status(QStringLiteral("Falha ao iniciar o runtime"));
+    }
     append_message(QStringLiteral("Erro ao iniciar o runtime: %1").arg(process_.errorString()));
     update_action_state();
 }
@@ -468,6 +552,7 @@ void MainWindow::on_process_finished(const int exit_code,
         install_in_progress_ = false;
         catalog_registration_in_progress_ = false;
         catalog_removal_in_progress_ = false;
+        association_in_progress_ = false;
         doctor_in_progress_ = false;
         update_action_state();
         return;
@@ -484,6 +569,24 @@ void MainWindow::on_process_finished(const int exit_code,
             path_input_->clear();
             refresh_app_list();
             set_status(QStringLiteral("Cadastro removido; arquivos e prefixo foram mantidos"));
+        }
+        append_message(QStringLiteral("[launcher] código de saída: %1").arg(exit_code));
+    } else if (association_in_progress_) {
+        association_in_progress_ = false;
+        refresh_app_list();
+        if (status == QProcess::CrashExit || exit_code != 0) {
+            set_status(QStringLiteral("Falha ao atualizar tipos de arquivo"));
+            append_message(QStringLiteral("A associação falhou; o estado do atalho foi recarregado."));
+        } else {
+            set_status(QStringLiteral("Tipos de arquivo atualizados"));
+            const auto app = catalog_.find_app(selected_app_id_.toStdString());
+            if (app) {
+                QStringList types;
+                for (const auto& value : catalog::AppCatalog::desktop_entry_mime_types(app->id))
+                    types.push_back(qstring_from_std_string(value));
+                append_message(QStringLiteral("Associações persistidas: %1")
+                    .arg(types.isEmpty() ? QStringLiteral("nenhuma") : types.join(QStringLiteral(", "))));
+            }
         }
         append_message(QStringLiteral("[launcher] código de saída: %1").arg(exit_code));
     } else if (status == QProcess::CrashExit) {
@@ -533,6 +636,7 @@ void MainWindow::update_action_state() {
     install_button_->setEnabled(has_path && !running);
     register_button_->setEnabled(has_path && !running);
     remove_button_->setEnabled(!selected_app_id_.isEmpty() && !running);
+    file_types_button_->setEnabled(!selected_app_id_.isEmpty() && !running);
     doctor_button_->setEnabled(!running);
     clear_button_->setEnabled(!running);
     exit_button_->setEnabled(true);

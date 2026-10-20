@@ -45,6 +45,13 @@ public:
     [[nodiscard]] static bool remove_desktop_entry(std::string_view id,
                                                    const std::filesystem::path& destination_dir = {},
                                                    bool* existed = nullptr);
+    [[nodiscard]] static std::vector<std::string> desktop_entry_mime_types(
+        std::string_view id, const std::filesystem::path& destination_dir = {});
+    [[nodiscard]] static bool set_desktop_entry_mime_types(
+        const AppEntry& app, const std::vector<std::string>& mime_types,
+        const std::filesystem::path& destination_dir = {}, std::string* error = nullptr);
+    [[nodiscard]] static bool refresh_desktop_database(
+        const std::filesystem::path& destination_dir = {}, std::string* error = nullptr);
 
 private:
     std::vector<AppEntry> apps_;

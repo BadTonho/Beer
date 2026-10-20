@@ -521,6 +521,21 @@ if(TL_XVFB_EXECUTABLE)
             )
         endif()
     endif()
+
+    if(NOT EXISTS "${TL_NOTEPADPP_EXECUTABLE}" AND TARGET tradutorlinux AND
+       EXISTS "${PROJECT_SOURCE_DIR}/tests/fixtures/npp/notepad++.exe")
+        add_test(
+            NAME notepadpp_file_open_save_smoke
+            COMMAND notepadpp_smoke
+                "$<TARGET_FILE:tradutorlinux>"
+                "${PROJECT_SOURCE_DIR}/tests/fixtures/npp/notepad++.exe"
+        )
+        set_tests_properties(notepadpp_file_open_save_smoke PROPERTIES
+            LABELS "runtime;apps;gui;notepadpp;file-open-save"
+            TIMEOUT 90
+            SKIP_RETURN_CODE 77
+        )
+    endif()
 endif()
 
 if(TL_BUILD_TARGET_APPS)

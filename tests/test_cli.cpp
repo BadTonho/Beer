@@ -210,6 +210,35 @@ TEST(CommandLineTest, AcceptsTimeoutForCatalogRun) {
     EXPECT_TRUE(result.command_line->guest_arguments.empty());
 }
 
+TEST(CommandLineTest, KeepsFilesAfterSeparatorAsDistinctArguments) {
+    const std::vector<const char*> arguments{
+        "tradutorlinux", "app", "run", "notepad++", "--trace", "--", "./um arquivo.txt",
+        "/tmp/ação 😀.txt"};
+    const ParseResult result = parse_arguments(arguments);
+    ASSERT_TRUE(result.command_line.has_value()) << result.error_message;
+    EXPECT_EQ(result.command_line->guest_arguments, std::vector<std::string>{});
+    ASSERT_EQ(result.command_line->file_arguments.size(), 2U);
+    EXPECT_EQ(result.command_line->file_arguments[0], "./um arquivo.txt");
+    EXPECT_EQ(result.command_line->file_arguments[1], "/tmp/ação 😀.txt");
+}
+
+TEST(CommandLineTest, RejectsEmptyFileListAfterSeparator) {
+    const std::vector<const char*> arguments{"tradutorlinux", "app", "run", "notepad++", "--"};
+    const ParseResult result = parse_arguments(arguments);
+    EXPECT_FALSE(result.command_line.has_value());
+    EXPECT_NE(result.error_message.find("ao menos um caminho"), std::string::npos);
+}
+
+TEST(CommandLineTest, ParsesAssociationCommand) {
+    const std::vector<const char*> arguments{
+        "tradutorlinux", "app", "associate", "notepad++", "add", "text/plain"};
+    const ParseResult result = parse_arguments(arguments);
+    ASSERT_TRUE(result.command_line.has_value()) << result.error_message;
+    EXPECT_EQ(result.command_line->mode, CommandMode::AppAssociate);
+    EXPECT_EQ(result.command_line->association_action, "add");
+    EXPECT_EQ(result.command_line->mime_type, "text/plain");
+}
+
 TEST(CommandLineTest, RejectsRepeatedResourceLimit) {
     const std::vector<const char*> arguments{
         "tradutorlinux", "--memory", "64", "--memory", "128", "programa.exe"};
@@ -423,6 +452,8 @@ TEST(CommandRunTest, AppRemoveSynchronizesCatalogAndDesktopAndPreservesApplicati
         ASSERT_TRUE(reloaded.add_app(save_failure));
         ASSERT_TRUE(reloaded.save_to_file());
         ASSERT_TRUE(catalog::AppCatalog::create_desktop_entry(save_failure));
+        ASSERT_TRUE(catalog::AppCatalog::set_desktop_entry_mime_types(
+            save_failure, {"text/plain"}));
         const std::filesystem::path catalog_directory = config_home / "tradutorlinux";
         ASSERT_EQ(::chmod(catalog_directory.c_str(), S_IRUSR | S_IXUSR), 0);
 
@@ -439,8 +470,119 @@ TEST(CommandRunTest, AppRemoveSynchronizesCatalogAndDesktopAndPreservesApplicati
         EXPECT_TRUE(std::filesystem::is_regular_file(
             catalog::AppCatalog::default_desktop_entries_dir() /
             "tradutorlinux-save_failure.desktop"));
+        EXPECT_EQ(catalog::AppCatalog::desktop_entry_mime_types(save_failure.id),
+                  (std::vector<std::string>{"text/plain"}));
     }
 
+    std::filesystem::remove_all(root, error);
+}
+
+TEST(AppCatalogTest, DesktopEntryStoresMimeTypesAndFileFieldCodeOnce) {
+    const std::filesystem::path root = std::filesystem::temp_directory_path() /
+        ("tradutorlinux-desktop-mime-" + std::to_string(static_cast<long long>(::getpid())));
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    const ScopedEnvironment environment{{"HOME", (root / "home").string()},
+                                        {"XDG_DATA_HOME", (root / "data").string()}};
+    catalog::AppEntry entry;
+    entry.id = "notepadpp";
+    entry.name = "Notepad++";
+    entry.executable_path = "/tmp/notepad++.exe";
+    ASSERT_TRUE(catalog::AppCatalog::create_desktop_entry(entry));
+    const std::vector<std::string> types{"text/plain", "application/json"};
+    std::string error;
+    ASSERT_TRUE(catalog::AppCatalog::set_desktop_entry_mime_types(entry, types, {}, &error)) << error;
+    ASSERT_EQ(catalog::AppCatalog::desktop_entry_mime_types(entry.id), types);
+    ASSERT_TRUE(catalog::AppCatalog::create_desktop_entry(entry));
+    std::ifstream input(catalog::AppCatalog::default_desktop_entries_dir() /
+                        "tradutorlinux-notepadpp.desktop");
+    const std::string contents{std::istreambuf_iterator<char>{input},
+                                std::istreambuf_iterator<char>{}};
+    EXPECT_NE(contents.find("MimeType=text/plain;application/json;"), std::string::npos);
+    const auto first_field = contents.find("%F");
+    ASSERT_NE(first_field, std::string::npos);
+    EXPECT_EQ(contents.find("%F", first_field + 2), std::string::npos);
+    EXPECT_NE(contents.find("Exec=/usr/bin/tradutorlinux app run notepadpp -- %F"),
+              std::string::npos);
+    EXPECT_TRUE(catalog::AppCatalog::refresh_desktop_database({}, &error)) << error;
+    std::filesystem::remove_all(root, ec);
+}
+
+TEST(CommandRunTest, AppAssociateAddsAndRemovesMimeWithoutChangingDefaults) {
+    const std::filesystem::path root = std::filesystem::temp_directory_path() /
+        ("tradutorlinux-app-associate-" + std::to_string(static_cast<long long>(::getpid())));
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    const ScopedEnvironment environment{{"HOME", (root / "home").string()},
+        {"XDG_CONFIG_HOME", (root / "config").string()}, {"XDG_DATA_HOME", (root / "data").string()}};
+    catalog::AppCatalog stored;
+    catalog::AppEntry app = make_removal_test_entry("associate_app", root);
+    app.name = "Association App";
+    ASSERT_TRUE(stored.add_app(app));
+    ASSERT_TRUE(stored.save_to_file());
+    ASSERT_TRUE(catalog::AppCatalog::create_desktop_entry(app));
+    const auto default_apps = catalog::AppCatalog::default_desktop_entries_dir() / "mimeapps.list";
+    { std::ofstream defaults(default_apps); defaults << "[Default Applications]\ntext/plain=other.desktop;\n"; }
+    const auto read_all = [](const std::filesystem::path& path) {
+        std::ifstream input(path);
+        return std::string{std::istreambuf_iterator<char>{input}, {}};
+    };
+    const std::string original_defaults = read_all(default_apps);
+
+    CommandLine command;
+    command.mode = CommandMode::AppAssociate;
+    command.app_id = app.id;
+    command.association_action = "add";
+    command.mime_type = "text/plain";
+    std::ostringstream output;
+    std::ostringstream diagnostics;
+    ASSERT_EQ(run_command(command, output, diagnostics), ExitCode::Success) << diagnostics.str();
+    EXPECT_EQ(catalog::AppCatalog::desktop_entry_mime_types(app.id),
+              (std::vector<std::string>{"text/plain"}));
+    EXPECT_EQ(read_all(default_apps), original_defaults);
+
+    command.association_action = "remove";
+    output.str({}); diagnostics.str({});
+    EXPECT_EQ(run_command(command, output, diagnostics), ExitCode::Success) << diagnostics.str();
+    EXPECT_TRUE(catalog::AppCatalog::desktop_entry_mime_types(app.id).empty());
+    EXPECT_EQ(read_all(default_apps), original_defaults);
+
+    const auto blocked_path = root / "no-tools";
+    std::filesystem::create_directories(blocked_path, error);
+    {
+        const ScopedEnvironment blocked_tools{{"PATH", blocked_path.string()}};
+        command.association_action = "add";
+        output.str({}); diagnostics.str({});
+        EXPECT_EQ(run_command(command, output, diagnostics), ExitCode::InternalError);
+        EXPECT_TRUE(output.str().empty());
+        EXPECT_NE(diagnostics.str().find("estado parcial"), std::string::npos);
+        EXPECT_TRUE(catalog::AppCatalog::desktop_entry_mime_types(app.id).empty());
+    }
+    std::filesystem::remove_all(root, error);
+}
+
+TEST(CommandRunTest, AppRunRejectsMissingFileArgumentsBeforeLaunchingGuest) {
+    const std::filesystem::path root = std::filesystem::temp_directory_path() /
+        ("tradutorlinux-app-run-file-" + std::to_string(static_cast<long long>(::getpid())));
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    const ScopedEnvironment environment{{"HOME", (root / "home").string()},
+        {"XDG_CONFIG_HOME", (root / "config").string()}, {"XDG_DATA_HOME", (root / "data").string()}};
+    catalog::AppCatalog stored;
+    catalog::AppEntry app = make_removal_test_entry("file_app", root);
+    ASSERT_TRUE(stored.add_app(app));
+    ASSERT_TRUE(stored.save_to_file());
+
+    CommandLine command;
+    command.mode = CommandMode::AppRun;
+    command.app_id = app.id;
+    command.file_arguments.emplace_back(root / "arquivo inexistente.txt");
+    std::ostringstream output;
+    std::ostringstream diagnostics;
+    EXPECT_EQ(run_command(command, output, diagnostics), ExitCode::InputUnavailable);
+    EXPECT_TRUE(output.str().empty());
+    EXPECT_NE(diagnostics.str().find("arquivo inexistente ou inválido"), std::string::npos);
+    EXPECT_FALSE(std::filesystem::exists(root / "PWN"));
     std::filesystem::remove_all(root, error);
 }
 

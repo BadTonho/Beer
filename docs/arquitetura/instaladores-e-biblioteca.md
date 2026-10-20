@@ -95,9 +95,25 @@ O catálogo é persistido em formato JSON em `~/.config/tradutorlinux/library.js
 | `tradutorlinux <app.exe>` | Execução direta de um executável PE32+. |
 | `tradutorlinux install <setup.exe|package.msix> [--name <Nome>] [--prefix <dir>] [--app-exe <caminho>]` | Executa um setup PE32+ ou instala um pacote MSIX/AppX nativo no prefixo exclusivo. Só cadastra após o exit `0` do setup; pacotes selecionam o PE declarado no manifesto. |
 | `tradutorlinux app list` | Lista todos os aplicativos cadastrados na biblioteca. |
-| `tradutorlinux app run <id_ou_nome> [args...]` | Executa um aplicativo cadastrado na biblioteca. |
+| `tradutorlinux app run <id_ou_nome> [opções] [argumentos...] [-- <arquivo>...]` | Executa um aplicativo cadastrado; arquivos após `--` são encaminhados como caminhos de arquivo. |
 | `tradutorlinux app add <app.exe> [--name <Nome>] [--prefix <dir>] [--id <id>]` | Cadastra manualmente um executável na biblioteca. Sem `--prefix`, cria prefixo exclusivo. |
 | `tradutorlinux app remove <id>` | Remove o cadastro e o atalho individual do menu. O executável instalado e o prefixo são preservados. |
+| `tradutorlinux app associate <id> <add|remove> <mime-type>` | Adiciona ou remove um MIME type anunciado pelo atalho do aplicativo. |
+
+Em `app run`, argumentos comuns antes de `--` permanecem separados e na ordem
+fornecida. Cada caminho após `--` é resolvido a partir do diretório atual de
+quem iniciou o runtime, precisa apontar para um arquivo regular existente e é
+convertido para a visão do prefixo: `C:\...` dentro de `drive_c` e `Z:\...`
+fora dele. O runtime inicia o convidado sem shell intermediário. Vários arquivos,
+espaços e caminhos UTF-8 são encaminhados como argumentos distintos.
+
+As associações opt-in são guardadas no campo `MimeType` do atalho individual;
+`Exec` inclui `%F` como argumento de arquivo isolado uma única vez. O launcher
+Qt permite incluir ou remover MIME types: ao incluir, informa-se uma extensão
+e `QMimeDatabase` resolve o tipo. O comando atualiza `mimeinfo.cache`, sem
+escrever `mimeapps.list` nem alterar o aplicativo padrão. Se a atualização do
+cache falhar, o runtime tenta restaurar o atalho anterior e comunica quando a
+restauração também falha.
 
 Os atalhos individuais ficam em `$XDG_DATA_HOME/applications`; quando a
 variável não estiver definida, o destino é `$HOME/.local/share/applications`.

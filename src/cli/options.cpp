@@ -308,11 +308,11 @@ ParseResult parse_command_line(const int argc, const char* const argv[]) {
         return {.command_line = std::move(command_line), .error_message = {}};
     }
 
-    // Subcomando: app <list|run|add|remove>
+    // Subcomando: app <list|run|add|remove|associate>
     if (first_arg == "app") {
         if (argc < 3) {
             return {.command_line = std::nullopt,
-                    .error_message = "o comando 'app' requer uma ação: list, run, add ou remove"};
+                    .error_message = "o comando 'app' requer uma ação: list, run, add, remove ou associate"};
         }
         const std::string_view action{argv[2]};
         if (action == "list") {
@@ -364,8 +364,17 @@ ParseResult parse_command_line(const int argc, const char* const argv[]) {
             }
             command_line.mode = CommandMode::AppRun;
             command_line.app_id = argv[3];
+            bool files_started = false;
             for (int i = 4; i < argc; ++i) {
                 const std::string_view arg{argv[i]};
+                if (files_started) {
+                    command_line.file_arguments.emplace_back(argv[i]);
+                    continue;
+                }
+                if (arg == "--") {
+                    files_started = true;
+                    continue;
+                }
                 if (arg == "--trace" || arg.starts_with("--trace=")) {
                     if (command_line.trace_enabled) {
                         return {.command_line = std::nullopt,
@@ -452,6 +461,10 @@ ParseResult parse_command_line(const int argc, const char* const argv[]) {
                     command_line.guest_arguments.emplace_back(arg);
                 }
             }
+            if (files_started && command_line.file_arguments.empty()) {
+                return {.command_line = std::nullopt,
+                        .error_message = "o separador '--' requer ao menos um caminho de arquivo"};
+            }
             return {.command_line = std::move(command_line), .error_message = {}};
         }
         if (action == "add") {
@@ -488,6 +501,22 @@ ParseResult parse_command_line(const int argc, const char* const argv[]) {
             }
             command_line.mode = CommandMode::AppRemove;
             command_line.app_id = argv[3];
+            return {.command_line = std::move(command_line), .error_message = {}};
+        }
+        if (action == "associate") {
+            if (argc != 6) {
+                return {.command_line = std::nullopt,
+                        .error_message = "uso: app associate <id> <add|remove> <mime-type>"};
+            }
+            const std::string_view operation{argv[4]};
+            if (operation != "add" && operation != "remove") {
+                return {.command_line = std::nullopt,
+                        .error_message = "a ação de 'app associate' deve ser add ou remove"};
+            }
+            command_line.mode = CommandMode::AppAssociate;
+            command_line.app_id = argv[3];
+            command_line.association_action = operation;
+            command_line.mime_type = argv[5];
             return {.command_line = std::move(command_line), .error_message = {}};
         }
         return {.command_line = std::nullopt,
@@ -689,12 +718,14 @@ void print_help(std::ostream& stream) {
     stream << "             instala em prefixo próprio; pacotes usam o executável do manifesto\n";
     stream << "             --app-exe escolhe manualmente um .exe dentro de drive_c\n";
     stream << "  app list   lista todos os aplicativos cadastrados na biblioteca\n";
-    stream << "  app run <id_ou_nome> [args...]\n";
+    stream << "  app run <id_ou_nome> [opções] [argumentos...] [-- <arquivo>...]\n";
     stream << "             executa um aplicativo cadastrado na biblioteca\n";
     stream << "  app add <arquivo.exe> [--name <Nome>] [--prefix <dir>] [--id <id>] [--cpu <segundos>] [--memory <MiB>]\n";
     stream << "             cadastra manualmente um executável na biblioteca\n";
     stream << "  app remove <id>\n";
-    stream << "             remove um aplicativo do catálogo da biblioteca\n\n";
+    stream << "             remove um aplicativo do catálogo da biblioteca\n";
+    stream << "  app associate <id> <add|remove> <mime-type>\n";
+    stream << "             altera os tipos MIME anunciados no atalho individual\n\n";
     stream << "Opções Gerais de Execução:\n";
     stream << "  --trace[=canais]  escreve diagnóstico estruturado em stderr\n";
     stream << "                    canais: cli,pe,loader,imports,runtime,process,gui,crt,install (ex: --trace=pe,loader)\n";

@@ -3,6 +3,7 @@
 #include "tradutorlinux/runtime/environment.hpp"
 #include "tradutorlinux/runtime/guest_context.hpp"
 #include "tradutorlinux/runtime/winapi.hpp"
+#include "tradutorlinux/prefix/prefix.hpp"
 #include "../src/runtime/core/environment_internal.hpp"
 #include "../src/runtime/core/runtime_handle_state.hpp"
 #include "../src/runtime/core/runtime_thread_state.hpp"
@@ -2309,6 +2310,23 @@ TEST(PrefixTest, DriveLinksAreExplicitAndKeepCDriveConfined) {
     EXPECT_FALSE(prefix::is_path_within(z_external, paths.drive_c));
 
     std::filesystem::remove_all(root);
+}
+
+TEST(PrefixTest, ConvertsFilesInsideAndOutsidePrefixToWindowsViews) {
+    const std::filesystem::path root = std::filesystem::temp_directory_path() /
+        ("tl-prefix-file-view-" + std::to_string(static_cast<unsigned long long>(::getpid())));
+    std::error_code error;
+    const auto inside = root / "drive_c" / "Pasta com espaço" / "ação.txt";
+    const auto outside = root / "arquivo fora-é.txt";
+    std::filesystem::create_directories(inside.parent_path(), error);
+    ASSERT_FALSE(error);
+    std::ofstream(inside) << "inside";
+    std::ofstream(outside) << "outside";
+    EXPECT_EQ(prefix::to_windows_path(inside, root), "C:\\Pasta com espaço\\ação.txt");
+    const std::string outside_windows = prefix::to_windows_path(outside, root);
+    EXPECT_TRUE(outside_windows.starts_with("Z:\\"));
+    EXPECT_NE(outside_windows.find("arquivo fora-é.txt"), std::string::npos);
+    std::filesystem::remove_all(root, error);
 }
 
 TEST(Win32DirTest, GetCurrentDirectoryAReturnsNonEmpty) {

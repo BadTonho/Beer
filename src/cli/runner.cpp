@@ -35,6 +35,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cerrno>
+#include <chrono>
 #include <filesystem>
 #include <fcntl.h>
 #include <fstream>
@@ -63,6 +64,64 @@ using namespace cli_detail;
 namespace {
 
 constexpr std::uint64_t kMaxPeFileSize = 512ULL * 1024 * 1024;
+
+struct ShortcutSnapshot {
+    bool existed{false};
+    std::string contents;
+    std::filesystem::perms permissions{std::filesystem::perms::unknown};
+};
+
+[[nodiscard]] std::optional<ShortcutSnapshot> snapshot_shortcut(
+    const std::filesystem::path& path) {
+    ShortcutSnapshot snapshot;
+    std::error_code error;
+    const auto status = std::filesystem::symlink_status(path, error);
+    if (error == std::errc::no_such_file_or_directory) return snapshot;
+    if (error) return std::nullopt;
+    if (status.type() == std::filesystem::file_type::not_found) return snapshot;
+    if (status.type() != std::filesystem::file_type::regular) return std::nullopt;
+    std::ifstream input(path, std::ios::binary);
+    if (!input) return std::nullopt;
+    snapshot.contents.assign(std::istreambuf_iterator<char>{input}, {});
+    if (!input.eof() && input.fail()) return std::nullopt;
+    snapshot.existed = true;
+    snapshot.permissions = status.permissions();
+    return snapshot;
+}
+
+[[nodiscard]] bool restore_shortcut_snapshot(const std::filesystem::path& path,
+                                             const ShortcutSnapshot& snapshot) {
+    std::error_code error;
+    if (!snapshot.existed) {
+        std::filesystem::remove(path, error);
+        return !error || error == std::errc::no_such_file_or_directory;
+    }
+    const auto temporary = path.string() + ".restore-" +
+        std::to_string(static_cast<long long>(::getpid())) + "-" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+    if (!output) return false;
+    output.write(snapshot.contents.data(), static_cast<std::streamsize>(snapshot.contents.size()));
+    output.close();
+    if (output.fail()) {
+        std::filesystem::remove(temporary, error);
+        return false;
+    }
+    if (snapshot.permissions != std::filesystem::perms::unknown) {
+        std::filesystem::permissions(temporary, snapshot.permissions, error);
+        if (error) {
+            std::filesystem::remove(temporary, error);
+            return false;
+        }
+    }
+    std::filesystem::rename(temporary, path, error);
+    if (error) {
+        std::error_code cleanup_error;
+        std::filesystem::remove(temporary, cleanup_error);
+        return false;
+    }
+    return true;
+}
 
 // Os campos de IMAGE_TLS_DIRECTORY são VAs absolutos gravados na imagem na
 // base preferencial. O parser preserva essa representação para o --report;
@@ -656,7 +715,12 @@ ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_strea
             stderr_stream << "erro: falha ao salvar aplicativo na biblioteca\n";
             return ExitCode::InternalError;
         }
-        (void)catalog::AppCatalog::create_desktop_entry(entry);
+        if (catalog::AppCatalog::create_desktop_entry(entry)) {
+            std::string cache_error;
+            if (!catalog::AppCatalog::refresh_desktop_database({}, &cache_error))
+                stderr_stream << "aviso: atalho criado, mas não foi possível atualizar o cache do desktop: "
+                              << cache_error << '\n';
+        }
         stdout_stream << "Aplicativo '" << entry.name << "' cadastrado com sucesso [id: "
                       << entry.id << "].\n";
         return ExitCode::Success;
@@ -689,17 +753,40 @@ ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_strea
             return ExitCode::Usage;
         }
 
-        bool shortcut_existed = false;
-        if (!catalog::AppCatalog::remove_desktop_entry(command_line.app_id, {},
-                                                       &shortcut_existed)) {
+        const auto desktop_directory = catalog::AppCatalog::default_desktop_entries_dir();
+        if (desktop_directory.empty()) {
+            stderr_stream << "erro: diretório de atalhos do usuário não está definido\n";
+            return ExitCode::InternalError;
+        }
+        const std::filesystem::path desktop_path = desktop_directory /
+            ("tradutorlinux-" + command_line.app_id + ".desktop");
+        const auto shortcut_snapshot = snapshot_shortcut(desktop_path);
+        if (!shortcut_snapshot) {
+            stderr_stream << "erro: não foi possível remover o atalho; não foi possível preservar seu estado\n";
+            return ExitCode::InternalError;
+        }
+
+        if (!catalog::AppCatalog::remove_desktop_entry(command_line.app_id)) {
             stderr_stream << "erro: não foi possível remover o atalho do aplicativo '"
                           << command_line.app_id << "'; o cadastro foi mantido\n";
             return ExitCode::InternalError;
         }
 
-        const auto restore_shortcut = [&entry, shortcut_existed]() {
-            return !shortcut_existed || catalog::AppCatalog::create_desktop_entry(*entry);
+        const auto restore_shortcut = [&desktop_path, &shortcut_snapshot]() {
+            const bool restored = restore_shortcut_snapshot(desktop_path, *shortcut_snapshot);
+            if (!restored) return false;
+            return catalog::AppCatalog::refresh_desktop_database();
         };
+        std::string cache_error;
+        if (!catalog::AppCatalog::refresh_desktop_database({}, &cache_error)) {
+            const bool restored = restore_shortcut();
+            stderr_stream << "erro: não foi possível atualizar o cache do desktop após remover o atalho: "
+                          << cache_error;
+            if (!restored) stderr_stream << "; estado parcial: falha ao restaurar atalho/cache";
+            else stderr_stream << "; cadastro mantido e atalho restaurado";
+            stderr_stream << '\n';
+            return ExitCode::InternalError;
+        }
         if (!app_catalog.remove_app(command_line.app_id)) {
             const bool shortcut_restored = restore_shortcut();
             stderr_stream << "erro: não foi possível remover o aplicativo do catálogo '"
@@ -725,6 +812,60 @@ ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_strea
         }
         stdout_stream << "Aplicativo '" << command_line.app_id
                       << "' removido da biblioteca com sucesso.\n";
+        return ExitCode::Success;
+    }
+
+    if (command_line.mode == CommandMode::AppAssociate) {
+        catalog::AppCatalog app_catalog;
+        if (!app_catalog.load_from_file()) {
+            stderr_stream << "erro: não foi possível carregar o catálogo de aplicativos\n";
+            return ExitCode::InternalError;
+        }
+        const auto app = app_catalog.find_app(command_line.app_id);
+        if (!app) {
+            stderr_stream << "erro: aplicativo com ID '" << command_line.app_id
+                          << "' não encontrado na biblioteca\n";
+            return ExitCode::InputUnavailable;
+        }
+        const auto desktop_directory = catalog::AppCatalog::default_desktop_entries_dir();
+        if (desktop_directory.empty()) {
+            stderr_stream << "erro: diretório de atalhos do usuário não está definido\n";
+            return ExitCode::InternalError;
+        }
+        const std::filesystem::path desktop_path = desktop_directory /
+            ("tradutorlinux-" + app->id + ".desktop");
+        const auto shortcut_snapshot = snapshot_shortcut(desktop_path);
+        if (!shortcut_snapshot) {
+            stderr_stream << "erro: não foi possível preservar o atalho antes da associação\n";
+            return ExitCode::InternalError;
+        }
+        const auto previous_mime_types = catalog::AppCatalog::desktop_entry_mime_types(app->id);
+        auto mime_types = previous_mime_types;
+        const auto found = std::find(mime_types.begin(), mime_types.end(), command_line.mime_type);
+        if (command_line.association_action == "add") {
+            if (found == mime_types.end()) mime_types.push_back(command_line.mime_type);
+        } else if (found != mime_types.end()) {
+            mime_types.erase(found);
+        }
+        std::string error;
+        if (!catalog::AppCatalog::set_desktop_entry_mime_types(*app, mime_types, {}, &error)) {
+            stderr_stream << "erro: não foi possível atualizar associação: " << error << '\n';
+            return ExitCode::InternalError;
+        }
+        if (!catalog::AppCatalog::refresh_desktop_database({}, &error)) {
+            std::string restore_error;
+            const bool restored = restore_shortcut_snapshot(desktop_path, *shortcut_snapshot);
+            const bool cache_restored = restored &&
+                catalog::AppCatalog::refresh_desktop_database({}, &restore_error);
+            stderr_stream << "erro: não foi possível atualizar o cache do desktop: " << error;
+            if (!cache_restored) stderr_stream << "; estado parcial, restauração falhou: " << restore_error;
+            else stderr_stream << "; atalho anterior restaurado";
+            stderr_stream << '\n';
+            return ExitCode::InternalError;
+        }
+        stdout_stream << "Associação " << command_line.mime_type << ' '
+                      << (command_line.association_action == "add" ? "adicionada" : "removida")
+                      << " para '" << app->name << "'.\n";
         return ExitCode::Success;
     }
 
@@ -777,6 +918,15 @@ ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_strea
         combined_args.insert(combined_args.end(), command_line.guest_arguments.begin(),
                              command_line.guest_arguments.end());
         effective_cmd.guest_arguments = std::move(combined_args);
+        for (const std::filesystem::path& path : command_line.file_arguments) {
+            std::error_code error;
+            const std::filesystem::path absolute = std::filesystem::absolute(path, error);
+            if (error || !std::filesystem::is_regular_file(absolute, error) || error) {
+                stderr_stream << "erro: arquivo inexistente ou inválido: " << path.string() << '\n';
+                return ExitCode::InputUnavailable;
+            }
+            effective_cmd.file_arguments.push_back(absolute.lexically_normal());
+        }
     }
 
     // Modo: Instalar aplicativo
@@ -821,6 +971,10 @@ ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_strea
     if (!prefix::initialize_prefix(prefix_dir)) {
         stderr_stream << "erro: não foi possível preparar o prefixo da execução\n";
         return ExitCode::InternalError;
+    }
+
+    for (const std::filesystem::path& file : effective_cmd.file_arguments) {
+        effective_cmd.guest_arguments.push_back(prefix::to_windows_path(file, prefix_dir));
     }
 
     if (effective_cmd.mode == CommandMode::AppRun) {
@@ -1120,7 +1274,12 @@ ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_strea
                 stderr_stream << "erro: pacote extraído, mas não foi possível salvar o catálogo\n";
                 return ExitCode::InternalError;
             }
-            (void)catalog::AppCatalog::create_desktop_entry(entry);
+            if (catalog::AppCatalog::create_desktop_entry(entry)) {
+                std::string cache_error;
+                if (!catalog::AppCatalog::refresh_desktop_database({}, &cache_error))
+                    stderr_stream << "aviso: atalho criado, mas não foi possível atualizar o cache do desktop: "
+                                  << cache_error << '\n';
+            }
             write_install_trace(effective_cmd.trace_enabled, stderr_stream,
                                 diagnostics::TraceLevel::Info, "registered",
                                 {{"prefix", prefix_dir.string()}, {"app-id", entry.id},
@@ -1758,7 +1917,12 @@ ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_strea
             stderr_stream << "erro: instalação concluída, mas não foi possível salvar o catálogo\n";
             return ExitCode::InternalError;
         }
-        (void)catalog::AppCatalog::create_desktop_entry(entry);
+        if (catalog::AppCatalog::create_desktop_entry(entry)) {
+            std::string cache_error;
+            if (!catalog::AppCatalog::refresh_desktop_database({}, &cache_error))
+                stderr_stream << "aviso: atalho criado, mas não foi possível atualizar o cache do desktop: "
+                              << cache_error << '\n';
+        }
         write_install_trace(effective_cmd.trace_enabled, stderr_stream,
                             diagnostics::TraceLevel::Info, "registered",
                             {{"prefix", prefix_dir.string()}, {"app-id", entry.id},

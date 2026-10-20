@@ -19,9 +19,10 @@ constexpr std::string_view kUsage =
     "  tradutorlinux [--trace[=canais]] [--report] [--timeout <segundos>] [--cpu <segundos>] [--memory <MiB>] <arquivo.exe> [argumentos...]\n"
     "  tradutorlinux install <setup.exe|package.msix> [--name <Nome>] [--prefix <dir>] [--app-exe <caminho>] [--cpu <segundos>] [--memory <MiB>] [argumentos...]\n"
     "  tradutorlinux app list\n"
-    "  tradutorlinux app run <id_ou_nome> [--cpu <segundos>] [--memory <MiB>] [argumentos...]\n"
+    "  tradutorlinux app run <id_ou_nome> [opções] [argumentos...] [-- <arquivo>...]\n"
     "  tradutorlinux app add <arquivo.exe> [--name <Nome>] [--prefix <dir>] [--id <id>] [--cpu <segundos>] [--memory <MiB>]\n"
-    "  tradutorlinux app remove <id>\n";
+    "  tradutorlinux app remove <id>\n"
+    "  tradutorlinux app associate <id> <add|remove> <mime-type>\n";
 
 [[nodiscard]] const char* status_label(pe::ParseStatus status);
 void write_pe_trace(std::ostream& stream, const pe::PeInfo& info,

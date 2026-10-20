@@ -1,4 +1,5 @@
 #include <X11/Xatom.h>
+#include <X11/keysym.h>
 #include <X11/Xlib.h>
 
 #include <chrono>
@@ -156,6 +157,55 @@ void stop_runtime_process(const pid_t pid) {
     return sent;
 }
 
+[[nodiscard]] bool send_key(Display* const display, const Window window, const KeySym symbol,
+                             const bool pressed, const unsigned int state = 0) {
+    XEvent event{};
+    event.xkey.type = pressed ? KeyPress : KeyRelease;
+    event.xkey.display = display;
+    event.xkey.window = window;
+    event.xkey.root = DefaultRootWindow(display);
+    event.xkey.subwindow = None;
+    event.xkey.time = CurrentTime;
+    event.xkey.x = 10;
+    event.xkey.y = 10;
+    event.xkey.x_root = 10;
+    event.xkey.y_root = 10;
+    event.xkey.state = state;
+    event.xkey.keycode = XKeysymToKeycode(display, symbol);
+    event.xkey.same_screen = True;
+    const bool sent = ::XSendEvent(display, window, True,
+        pressed ? KeyPressMask : KeyReleaseMask, &event) != 0;
+    (void)::XFlush(display);
+    std::this_thread::sleep_for(20ms);
+    return sent && event.xkey.keycode != 0;
+}
+
+[[nodiscard]] bool replace_document_and_save(Display* const display, const Window window) {
+    (void)::XSetInputFocus(display, window, RevertToParent, CurrentTime);
+    (void)::XFlush(display);
+    bool sent = send_key(display, window, XK_Control_L, true);
+    sent = send_key(display, window, XK_a, true, ControlMask) && sent;
+    sent = send_key(display, window, XK_a, false, ControlMask) && sent;
+    sent = send_key(display, window, XK_Control_L, false) && sent;
+    const std::string replacement = "salvo pelo u2";
+    for (const char character : replacement) {
+        KeySym symbol = NoSymbol;
+        if (character >= 'a' && character <= 'z')
+            symbol = static_cast<KeySym>(XK_a + (character - 'a'));
+        else if (character >= '0' && character <= '9')
+            symbol = static_cast<KeySym>(XK_0 + (character - '0'));
+        else if (character == ' ') symbol = XK_space;
+        if (symbol == NoSymbol ||
+            !send_key(display, window, symbol, true) ||
+            !send_key(display, window, symbol, false)) return false;
+    }
+    sent = send_key(display, window, XK_Control_L, true) && sent;
+    sent = send_key(display, window, XK_s, true, ControlMask) && sent;
+    sent = send_key(display, window, XK_s, false, ControlMask) && sent;
+    sent = send_key(display, window, XK_Control_L, false) && sent;
+    return sent;
+}
+
 [[nodiscard]] SmokeResult run_smoke(const std::filesystem::path& runtime,
                                     const std::filesystem::path& target) {
     const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
@@ -167,6 +217,29 @@ void stop_runtime_process(const pid_t pid) {
     std::filesystem::create_directories(staging, error);
     if (error) {
         return SmokeResult::Failed;
+    }
+
+    const std::filesystem::path config_home = staging / "config";
+    const std::filesystem::path data_home = staging / "data";
+    const std::filesystem::path prefix_root = staging / "prefix";
+    const std::filesystem::path file_path = staging / "arquivo de teste ação.txt";
+    std::filesystem::create_directories(config_home / "tradutorlinux", error);
+    if (error) return SmokeResult::Failed;
+    std::filesystem::create_directories(data_home, error);
+    if (error) return SmokeResult::Failed;
+    {
+        std::ofstream input(file_path);
+        input << "conteúdo original\n";
+        if (!input.good()) return SmokeResult::Failed;
+    }
+    {
+        std::ofstream catalog(config_home / "tradutorlinux" / "library.json");
+        catalog << "{\"version\":1,\"apps\":[{\"id\":\"notepadpp\","
+                << "\"name\":\"Notepad++\",\"executable_path\":\"" << target.string()
+                << "\",\"prefix_path\":\"" << prefix_root.string()
+                << "\",\"working_directory\":\"" << target.parent_path().string()
+                << "\",\"args\":[]}] }\n";
+        if (!catalog.good()) return SmokeResult::Failed;
     }
 
     const XvfbProcess xvfb = start_xvfb();
@@ -182,11 +255,15 @@ void stop_runtime_process(const pid_t pid) {
     if (runtime_pid == 0) {
         (void)::setpgid(0, 0);
         (void)::setenv("DISPLAY", xvfb.display.c_str(), 1);
+        (void)::setenv("HOME", staging.c_str(), 1);
+        (void)::setenv("XDG_CONFIG_HOME", config_home.c_str(), 1);
+        (void)::setenv("XDG_DATA_HOME", data_home.c_str(), 1);
         (void)::chdir(target.parent_path().c_str());
         (void)::dup2(trace_fd, STDERR_FILENO);
         ::close(trace_fd);
-        ::execl(runtime.c_str(), runtime.c_str(), "--trace", "--timeout",
-                "8", "--cpu", "8", "--memory", "512", target.c_str(),
+        ::execl(runtime.c_str(), runtime.c_str(), "app", "run", "notepadpp",
+                "--trace", "--timeout", "20", "--cpu", "8", "--memory", "512",
+                "--", file_path.c_str(),
                 static_cast<char*>(nullptr));
         ::_exit(127);
     }
@@ -204,10 +281,8 @@ void stop_runtime_process(const pid_t pid) {
     Window window = 0;
     if (display != nullptr) {
         for (int attempt = 0; attempt < 80 && window == 0; ++attempt) {
-            window = find_window_by_name(display, DefaultRootWindow(display), "Notepad++");
-            if (window == 0) {
-                window = find_window_by_name(display, DefaultRootWindow(display), "Configurator");
-            }
+            window = find_window_by_name(display, DefaultRootWindow(display),
+                                         file_path.filename().string());
             if (window == 0) {
                 std::this_thread::sleep_for(100ms);
             }
@@ -215,8 +290,11 @@ void stop_runtime_process(const pid_t pid) {
     }
 
     bool passed = display != nullptr;
+    bool file_saved_by_application = false;
     if (window != 0) {
-        passed = send_close(display, window);
+        file_saved_by_application = replace_document_and_save(display, window);
+        std::this_thread::sleep_for(500ms);
+        passed = send_close(display, window) && file_saved_by_application;
     }
     Window resource_error = 0;
     if (display != nullptr) {
@@ -234,36 +312,30 @@ void stop_runtime_process(const pid_t pid) {
     }
 
     int runtime_status = 0;
-    const bool runtime_exited = wait_for_exit(runtime_pid, 8000ms, &runtime_status);
+    const bool runtime_exited = wait_for_exit(runtime_pid, 20000ms, &runtime_status);
     if (!runtime_exited) {
         stop_runtime_process(runtime_pid);
     }
     const bool normal_gui_exit = runtime_exited && WIFEXITED(runtime_status) &&
                                  WEXITSTATUS(runtime_status) == 0;
-    const bool controlled_seh_exit = runtime_exited && WIFEXITED(runtime_status) &&
-                                     WEXITSTATUS(runtime_status) == 3;
     stop_process(xvfb.pid);
 
     std::ifstream trace_input(trace_path);
     const std::string trace{std::istreambuf_iterator<char>{trace_input}, {}};
-    const bool configurator_observed =
-        trace.find("caption=\"Configurator\"") != std::string::npos ||
-        trace.find("window=\"Notepad++\"") != std::string::npos ||
-        window != 0;
-    const bool direct_cxx_block = trace.find("unsupported-cxx-handler-during-search") !=
-                                  std::string::npos;
-    const bool clean_gui_cycle = (window != 0 || configurator_observed) && normal_gui_exit;
-    const bool clean_seh_cycle = direct_cxx_block && controlled_seh_exit;
+    std::ifstream saved_input(file_path);
+    const std::string saved_contents{std::istreambuf_iterator<char>{saved_input}, {}};
+    const bool saved_to_original = saved_contents == "salvo pelo u2" ||
+                                   saved_contents == "salvo pelo u2\n";
 
-    passed = passed &&
-             (clean_gui_cycle || clean_seh_cycle) &&
+    passed = passed && window != 0 && normal_gui_exit && saved_to_original &&
              trace.find("caption=\"Load stylers.xml failed\"") == std::string::npos &&
              trace.find("guest-signal") == std::string::npos &&
              trace.find("guest-timeout") == std::string::npos;
     if (!passed) {
         std::cerr << "smoke do Notepad++ falhou; window=" << window
                   << " runtime_exited=" << runtime_exited
-                  << " exit_status=" << (runtime_exited ? WEXITSTATUS(runtime_status) : -1) << '\n';
+                  << " exit_status=" << (runtime_exited ? WEXITSTATUS(runtime_status) : -1)
+                  << " saved=" << saved_to_original << '\n';
         std::cerr << trace;
     }
     std::filesystem::remove_all(staging, error);

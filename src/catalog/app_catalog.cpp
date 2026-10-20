@@ -9,6 +9,7 @@
 #include <atomic>
 #include <cctype>
 #include <chrono>
+#include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -21,6 +22,11 @@
 #include <system_error>
 #include <utility>
 #include <vector>
+#include <spawn.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+extern char** environ;
 
 namespace tradutorlinux::catalog {
 namespace {
@@ -641,10 +647,12 @@ bool AppCatalog::create_desktop_entry(const AppEntry& app, const std::filesystem
     if (ec) return false;
 
     const std::filesystem::path file_path = dir / ("tradutorlinux-" + app.id + ".desktop");
-    std::ofstream out(file_path, std::ios::trunc);
-    if (!out) {
-        return false;
-    }
+    const std::vector<std::string> mime_types = desktop_entry_mime_types(app.id, dir);
+    const std::filesystem::path temporary = file_path.string() + ".tmp-" +
+        std::to_string(static_cast<long long>(::getpid())) + "-" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    std::ofstream out(temporary, std::ios::trunc);
+    if (!out) return false;
 
     out << "[Desktop Entry]\n";
     out << "Type=Application\n";
@@ -662,12 +670,17 @@ bool AppCatalog::create_desktop_entry(const AppEntry& app, const std::filesystem
     out << "Name=" << desktop_escape(app.name) << "\n";
     out << "Comment=Executado via TradutorLinux\n";
     out << "TryExec=/usr/bin/tradutorlinux\n";
-    out << "Exec=/usr/bin/tradutorlinux app run " << desktop_escape(app.id) << "\n";
+    out << "Exec=/usr/bin/tradutorlinux app run " << desktop_escape(app.id) << " -- %F\n";
+    if (!mime_types.empty()) {
+        out << "MimeType=";
+        for (const std::string& mime : mime_types) out << mime << ';';
+        out << "\n";
+    }
     if (!app.icon_path.empty()) {
         out << "Icon=" << app.icon_path << "\n";
     }
     out << "Terminal=false\n";
-    out << "Categories=Utility;Game;Wine;\n";
+    out << "Categories=Utility;Game;\n";
     out << "StartupNotify=true\n";
 
     out.flush();
@@ -675,7 +688,143 @@ bool AppCatalog::create_desktop_entry(const AppEntry& app, const std::filesystem
         return false;
     }
     out.close();
-    return !out.fail();
+    if (out.fail()) {
+        std::filesystem::remove(temporary, ec);
+        return false;
+    }
+    std::filesystem::rename(temporary, file_path, ec);
+    if (ec) {
+        std::error_code cleanup_error;
+        std::filesystem::remove(temporary, cleanup_error);
+        return false;
+    }
+    return true;
+}
+
+std::vector<std::string> AppCatalog::desktop_entry_mime_types(
+    const std::string_view id, const std::filesystem::path& destination_dir) {
+    std::vector<std::string> result;
+    if (!is_safe_app_id(id)) return result;
+    const auto dir = destination_dir.empty() ? default_desktop_entries_dir() : destination_dir;
+    std::ifstream input(dir / ("tradutorlinux-" + std::string{id} + ".desktop"));
+    std::string line;
+    while (std::getline(input, line)) {
+        if (!line.starts_with("MimeType=")) continue;
+        std::string_view values{line};
+        values.remove_prefix(9);
+        while (!values.empty()) {
+            const auto end = values.find(';');
+            const auto token = values.substr(0, end);
+            if (!token.empty()) result.emplace_back(token);
+            if (end == std::string_view::npos) break;
+            values.remove_prefix(end + 1);
+        }
+        break;
+    }
+    return result;
+}
+
+bool AppCatalog::set_desktop_entry_mime_types(
+    const AppEntry& app, const std::vector<std::string>& mime_types,
+    const std::filesystem::path& destination_dir, std::string* const error) {
+    if (!is_safe_app_id(app.id)) {
+        if (error) *error = "ID de aplicativo inválido";
+        return false;
+    }
+    for (const std::string& mime : mime_types) {
+        const auto slash = mime.find('/');
+        const auto valid_token = [](const std::string_view token) {
+            return !token.empty() && std::all_of(token.begin(), token.end(), [](const char c) {
+                return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                       (c >= '0' && c <= '9') || c == '!' || c == '#' || c == '$' ||
+                       c == '&' || c == '^' || c == '_' || c == '.' || c == '+' || c == '-';
+            });
+        };
+        if (slash == std::string::npos || mime.find('/', slash + 1) != std::string::npos ||
+            !valid_token(std::string_view{mime}.substr(0, slash)) ||
+            !valid_token(std::string_view{mime}.substr(slash + 1))) {
+            if (error) *error = "MIME type inválido: " + mime;
+            return false;
+        }
+    }
+    const auto dir = destination_dir.empty() ? default_desktop_entries_dir() : destination_dir;
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    if (ec) {
+        if (error) *error = "não foi possível criar diretório de atalhos: " + ec.message();
+        return false;
+    }
+    const auto file = dir / ("tradutorlinux-" + app.id + ".desktop");
+    const auto temporary = file.string() + ".tmp-" +
+        std::to_string(static_cast<long long>(::getpid())) + "-" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    std::ofstream out(temporary, std::ios::trunc);
+    if (!out) {
+        if (error) *error = "não foi possível gravar atalho temporário";
+        return false;
+    }
+    auto desktop_escape = [](const std::string& value) {
+        std::string escaped;
+        for (const char ch : value) {
+            if (ch == '\\' || ch == '"' || ch == '`' || ch == '$') {
+                escaped.push_back('\\');
+            }
+            escaped.push_back(ch);
+        }
+        return escaped;
+    };
+    out << "[Desktop Entry]\nType=Application\nName=" << desktop_escape(app.name)
+        << "\nComment=Executado via TradutorLinux\nTryExec=/usr/bin/tradutorlinux\n"
+        << "Exec=/usr/bin/tradutorlinux app run " << desktop_escape(app.id) << " -- %F\n";
+    if (!app.icon_path.empty()) out << "Icon=" << app.icon_path << "\n";
+    if (!mime_types.empty()) {
+        out << "MimeType=";
+        for (const auto& mime : mime_types) out << mime << ';';
+        out << "\n";
+    }
+    out << "Terminal=false\nCategories=Utility;Game;\nStartupNotify=true\n";
+    out.close();
+    if (out.fail()) {
+        std::filesystem::remove(temporary, ec);
+        if (error) *error = "falha ao concluir gravação do atalho";
+        return false;
+    }
+    std::filesystem::rename(temporary, file, ec);
+    if (ec) {
+        const std::string rename_error = ec.message();
+        std::error_code cleanup_error;
+        std::filesystem::remove(temporary, cleanup_error);
+        if (error) *error = "falha ao substituir atalho: " + rename_error;
+        return false;
+    }
+    return true;
+}
+
+bool AppCatalog::refresh_desktop_database(const std::filesystem::path& destination_dir,
+                                          std::string* const error) {
+    const auto dir = destination_dir.empty() ? default_desktop_entries_dir() : destination_dir;
+    if (dir.empty()) {
+        if (error) *error = "diretório de atalhos não definido";
+        return false;
+    }
+    std::string directory = dir.string();
+    char* const argv[] = {const_cast<char*>("update-desktop-database"), directory.data(), nullptr};
+    pid_t child = -1;
+    const int spawn_status = ::posix_spawnp(&child, argv[0], nullptr, nullptr, argv, environ);
+    if (spawn_status != 0) {
+        if (error) *error = "não foi possível iniciar update-desktop-database (" + std::to_string(spawn_status) + ")";
+        return false;
+    }
+    int status = 0;
+    pid_t waited = -1;
+    do {
+        waited = ::waitpid(child, &status, 0);
+    } while (waited < 0 && errno == EINTR);
+    if (waited != child || !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        if (error) *error = "update-desktop-database falhou";
+        return false;
+    }
+    return true;
 }
 
 bool AppCatalog::remove_desktop_entry(const std::string_view id,
