@@ -115,11 +115,34 @@ void stop_runtime_process(const pid_t pid) {
 
 [[nodiscard]] Window find_window_by_name(Display* const display, const Window root,
                                           const std::string& name) {
-    char* window_name = nullptr;
-    if (::XFetchName(display, root, &window_name) != 0 && window_name != nullptr) {
-        const bool matches = std::string_view{window_name}.find(name) != std::string_view::npos;
-        ::XFree(window_name);
-        if (matches) {
+    const Atom net_wm_name = ::XInternAtom(display, "_NET_WM_NAME", False);
+    const Atom utf8_string = ::XInternAtom(display, "UTF8_STRING", False);
+    Atom actual_type = None;
+    int actual_format = 0;
+    unsigned long item_count = 0;
+    unsigned long remaining = 0;
+    unsigned char* property = nullptr;
+    const int property_status = ::XGetWindowProperty(
+        display, root, net_wm_name, 0, 4096, False, utf8_string, &actual_type,
+        &actual_format, &item_count, &remaining, &property);
+    bool matches = property_status == Success && actual_type == utf8_string &&
+                   actual_format == 8 && property != nullptr &&
+                   std::string_view{reinterpret_cast<const char*>(property), item_count}
+                           .find(name) != std::string_view::npos;
+    if (property != nullptr) {
+        ::XFree(property);
+    }
+    if (!matches) {
+        char* window_name = nullptr;
+        if (::XFetchName(display, root, &window_name) != 0 && window_name != nullptr) {
+            matches = std::string_view{window_name}.find(name) != std::string_view::npos;
+            ::XFree(window_name);
+        }
+    }
+    if (matches) {
+        XWindowAttributes attributes{};
+        if (::XGetWindowAttributes(display, root, &attributes) != 0 &&
+            attributes.map_state == IsViewable) {
             return root;
         }
     }
@@ -139,6 +162,34 @@ void stop_runtime_process(const pid_t pid) {
         ::XFree(children);
     }
     return result;
+}
+
+void dump_root_windows(Display* const display, const Window root) {
+    Window returned_root = 0;
+    Window returned_parent = 0;
+    Window* children = nullptr;
+    unsigned int child_count = 0;
+    if (::XQueryTree(display, root, &returned_root, &returned_parent, &children,
+                     &child_count) == 0) {
+        return;
+    }
+    for (unsigned int index = 0; index < child_count; ++index) {
+        XWindowAttributes attributes{};
+        char* name = nullptr;
+        const bool have_attributes =
+            ::XGetWindowAttributes(display, children[index], &attributes) != 0;
+        const bool have_name = ::XFetchName(display, children[index], &name) != 0 &&
+                               name != nullptr;
+        std::cerr << "janela X11 id=" << children[index]
+                  << " map_state=" << (have_attributes ? attributes.map_state : -1)
+                  << " title=" << (have_name ? name : "<sem WM_NAME>") << '\n';
+        if (name != nullptr) {
+            ::XFree(name);
+        }
+    }
+    if (children != nullptr) {
+        ::XFree(children);
+    }
 }
 
 [[nodiscard]] bool send_close(Display* const display, const Window window) {
@@ -219,6 +270,17 @@ void stop_runtime_process(const pid_t pid) {
         return SmokeResult::Failed;
     }
 
+    const std::filesystem::path application_directory = staging / "application";
+    std::filesystem::copy(target.parent_path(), application_directory,
+                          std::filesystem::copy_options::recursive |
+                              std::filesystem::copy_options::copy_symlinks,
+                          error);
+    if (error) {
+        std::filesystem::remove_all(staging, error);
+        return SmokeResult::Failed;
+    }
+    const std::filesystem::path staged_target = application_directory / target.filename();
+
     const std::filesystem::path config_home = staging / "config";
     const std::filesystem::path data_home = staging / "data";
     const std::filesystem::path prefix_root = staging / "prefix";
@@ -235,9 +297,9 @@ void stop_runtime_process(const pid_t pid) {
     {
         std::ofstream catalog(config_home / "tradutorlinux" / "library.json");
         catalog << "{\"version\":1,\"apps\":[{\"id\":\"notepadpp\","
-                << "\"name\":\"Notepad++\",\"executable_path\":\"" << target.string()
+                << "\"name\":\"Notepad++\",\"executable_path\":\"" << staged_target.string()
                 << "\",\"prefix_path\":\"" << prefix_root.string()
-                << "\",\"working_directory\":\"" << target.parent_path().string()
+                << "\",\"working_directory\":\"" << application_directory.string()
                 << "\",\"args\":[]}] }\n";
         if (!catalog.good()) return SmokeResult::Failed;
     }
@@ -255,10 +317,13 @@ void stop_runtime_process(const pid_t pid) {
     if (runtime_pid == 0) {
         (void)::setpgid(0, 0);
         (void)::setenv("DISPLAY", xvfb.display.c_str(), 1);
+        (void)::setenv("TL_GUI_BACKEND", "x11", 1);
+        (void)::unsetenv("WAYLAND_DISPLAY");
+        (void)::unsetenv("XDG_RUNTIME_DIR");
         (void)::setenv("HOME", staging.c_str(), 1);
         (void)::setenv("XDG_CONFIG_HOME", config_home.c_str(), 1);
         (void)::setenv("XDG_DATA_HOME", data_home.c_str(), 1);
-        (void)::chdir(target.parent_path().c_str());
+        (void)::chdir(application_directory.c_str());
         (void)::dup2(trace_fd, STDERR_FILENO);
         ::close(trace_fd);
         ::execl(runtime.c_str(), runtime.c_str(), "app", "run", "notepadpp",
@@ -286,6 +351,12 @@ void stop_runtime_process(const pid_t pid) {
             if (window == 0) {
                 std::this_thread::sleep_for(100ms);
             }
+        }
+        if (window == 0) {
+            window = find_window_by_name(display, DefaultRootWindow(display), "Notepad++");
+        }
+        if (window == 0) {
+            dump_root_windows(display, DefaultRootWindow(display));
         }
     }
 
