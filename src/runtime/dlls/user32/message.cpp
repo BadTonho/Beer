@@ -17,6 +17,28 @@ struct PendingNativeMessage {
 };
 
 std::array<PendingNativeMessage, kMaxGuestWindows> g_pending_native{};
+std::array<std::uint8_t, 256> g_keyboard_state{};
+
+void update_keyboard_state(const gui::WindowEvent& event) noexcept {
+    constexpr std::uint8_t kDown = 0x80U;
+    constexpr int kVkShift = 0x10;
+    constexpr int kVkControl = 0x11;
+    constexpr int kVkAlt = 0x12;
+    const auto update = [](const int key, const bool down) {
+        if (key >= 0 && key < 256) {
+            g_keyboard_state[static_cast<std::size_t>(key)] = down ? kDown : 0U;
+        }
+    };
+    update(kVkShift, (event.modifiers & 1U) != 0U);
+    update(kVkControl, (event.modifiers & 2U) != 0U);
+    update(kVkAlt, (event.modifiers & 4U) != 0U);
+    const int key = static_cast<int>(keydown_vkey(event.keysym, event.character));
+    if (event.type == gui::WindowEventType::KeyDown) {
+        update(key, true);
+    } else if (event.type == gui::WindowEventType::KeyUp) {
+        update(key, false);
+    }
+}
 
 [[nodiscard]] PendingNativeMessage& pending_native(WindowSlot& slot) noexcept {
     return g_pending_native[static_cast<std::size_t>(&slot - g_windows.data())];
@@ -774,9 +796,17 @@ void notify_tree_selection(WindowSlot& tree, const std::uintptr_t old_handle,
         return true;
     }
     if (event.type == gui::WindowEventType::KeyDown) {
-        slot.last_key = event.character;
-        handle_control_key(slot, event);
-        set_message(&slot, abi::kWmKeyDown,
+        update_keyboard_state(event);
+        WindowSlot* target = &slot;
+        if (g_focused_control != nullptr && g_focused_control->used &&
+            g_focused_control->is_control &&
+            g_focused_control->wndproc != 0) {
+            target = g_focused_control;
+        } else {
+            handle_control_key(slot, event);
+        }
+        target->last_key = event.character;
+        set_message(target, abi::kWmKeyDown,
                     keydown_vkey(event.keysym, event.character), 0);
         return true;
     }
@@ -800,7 +830,14 @@ void notify_tree_selection(WindowSlot& tree, const std::uintptr_t old_handle,
         return true;
     }
     if (event.type == gui::WindowEventType::KeyUp) {
-        set_message(&slot, abi::kWmKeyUp,
+        update_keyboard_state(event);
+        WindowSlot* target = &slot;
+        if (g_focused_control != nullptr && g_focused_control->used &&
+            g_focused_control->is_control &&
+            g_focused_control->wndproc != 0) {
+            target = g_focused_control;
+        }
+        set_message(target, abi::kWmKeyUp,
                     keydown_vkey(event.keysym, event.character), 0);
         return true;
     }
@@ -1063,9 +1100,17 @@ TL_MSABI int tl_GetMessageA(void* const msg, const void* const window,
                 return 1;
             }
             if (event.type == gui::WindowEventType::KeyDown) {
-                slot.last_key = event.character;
-                handle_control_key(slot, event);
-                if (!write_guest_msg(msg, &slot, abi::kWmKeyDown,
+                update_keyboard_state(event);
+                WindowSlot* target = &slot;
+                if (g_focused_control != nullptr && g_focused_control->used &&
+                    g_focused_control->is_control &&
+                    g_focused_control->wndproc != 0) {
+                    target = g_focused_control;
+                } else {
+                    handle_control_key(slot, event);
+                }
+                target->last_key = event.character;
+                if (!write_guest_msg(msg, target, abi::kWmKeyDown,
                                      keydown_vkey(event.keysym, event.character), 0)) {
                     set_last_error(abi::kErrorInvalidParameter);
                     return -1;
@@ -1106,7 +1151,14 @@ TL_MSABI int tl_GetMessageA(void* const msg, const void* const window,
                 return 1;
             }
             if (event.type == gui::WindowEventType::KeyUp) {
-                if (!write_guest_msg(msg, &slot, abi::kWmKeyUp,
+                update_keyboard_state(event);
+                WindowSlot* target = &slot;
+                if (g_focused_control != nullptr && g_focused_control->used &&
+                    g_focused_control->is_control &&
+                    g_focused_control->wndproc != 0) {
+                    target = g_focused_control;
+                }
+                if (!write_guest_msg(msg, target, abi::kWmKeyUp,
                                      keydown_vkey(event.keysym, event.character), 0)) {
                     set_last_error(abi::kErrorInvalidParameter);
                     return -1;
@@ -1911,12 +1963,16 @@ TL_MSABI std::uint32_t tl_MsgWaitForMultipleObjects(const std::uint32_t count,
     return tl_MsgWaitForMultipleObjectsEx(count, handles, milliseconds, wake_mask, 0);
 }
 
-TL_MSABI std::int16_t tl_GetKeyState(const int) noexcept {
-    return 0;
+TL_MSABI std::int16_t tl_GetKeyState(const int key) noexcept {
+    if (key < 0 || key >= static_cast<int>(g_keyboard_state.size())) {
+        return 0;
+    }
+    return static_cast<std::int16_t>(static_cast<unsigned int>(
+        g_keyboard_state[static_cast<std::size_t>(key)]) << 8U);
 }
 
-TL_MSABI std::int16_t tl_GetAsyncKeyState(const int) noexcept {
-    return 0;
+TL_MSABI std::int16_t tl_GetAsyncKeyState(const int key) noexcept {
+    return tl_GetKeyState(key);
 }
 
 TL_MSABI int tl_PeekMessageA(void* const msg, const void* const window,

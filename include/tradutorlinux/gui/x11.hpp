@@ -26,6 +26,7 @@ struct WindowEvent {
     int y{};
     char character{};        // primeiro caractere traduzido da tecla (pode ser '\0')
     unsigned long keysym{0}; // keysym X11 da tecla (0 quando ausente)
+    std::uint8_t modifiers{}; // Shift=1, Control=2, Alt=4
 };
 
 // Handle opaco de janela persistente. Válido somente para as funções abaixo.

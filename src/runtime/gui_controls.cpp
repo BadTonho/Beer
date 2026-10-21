@@ -82,11 +82,18 @@ constexpr std::uint32_t kBsDefPushButton = 0x00000001U;
 
 WindowSlot* find_control_at(WindowSlot& parent, const std::span<WindowSlot> windows,
                             const int x, const int y) noexcept {
-    for (auto it = windows.rbegin(); it != windows.rend(); ++it) {
-        WindowSlot& control = *it;
-        if (control.used && control.is_control && control.parent == &parent && control.visible &&
-            x >= control.x && x < control.x + control.width && y >= control.y &&
-            y < control.y + control.height) {
+    // Registered guest controls own their input procedures. Prefer one over
+    // overlapping runtime-only control proxies, whose geometry can cover the
+    // full client area while the guest control is laid out on top of them.
+    for (const bool registered_first : {true, false}) {
+        for (auto it = windows.rbegin(); it != windows.rend(); ++it) {
+            WindowSlot& control = *it;
+            if (!control.used || !control.is_control || control.parent != &parent ||
+                !control.visible || (control.wndproc != 0) != registered_first ||
+                x < control.x || x >= control.x + control.width || y < control.y ||
+                y >= control.y + control.height) {
+                continue;
+            }
             return &control;
         }
     }
@@ -1336,7 +1343,10 @@ void handle_control_mouse(WindowSlot& parent, const std::span<WindowSlot> window
         if (control == nullptr) {
             return;
         }
-        set_focus_control(control->control_kind == ControlKind::Edit ? control : nullptr,
+        set_focus_control(control->wndproc != 0 ||
+                                  control->control_kind == ControlKind::Edit
+                              ? control
+                              : nullptr,
                           focused_control);
         control->pressed = true;
         if (control->control_kind == ControlKind::Toolbar &&

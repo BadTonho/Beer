@@ -231,10 +231,35 @@ void dump_root_windows(Display* const display, const Window root) {
     return sent && event.xkey.keycode != 0;
 }
 
+[[nodiscard]] bool click_editor(Display* const display, const Window window) {
+    bool sent = true;
+    for (const int type : {ButtonPress, ButtonRelease}) {
+        XEvent event{};
+        event.xbutton.type = type;
+        event.xbutton.display = display;
+        event.xbutton.window = window;
+        event.xbutton.root = DefaultRootWindow(display);
+        event.xbutton.time = CurrentTime;
+        event.xbutton.x = 400;
+        event.xbutton.y = 300;
+        event.xbutton.x_root = 400;
+        event.xbutton.y_root = 300;
+        event.xbutton.button = Button1;
+        event.xbutton.same_screen = True;
+        sent = ::XSendEvent(display, window, True,
+                            type == ButtonPress ? ButtonPressMask : ButtonReleaseMask,
+                            &event) != 0 && sent;
+        (void)::XFlush(display);
+        std::this_thread::sleep_for(20ms);
+    }
+    return sent;
+}
+
 [[nodiscard]] bool replace_document_and_save(Display* const display, const Window window) {
     (void)::XSetInputFocus(display, window, RevertToParent, CurrentTime);
     (void)::XFlush(display);
-    bool sent = send_key(display, window, XK_Control_L, true);
+    bool sent = click_editor(display, window);
+    sent = send_key(display, window, XK_Control_L, true) && sent;
     sent = send_key(display, window, XK_a, true, ControlMask) && sent;
     sent = send_key(display, window, XK_a, false, ControlMask) && sent;
     sent = send_key(display, window, XK_Control_L, false) && sent;

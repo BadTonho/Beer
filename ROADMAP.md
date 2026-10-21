@@ -52,13 +52,13 @@ aplicativo permanecem intactos após remover o cadastro.
 **Objetivo:** permitir iniciar um aplicativo cadastrado com arquivos escolhidos
 no gerenciador de arquivos ou em uma entrada do menu.
 
-- [ ] Definir e documentar os argumentos de `app run` para um ou mais arquivos.
-- [ ] Encaminhar argumentos sem shell intermediário e converter caminhos para
+- [x] Definir e documentar os argumentos de `app run` para um ou mais arquivos.
+- [x] Encaminhar argumentos sem shell intermediário e converter caminhos para
   a visão do prefixo do aplicativo.
-- [ ] Registrar associações de arquivo somente para aplicativos e tipos
+- [x] Registrar associações de arquivo somente para aplicativos e tipos
   escolhidos pela pessoa usuária.
-- [ ] Cobrir espaços, caracteres Unicode e arquivos fora do prefixo.
-- [ ] Verificar que o aplicativo-alvo abre o arquivo correto e que gravações
+- [x] Cobrir espaços, caracteres Unicode e arquivos fora do prefixo.
+- [x] Verificar que o aplicativo-alvo abre o arquivo correto e que gravações
   chegam ao destino esperado.
 
 **Saída:** ao menos um aplicativo cadastrado abre e salva um arquivo iniciado

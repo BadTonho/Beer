@@ -202,6 +202,12 @@ constexpr unsigned long kKeysymUp = 0xFF52;
 constexpr unsigned long kKeysymRight = 0xFF53;
 constexpr unsigned long kKeysymDown = 0xFF54;
 constexpr unsigned long kKeysymDelete = 0xFFFF;
+constexpr unsigned long kKeysymShiftLeft = 0xFFE1;
+constexpr unsigned long kKeysymShiftRight = 0xFFE2;
+constexpr unsigned long kKeysymControlLeft = 0xFFE3;
+constexpr unsigned long kKeysymControlRight = 0xFFE4;
+constexpr unsigned long kKeysymAltLeft = 0xFFE9;
+constexpr unsigned long kKeysymAltRight = 0xFFEA;
 
 constexpr std::uint32_t kWsVisible = 0x10000000U;
 constexpr std::uint32_t kWsDisabled = 0x08000000U;
@@ -332,7 +338,19 @@ inline InternalMenu g_dummy_menu{0x4D454E55, 5, &g_dummy_sub_menu, {}};
         case kKeysymRight: return abi::kVkRight;
         case kKeysymDown: return abi::kVkDown;
         case kKeysymDelete: return abi::kVkDelete;
+        case kKeysymShiftLeft:
+        case kKeysymShiftRight: return 0x10U;
+        case kKeysymControlLeft:
+        case kKeysymControlRight: return 0x11U;
+        case kKeysymAltLeft:
+        case kKeysymAltRight: return 0x12U;
         default: break;
+    }
+    if ((keysym >= 'a' && keysym <= 'z') || (keysym >= 'A' && keysym <= 'Z')) {
+        return static_cast<abi::Wparam>(keysym >= 'a' ? keysym - ('a' - 'A') : keysym);
+    }
+    if (keysym >= '0' && keysym <= '9') {
+        return static_cast<abi::Wparam>(keysym);
     }
     const auto value = static_cast<std::uint32_t>(static_cast<unsigned char>(character));
     if (value >= 'a' && value <= 'z') {

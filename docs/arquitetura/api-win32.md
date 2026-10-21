@@ -198,6 +198,16 @@ janela Win32 sobre X11.
 `DefWindowProcA/W`, `PostQuitMessage`, `SendMessageA/W`, `PostMessageA/W`,
 `SendMessageTimeoutA`, `MsgWaitForMultipleObjects` e
 `MsgWaitForMultipleObjectsEx` implement o pump e a entrega de mensagens.
+Eventos de teclado do X11 são convertidos para códigos virtuais Win32 e
+encaminhados ao controle lógico com foco, inclusive controles aninhados; o
+estado de Shift, Control e Alt fica disponível por `GetKeyState` e
+`GetAsyncKeyState`. `LoadAcceleratorsW`, `TranslateAcceleratorW`,
+`CreateAcceleratorTableW` e `DestroyAcceleratorTable` cobrem tabelas ACCEL com
+teclas virtuais e modificadores, despachando `WM_COMMAND` quando há
+correspondência. `ShowWindow(SW_HIDE)` em controles lógicos altera sua
+visibilidade sem desmapear a janela X11 compartilhada pelo pai. No hit-test,
+controles convidados registrados são priorizados sobre proxies lógicos do
+runtime que se sobreponham à sua área.
 `SetTimer`/`KillTimer` geram `WM_TIMER` no pump. O backend é X11 headless em
 testes (`Xvfb`); não há suporte GUI amplo, Wayland ou comportamento de um
 window manager real.
@@ -206,10 +216,9 @@ window manager real.
 `GetWindow`, `GetAncestor`, `GetClassNameA/W`, `GetWindowThreadProcessId`,
 `CallWindowProcA/W`, `GetWindowLongW`, `GetWindowLongPtrA/W`,
 `SetWindowLongW`, `SetWindowLongPtrA/W`, `SetClassLongPtrA/W`, `SetCapture`,
-`ReleaseCapture`, `GetCapture`, `BringWindowToTop`, `SetCursorPos`,
-`GetCursorPos`, `GetKeyState` e `GetAsyncKeyState` expõem apenas o estado
-logical e eventos que o backend possui; `GetCursorPos` publica suas coordenadas
-por cópia protegida.
+`ReleaseCapture`, `GetCapture`, `BringWindowToTop`, `SetCursorPos` e
+`GetCursorPos` expõem apenas o estado lógico e eventos que o backend possui;
+`GetCursorPos` publica suas coordenadas por cópia protegida.
 
 ### Diálogos, menus, clipboard e controles
 

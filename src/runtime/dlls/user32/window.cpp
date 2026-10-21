@@ -670,11 +670,14 @@ TL_MSABI int tl_ShowWindow(const void* const window, const int cmd_show) noexcep
     const bool was_visible = slot->visible;
     if (cmd_show == 0) {
         slot->visible = false;
-        if (slot->native != nullptr) {
+        if (slot->native != nullptr && !slot->is_control) {
+            slot->mapped = false;
             gui::platform::unmap_window(slot->native);
         }
     } else if (slot->native != nullptr) {
-        slot->mapped = gui::platform::map_window(slot->native);
+        if (!slot->is_control) {
+            slot->mapped = gui::platform::map_window(slot->native);
+        }
         slot->visible = true;
     } else {
         slot->visible = true;

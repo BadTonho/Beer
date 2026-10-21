@@ -7,6 +7,7 @@ namespace tradutorlinux {
 namespace {
 
 constexpr std::uint32_t kRtMenu = 4U;
+constexpr std::uint32_t kRtAccelerator = 9U;
 constexpr std::uint16_t kMenuItemPopup = 0x0001U;
 constexpr std::uint16_t kMenuItemLast = 0x0080U;
 constexpr std::uint32_t kMenuTypeSeparator = 0x00000800U;
@@ -23,6 +24,79 @@ constexpr std::uint32_t kMenuByPosition = 0x00000400U;
 constexpr std::uint32_t kMenuStateEnabledMask = 0x00000003U;
 constexpr std::uint32_t kMenuStateChecked = 0x00000008U;
 std::atomic<std::uint64_t> g_delete_menu_call_count{};
+
+struct AcceleratorEntry {
+    std::uint8_t flags{};
+    std::uint16_t key{};
+    std::uint16_t command{};
+};
+
+struct AcceleratorSlot {
+    bool used{false};
+    std::vector<AcceleratorEntry> entries;
+};
+
+std::array<AcceleratorSlot, 32> g_accelerators{};
+
+[[nodiscard]] AcceleratorSlot* mutable_accelerator_slot(const void* const handle) noexcept {
+    if (handle == nullptr) {
+        return nullptr;
+    }
+    const auto found = std::find_if(g_accelerators.begin(), g_accelerators.end(),
+                                    [handle](const AcceleratorSlot& entry) {
+                                        return entry.used && &entry == handle;
+                                    });
+    return found == g_accelerators.end() ? nullptr : &*found;
+}
+
+[[nodiscard]] AcceleratorSlot* allocate_accelerator_slot() noexcept {
+    const auto found = std::find_if(g_accelerators.begin(), g_accelerators.end(),
+                                    [](const AcceleratorSlot& entry) {
+                                        return !entry.used;
+                                    });
+    if (found == g_accelerators.end()) {
+        return nullptr;
+    }
+    found->used = true;
+    found->entries.clear();
+    return &*found;
+}
+
+[[nodiscard]] AcceleratorSlot* parse_accelerator_resource(
+    const void* const data, const std::uint32_t byte_size) {
+    if (data == nullptr || byte_size < 5U || byte_size > 5U * 4096U) {
+        return nullptr;
+    }
+    std::vector<std::uint8_t> bytes(byte_size);
+    if (runtime::read_guest_memory(data, bytes.data(), bytes.size()).status !=
+        runtime::GuestMemoryAccessStatus::Success) {
+        return nullptr;
+    }
+    AcceleratorSlot* const slot = allocate_accelerator_slot();
+    if (slot == nullptr) {
+        return nullptr;
+    }
+    try {
+        for (std::size_t offset = 0; offset + 5U <= bytes.size(); offset += 5U) {
+            const std::uint8_t flags = bytes[offset];
+            const std::uint16_t key = static_cast<std::uint16_t>(bytes[offset + 1U]) |
+                                      static_cast<std::uint16_t>(bytes[offset + 2U] << 8U);
+            const std::uint16_t command = static_cast<std::uint16_t>(bytes[offset + 3U]) |
+                                          static_cast<std::uint16_t>(bytes[offset + 4U] << 8U);
+            slot->entries.push_back({static_cast<std::uint8_t>(flags & 0x7FU), key, command});
+            if ((flags & 0x80U) != 0U) {
+                return slot;
+            }
+        }
+    } catch (...) {
+        slot->used = false;
+        slot->entries.clear();
+        throw;
+    }
+    slot->used = false;
+    slot->entries.clear();
+    return nullptr;
+}
 
 [[nodiscard]] MenuSlot* mutable_menu_slot(const void* const menu) noexcept {
     if (menu == nullptr) {
@@ -706,16 +780,70 @@ TL_MSABI void* tl_LoadMenuW(void* const instance, const std::uint16_t* const men
 }
 
 TL_MSABI void* tl_LoadAcceleratorsW(void* const instance, const std::uint16_t* const table_name) noexcept {
-    (void)instance;
-    (void)table_name;
+    const auto raw_name = reinterpret_cast<std::uintptr_t>(table_name);
+    std::u16string name_copy;
+    if (table_name != nullptr && raw_name > 0xFFFFU &&
+        !runtime::copy_guest_wstring(table_name, 4096U, name_copy)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return nullptr;
+    }
+    const std::uint16_t* const effective_name = raw_name > 0xFFFFU
+        ? reinterpret_cast<const std::uint16_t*>(name_copy.data())
+        : table_name;
+    const auto* const type = reinterpret_cast<const std::uint16_t*>(kRtAccelerator);
+    void* const resource = tl_FindResourceW(instance, effective_name, type);
+    void* const loaded = resource == nullptr ? nullptr : tl_LoadResource(instance, resource);
+    const std::uint32_t byte_size = resource == nullptr
+        ? 0U
+        : tl_SizeofResource(instance, resource);
+    const void* const resource_data = loaded == nullptr ? nullptr : tl_LockResource(loaded);
+    AcceleratorSlot* slot = nullptr;
+    try {
+        slot = parse_accelerator_resource(resource_data, byte_size);
+    } catch (...) {
+        set_last_error(abi::kErrorNotEnoughMemory);
+        return nullptr;
+    }
+    if (slot == nullptr) {
+        set_last_error(abi::kErrorResourceDataNotFound);
+        return nullptr;
+    }
     set_last_error(abi::kErrorSuccess);
-    return reinterpret_cast<void*>(0x41434345ULL); // 'ACCE'
+    return slot;
 }
 
 TL_MSABI int tl_TranslateAcceleratorW(void* const hwnd, void* const accel_table, void* const msg) noexcept {
-    (void)hwnd;
-    (void)accel_table;
-    (void)msg;
+    AcceleratorSlot* const table = mutable_accelerator_slot(accel_table);
+    if (table == nullptr || find_window_slot(hwnd) == nullptr || msg == nullptr) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    abi::GuestMsg message{};
+    if (!read_guest_value(msg, message)) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    constexpr std::uint8_t kVirtualKey = 0x01U;
+    constexpr std::uint8_t kShift = 0x04U;
+    constexpr std::uint8_t kControl = 0x08U;
+    constexpr std::uint8_t kAlt = 0x10U;
+    constexpr std::int16_t kKeyDownMask = static_cast<std::int16_t>(0x8000U);
+    for (const AcceleratorEntry& entry : table->entries) {
+        const bool key_message = (entry.flags & kVirtualKey) != 0U
+            ? message.message == abi::kWmKeyDown
+            : message.message == abi::kWmChar;
+        if (!key_message || message.wparam != entry.key ||
+            ((entry.flags & kShift) != 0U && (tl_GetKeyState(0x10) & kKeyDownMask) == 0) ||
+            ((entry.flags & kControl) != 0U && (tl_GetKeyState(0x11) & kKeyDownMask) == 0) ||
+            ((entry.flags & kAlt) != 0U && (tl_GetKeyState(0x12) & kKeyDownMask) == 0)) {
+            continue;
+        }
+        static_cast<void>(tl_SendMessageA(hwnd, abi::kWmCommand,
+                                          (1U << 16U) | entry.command, 0));
+        set_last_error(abi::kErrorSuccess);
+        return 1;
+    }
+    set_last_error(abi::kErrorSuccess);
     return 0;
 }
 
@@ -812,13 +940,55 @@ TL_MSABI int tl_InsertMenuW(void* const hMenu, const std::uint32_t uPosition, co
 }
 
 TL_MSABI void* tl_CreateAcceleratorTableW(void* const paccel, const int cAccel) noexcept {
-    (void)paccel;
-    (void)cAccel;
-    return reinterpret_cast<void*>(0x4143434CULL);
+    struct GuestAccel {
+        std::uint8_t flags;
+        std::uint8_t padding;
+        std::uint16_t key;
+        std::uint16_t command;
+    };
+    static_assert(sizeof(GuestAccel) == 6U);
+    if (paccel == nullptr || cAccel <= 0 || cAccel > 4096) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return nullptr;
+    }
+    AcceleratorSlot* const slot = allocate_accelerator_slot();
+    if (slot == nullptr) {
+        set_last_error(abi::kErrorNotEnoughMemory);
+        return nullptr;
+    }
+    try {
+        for (int index = 0; index < cAccel; ++index) {
+            GuestAccel entry{};
+            const auto* const source = reinterpret_cast<const std::uint8_t*>(paccel) +
+                                       static_cast<std::size_t>(index) * sizeof(GuestAccel);
+            if (runtime::read_guest_memory(source, &entry, sizeof(entry)).status !=
+                runtime::GuestMemoryAccessStatus::Success) {
+                slot->used = false;
+                slot->entries.clear();
+                set_last_error(abi::kErrorInvalidParameter);
+                return nullptr;
+            }
+            slot->entries.push_back({entry.flags, entry.key, entry.command});
+        }
+    } catch (...) {
+        slot->used = false;
+        slot->entries.clear();
+        set_last_error(abi::kErrorNotEnoughMemory);
+        return nullptr;
+    }
+    set_last_error(abi::kErrorSuccess);
+    return slot;
 }
 
 TL_MSABI int tl_DestroyAcceleratorTable(void* const hAccel) noexcept {
-    (void)hAccel;
+    AcceleratorSlot* const slot = mutable_accelerator_slot(hAccel);
+    if (slot == nullptr) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    slot->entries.clear();
+    slot->used = false;
+    set_last_error(abi::kErrorSuccess);
     return 1;
 }
 

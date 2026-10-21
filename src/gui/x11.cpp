@@ -319,8 +319,12 @@ void push_event_for(Display* const dpy, WindowState* const state, XEvent& event)
             const char character = length > 0 ? buffer[0] : '\0';
             const WindowEventType type =
                 event.type == KeyPress ? WindowEventType::KeyDown : WindowEventType::KeyUp;
+            const std::uint8_t modifiers =
+                static_cast<std::uint8_t>((event.xkey.state & ShiftMask ? 1U : 0U) |
+                                          (event.xkey.state & ControlMask ? 2U : 0U) |
+                                          (event.xkey.state & Mod1Mask ? 4U : 0U));
             state->pending.push_back(
-                {type, 0, 0, character, static_cast<unsigned long>(keysym)});
+                {type, 0, 0, character, static_cast<unsigned long>(keysym), modifiers});
         }
         return;
     }

@@ -119,6 +119,31 @@ TEST(LogicalControls, HitTestReturnsTopmostVisibleChild) {
     g_windows = {};
 }
 
+TEST(LogicalControls, RegisteredGuestControlTakesInputOverRuntimeProxy) {
+    g_windows = {};
+    WindowSlot& parent = g_windows[0];
+    parent.used = true;
+
+    WindowSlot& guest_control = g_windows[1];
+    guest_control.used = true;
+    guest_control.is_control = true;
+    guest_control.parent = &parent;
+    guest_control.wndproc = 1U;
+    guest_control.width = 800;
+    guest_control.height = 600;
+
+    WindowSlot& runtime_proxy = g_windows[2];
+    runtime_proxy.used = true;
+    runtime_proxy.is_control = true;
+    runtime_proxy.parent = &parent;
+    runtime_proxy.width = 800;
+    runtime_proxy.height = 600;
+
+    EXPECT_EQ(find_control_at(parent, std::span<WindowSlot>{g_windows}, 400, 300),
+              &guest_control);
+    g_windows = {};
+}
+
 TEST(CommonControls, CreateStatusAndToolbarAsLogicalChildren) {
     g_windows = {};
     WindowSlot& parent = g_windows[0];

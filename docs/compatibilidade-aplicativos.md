@@ -204,13 +204,14 @@ continuam sendo a evidência necessária para registrá-lo como suportado.
 | 14a | `*_x64_Installer.exe` `CapCut/Epic/Creative/RTSS.exe` | PE32 (x86) | — | `unsupported-architecture` `0x14c` `exit 5` | `parse-failed status="unsupported-architecture"` `src/pe/pe_reader.cpp:685` |
 | 15 | `PresentMon-*.exe` (`PresentMon-1.10.0-x64.exe`, `PresentMon-2.3.1-x64.exe`, `PresentMon-2.3.1-x64-DLSS4.exe`) | PE32+ x86-64 | 144/144, 147/147, 149/149 (100%) | `supported` | `exit 0` (`--report`) | Módulos KERNEL32 (buffers e cursores de console, `HeapQueryInformation`), USER32 (`GetMessageExtraInfo`), ADVAPI32 (rastreamento ETW: `OpenTraceW`, `ProcessTrace`, `CloseTrace`, `StartTraceW`, `ControlTraceW`, `EnableTraceEx2`) e TDH (`TdhGetPropertySize`, `TdhGetEventInformation`, `TdhLoadManifestFromBinary`) 100% resolvidos e testados via `PresentMonCoverageTest` |
 
-O smoke do Notepad++ para U2 cadastra uma cópia temporária da instalação em
-catálogo isolado e invoca `app run <id> -- <arquivo>` com caminho externo,
-espaços e Unicode. Em 21 de outubro de 2026, sob Xvfb e backend X11 forçado, o
-título da janela confirma que o arquivo solicitado foi aberto. A etapa de edição
-e gravação ainda falha: o arquivo original não recebe o conteúdo esperado e a
-janela principal fica desmapeada antes da interação automatizada. Portanto, U2
-continua pendente e a linha do Notepad++ não foi promovida para esse fluxo.
+O smoke `notepadpp_file_open_save_smoke` cadastra uma cópia temporária da
+instalação em catálogo isolado e invoca `app run <id> -- <arquivo>` com arquivo
+fora do prefixo, espaço e Unicode no caminho. Em 21 de outubro de 2026, a
+execução real no Xvfb abriu o arquivo, substituiu seu conteúdo por
+`salvo pelo u2` pelo editor e confirmou a gravação no arquivo original; o smoke
+terminou com código `0` no build debug e no runtime ASan/UBSan. Isso valida esse
+fluxo restrito de abrir, editar e salvar no Notepad++, sem promover suporte
+geral ao aplicativo, plugins ou outros formatos.
 
 
 | 2a | `7-Zip/7zG.exe` | PE32+ x86-64 | 208/208 (100%) | `supported` | sob Xvfb uma execução controlada de `a` cria a janela `Progress`, gera um arquivo 7z válido e termina com exit `0`; `7z_x64.exe l` confirma `input.txt`; repetições controladas também terminam em `guest-timeout 72` | `lstrcatW`, `PostMessageA/W` cross-thread e o trace genérico de threads/eventos possuem fixtures; no caso intermitente o worker/eventos concluem, mas não há `WM_TIMER` antes do timeout e a fila modal permanece investigada |
