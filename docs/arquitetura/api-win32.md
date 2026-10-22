@@ -192,25 +192,28 @@ sem depender de snapshot de `/proc/self/maps`.
 `GetFocus`, `SetForegroundWindow`, `GetForegroundWindow`, `GetActiveWindow`,
 `GetDesktopWindow`, `GetSystemMetrics`, `GetSystemMetricsForDpi`,
 `GetDpiForWindow`, `GetDpiForSystem` e `AdjustWindowRectExForDpi` modelam a
-janela Win32 sobre X11.
+janela Win32 sobre o backend gráfico ativo (X11 ou Wayland).
 
 `GetMessageA/W`, `PeekMessageA/W`, `TranslateMessage`, `DispatchMessageA/W`,
 `DefWindowProcA/W`, `PostQuitMessage`, `SendMessageA/W`, `PostMessageA/W`,
 `SendMessageTimeoutA`, `MsgWaitForMultipleObjects` e
 `MsgWaitForMultipleObjectsEx` implement o pump e a entrega de mensagens.
-Eventos de teclado do X11 são convertidos para códigos virtuais Win32 e
-encaminhados ao controle lógico com foco, inclusive controles aninhados; o
+Eventos de teclado de X11 e Wayland são convertidos para códigos virtuais Win32
+e encaminhados ao controle lógico com foco, inclusive controles aninhados; Alt
+seleciona `WM_SYSKEYDOWN`/`WM_SYSKEYUP`, `TranslateMessage` gera `WM_SYSCHAR`,
+e `DefWindowProc` encaminha Alt+F4 como `SC_CLOSE` para a janela top-level. O
 estado de Shift, Control e Alt fica disponível por `GetKeyState` e
 `GetAsyncKeyState`. `LoadAcceleratorsW`, `TranslateAcceleratorW`,
 `CreateAcceleratorTableW` e `DestroyAcceleratorTable` cobrem tabelas ACCEL com
 teclas virtuais e modificadores, despachando `WM_COMMAND` quando há
 correspondência. `ShowWindow(SW_HIDE)` em controles lógicos altera sua
-visibilidade sem desmapear a janela X11 compartilhada pelo pai. No hit-test,
+visibilidade sem desmapear a superfície nativa compartilhada pelo pai. No hit-test,
 controles convidados registrados são priorizados sobre proxies lógicos do
 runtime que se sobreponham à sua área.
-`SetTimer`/`KillTimer` geram `WM_TIMER` no pump. O backend é X11 headless em
-testes (`Xvfb`); não há suporte GUI amplo, Wayland ou comportamento de um
-window manager real.
+`SetTimer`/`KillTimer` geram `WM_TIMER` no pump. Os smokes usam Xvfb; o cenário
+Wayland executa Weston aninhado no backend X11 e valida somente o fluxo real do
+Notepad++ registrado na matriz. Isso não constitui suporte GUI amplo nem valida
+uma sessão Wayland nativa ou um window manager geral.
 
 `FindWindowA/W`, `FindWindowExA/W`, `WindowFromPoint`, `ChildWindowFromPoint`,
 `GetWindow`, `GetAncestor`, `GetClassNameA/W`, `GetWindowThreadProcessId`,
@@ -455,8 +458,8 @@ carrega DLL externa implicitamente e nunca autoriza acesso fora da seção
 `GetUserObjectInformationW`, `SetUserObjectInformationW`, `GetMonitorInfoA/W`,
 `MonitorFromWindow`, `MonitorFromPoint`, `MonitorFromRect`,
 `EnumDisplayDevicesA`, `EnumDisplaySettingsA` e `SystemParametersInfoA/W`
-convertem coordenadas e consultam metadados lógicos da superfície X11. Dados
-do window manager ou do desktop que não podem ser reproduzidos retornam valor
+convertem coordenadas e consultam metadados lógicos da superfície do backend
+gráfico ativo. Dados do window manager ou do desktop que não podem ser reproduzidos retornam valor
 controlado. `GetUpdateRect`, `GetUserObjectInformationW`, `GetMonitorInfoW` e
 `GetComboBoxInfo` publicam suas estruturas por cópias protegidas.
 

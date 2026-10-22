@@ -287,6 +287,13 @@ void push_event_for(Display* const dpy, WindowState* const state, XEvent& event)
         state->pending.push_back({WindowEventType::Redraw, 0, 0});
         return;
     }
+    if (event.type == ConfigureNotify &&
+        (state->width != event.xconfigure.width || state->height != event.xconfigure.height)) {
+        state->width = event.xconfigure.width;
+        state->height = event.xconfigure.height;
+        state->pending.push_back({WindowEventType::Resize, state->width, state->height});
+        return;
+    }
     if (event.type == ButtonPress) {
         if (event.xbutton.button == 1) {
             state->pending.push_back({WindowEventType::Press, event.xbutton.x, event.xbutton.y});

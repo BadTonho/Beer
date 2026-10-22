@@ -7,6 +7,15 @@ thread_local bool g_create_window_w_bridge = false;
 thread_local const void* g_create_window_w_orig_class = nullptr;
 thread_local const void* g_create_window_w_orig_name = nullptr;
 
+[[nodiscard]] const void* top_level_window(const void* window) noexcept {
+    WindowSlot* slot = find_window_slot(window);
+    for (std::size_t depth = 0; slot != nullptr && slot->parent != nullptr &&
+                               depth < g_windows.size(); ++depth) {
+        slot = slot->parent;
+    }
+    return slot != nullptr ? static_cast<const void*>(slot) : window;
+}
+
 }  // namespace
 
 void paint_registered_children(WindowSlot& parent) noexcept {
@@ -724,6 +733,13 @@ TL_MSABI abi::Lresult tl_DefWindowProcA(const void* const window,
         tl_DestroyWindow(window);
         return 0;
     }
+    if (message == abi::kWmSysKeyDown && wparam == abi::kVkF4) {
+        return tl_SendMessageA(top_level_window(window), abi::kWmSysCommand,
+                               abi::kScClose, 0);
+    }
+    if (message == abi::kWmSysCommand && (wparam & 0xFFF0U) == abi::kScClose) {
+        return tl_SendMessageA(top_level_window(window), abi::kWmClose, 0, 0);
+    }
     if (message == abi::kWmNcCreate) {
         return 1;
     }
@@ -745,6 +761,13 @@ TL_MSABI abi::Lresult tl_DefWindowProcW(const void* const window,
     if (message == abi::kWmClose) {
         tl_DestroyWindow(window);
         return 0;
+    }
+    if (message == abi::kWmSysKeyDown && wparam == abi::kVkF4) {
+        return tl_SendMessageA(top_level_window(window), abi::kWmSysCommand,
+                               abi::kScClose, 0);
+    }
+    if (message == abi::kWmSysCommand && (wparam & 0xFFF0U) == abi::kScClose) {
+        return tl_SendMessageA(top_level_window(window), abi::kWmClose, 0, 0);
     }
     if (message == abi::kWmNcCreate) {
         return 1;

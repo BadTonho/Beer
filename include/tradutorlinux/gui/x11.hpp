@@ -10,6 +10,7 @@ namespace tradutorlinux::gui {
 enum class WindowEventType {
     Idle,           // nenhum evento pendente para a janela
     Redraw,         // redesenho disponível (equivale a WM_PAINT)
+    Resize,         // tamanho da área cliente mudou; x/y contêm largura/altura
     Press,          // botão primário pressionado (equivale a WM_LBUTTONDOWN)
     Release,        // botão primário liberado (equivale a WM_LBUTTONUP)
     RightPress,     // botão secundário pressionado (equivale a WM_RBUTTONDOWN)

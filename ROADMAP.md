@@ -69,18 +69,24 @@ no desktop, com os casos de caminho testados documentados.
 **Objetivo:** validar o ciclo de vida e a interação das janelas nos backends
 gráficos existentes, com limites claros por ambiente.
 
-- [ ] Manter X11/Xvfb como cenário automatizado independente.
-- [ ] Criar cenário automatizado sob Wayland quando houver compositor de teste
-  disponível.
-- [ ] Validar criação, título, foco, redimensionamento, teclado, mouse e
-  fechamento para um aplicativo real escolhido a partir da matriz.
-- [ ] Corrigir somente diferenças observadas no fluxo-alvo e adicionar
-  regressão para cada comportamento alterado.
-- [ ] Registrar resultados e limitações de cada backend na matriz e no contrato
+- [x] Manter X11/Xvfb como cenário automatizado independente.
+- [x] Criar cenário automatizado sob Wayland com Weston aninhado em Xvfb.
+- [x] Validar criação, título, foco, redimensionamento, teclado, mouse e
+  fechamento para Notepad++ em X11 e Wayland.
+- [x] Corrigir diferenças observadas e adicionar regressão para cada
+  comportamento alterado.
+- [x] Registrar resultados e limites de cada backend na matriz e no contrato
   de GUI.
 
-**Saída:** pelo menos um fluxo real tem evidência reproduzível em cada backend
-declarado como coberto.
+**Evidência U3 (22/10/2026):** `x11_popup_smoke`,
+`notepadpp_file_open_save_smoke`, `notepadpp_wayland_gui_smoke` e a regressão
+`Win32GuiTest.DefWindowProcHandlesTextMessagesAndAltF4ForTopLevel` passaram nos
+presets Debug e Sanitizers. Os smokes confirmam gravação no arquivo original e
+encerramento normal com exit code `0`. O cenário Wayland usa Weston sobre Xvfb;
+uma sessão Wayland nativa permanece fora desta evidência.
+
+**Saída:** fluxo real reproduzível nos cenários X11/Xvfb e
+Wayland/Weston/Xvfb, com limites publicados para cada ambiente.
 
 ### U4 — Fluxos cotidianos completos
 

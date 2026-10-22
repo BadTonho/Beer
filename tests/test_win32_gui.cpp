@@ -1200,7 +1200,7 @@ TEST(Win32GuiTest, ConcurrentMultiThreadWindowOperationsAreThreadSafe) {
     g_classes = {};
 }
 
-TEST(Win32GuiTest, DefWindowProcHandlesTextMessagesAndTitleUpdates) {
+TEST(Win32GuiTest, DefWindowProcHandlesTextMessagesAndAltF4ForTopLevel) {
     g_classes = {};
     g_windows = {};
 
@@ -1244,6 +1244,15 @@ TEST(Win32GuiTest, DefWindowProcHandlesTextMessagesAndTitleUpdates) {
     EXPECT_EQ(tl_DefWindowProcW(&window, abi::kWmGetText, 128, reinterpret_cast<abi::Lparam>(buf_w)), 6);
     EXPECT_EQ(tl_DefWindowProcW(&window, abi::kWmGetTextLength, 0, 0), 6);
     EXPECT_EQ(tl_FindWindowA(nullptr, "Wide W"), &window);
+
+    WindowSlot& child = g_windows[1];
+    child.used = true;
+    child.parent = &window;
+    child.wndproc = reinterpret_cast<std::uintptr_t>(&tl_DefWindowProcA);
+    ASSERT_TRUE(register_window_handle(&child));
+    EXPECT_EQ(tl_DefWindowProcA(&child, abi::kWmSysKeyDown, abi::kVkF4, 0), 0);
+    EXPECT_FALSE(window.used);
+    EXPECT_FALSE(child.used);
 
     unregister_window_handle(&window);
     g_windows = {};

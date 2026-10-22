@@ -4,6 +4,7 @@
 
 #include <wayland-client.h>
 #include <xkbcommon/xkbcommon.h>
+#include <xkbcommon/xkbcommon-keysyms.h>
 
 #include <algorithm>
 #include <array>
@@ -28,6 +29,12 @@ namespace {
 
 constexpr std::size_t kMaxWindows = 16;
 
+struct RetiredBuffer {
+    wl_buffer* buffer{nullptr};
+    void* pixels{nullptr};
+    std::size_t pixel_bytes{0};
+};
+
 struct WaylandWindow {
     bool used{false};
     wl_surface* surface{nullptr};
@@ -45,6 +52,7 @@ struct WaylandWindow {
     bool closed{false};
     std::string caption;
     std::deque<WindowEvent> pending;
+    std::vector<RetiredBuffer> retired_buffers;
 };
 
 struct Context {
@@ -59,6 +67,7 @@ struct Context {
     xkb_context* xkb_ctx{nullptr};
     xkb_keymap* keymap{nullptr};
     xkb_state* key_state{nullptr};
+    std::uint8_t modifiers{};
     WaylandWindow* focus{nullptr};
     std::array<WaylandWindow, kMaxWindows> windows{};
     bool initialized{false};
@@ -82,15 +91,15 @@ void top_configure(void* data, xdg_toplevel*, std::int32_t width, std::int32_t h
                    wl_array*) {
     auto* window = static_cast<WaylandWindow*>(data);
     if (width > 0 && height > 0 && (width != window->width || height != window->height)) {
-        window->width = width;
-        window->height = height;
-        window->pending.push_back({WindowEventType::Redraw, 0, 0});
+        window->pending.push_back({WindowEventType::Resize, width, height});
     }
 }
 void top_close(void* data, xdg_toplevel*) {
     auto* window = static_cast<WaylandWindow*>(data);
     window->closed = true;
     window->pending.push_back({WindowEventType::CloseRequested, 0, 0});
+    std::fprintf(stderr, "[tl][gui][info] backend=wayland close-requested caption=\"%s\"\n",
+                 window->caption.c_str());
 }
 const xdg_toplevel_listener kTopListener{top_configure, top_close, nullptr, nullptr};
 
@@ -135,15 +144,37 @@ void keyboard_key(void*, wl_keyboard*, std::uint32_t, std::uint32_t, std::uint32
     const xkb_keycode_t code = static_cast<xkb_keycode_t>(key + 8U);
     const xkb_keysym_t symbol = xkb_state_key_get_one_sym(g_context.key_state, code);
     const std::uint32_t unicode = xkb_state_key_get_utf32(g_context.key_state, code);
+    std::uint8_t modifiers = g_context.modifiers;
+    const bool pressed = state == WL_KEYBOARD_KEY_STATE_PRESSED;
+    const auto update_modifier = [pressed, &modifiers](const std::uint8_t bit) {
+        if (pressed) modifiers = static_cast<std::uint8_t>(modifiers | bit);
+        else modifiers = static_cast<std::uint8_t>(modifiers & static_cast<std::uint8_t>(~bit));
+    };
+    if (symbol == XKB_KEY_Shift_L || symbol == XKB_KEY_Shift_R) update_modifier(1U);
+    else if (symbol == XKB_KEY_Control_L || symbol == XKB_KEY_Control_R) update_modifier(2U);
+    else if (symbol == XKB_KEY_Alt_L || symbol == XKB_KEY_Alt_R) update_modifier(4U);
     g_context.focus->pending.push_back({state == WL_KEYBOARD_KEY_STATE_PRESSED
                                              ? WindowEventType::KeyDown : WindowEventType::KeyUp,
                                          0, 0, unicode < 128U ? static_cast<char>(unicode) : '\0',
-                                         static_cast<unsigned long>(symbol)});
+                                         static_cast<unsigned long>(symbol), modifiers});
 }
 void keyboard_modifiers(void*, wl_keyboard*, std::uint32_t, std::uint32_t depressed,
                         std::uint32_t latched, std::uint32_t locked, std::uint32_t group) {
-    if (g_context.key_state != nullptr) xkb_state_update_mask(g_context.key_state, depressed, latched,
-                                                               locked, 0, 0, group);
+    if (g_context.key_state == nullptr) return;
+    xkb_state_update_mask(g_context.key_state, depressed, latched, locked, 0, 0, group);
+    g_context.modifiers = 0;
+    if (xkb_state_mod_name_is_active(g_context.key_state, XKB_MOD_NAME_SHIFT,
+                                     XKB_STATE_MODS_EFFECTIVE) > 0) {
+        g_context.modifiers = static_cast<std::uint8_t>(g_context.modifiers | 1U);
+    }
+    if (xkb_state_mod_name_is_active(g_context.key_state, XKB_MOD_NAME_CTRL,
+                                     XKB_STATE_MODS_EFFECTIVE) > 0) {
+        g_context.modifiers = static_cast<std::uint8_t>(g_context.modifiers | 2U);
+    }
+    if (xkb_state_mod_name_is_active(g_context.key_state, XKB_MOD_NAME_ALT,
+                                     XKB_STATE_MODS_EFFECTIVE) > 0) {
+        g_context.modifiers = static_cast<std::uint8_t>(g_context.modifiers | 4U);
+    }
 }
 void keyboard_repeat_info(void*, wl_keyboard*, std::int32_t, std::int32_t) {}
 const wl_keyboard_listener kKeyboardListener{keyboard_keymap, keyboard_enter, keyboard_leave,
@@ -168,10 +199,11 @@ void pointer_button(void*, wl_pointer*, std::uint32_t, std::uint32_t, std::uint3
                                                        : WindowEventType::RightRelease,
              0, 0});
 }
+void pointer_frame(void*, wl_pointer*) {}
 void pointer_axis(void*, wl_pointer*, std::uint32_t, std::uint32_t, wl_fixed_t) {}
 const wl_pointer_listener kPointerListener{pointer_enter, pointer_leave, pointer_motion, pointer_button,
-                                           pointer_axis, nullptr, nullptr, nullptr, nullptr, nullptr,
-                                           nullptr};
+                                           pointer_axis, pointer_frame, nullptr, nullptr, nullptr,
+                                           nullptr, nullptr, nullptr};
 
 void seat_capabilities(void*, wl_seat* seat, std::uint32_t capabilities) {
     if ((capabilities & WL_SEAT_CAPABILITY_KEYBOARD) != 0U && g_context.keyboard == nullptr) {
@@ -273,6 +305,59 @@ bool allocate_buffer(WaylandWindow& window) noexcept {
     return true;
 }
 
+void commit(WaylandWindow& window) noexcept;
+
+bool resize_buffer(WaylandWindow& window, const int width, const int height) noexcept {
+    if (width <= 0 || height <= 0 || (width == window.width && height == window.height)) {
+        return width > 0 && height > 0;
+    }
+    // The compositor may keep displaying the attached buffer until the new
+    // buffer is committed. Keep the old mapping alive until its release event.
+    const RetiredBuffer previous{window.buffer, window.pixels, window.pixel_bytes};
+    const int previous_width = window.width;
+    const int previous_height = window.height;
+    const bool previous_available = window.buffer_available;
+    window.buffer = nullptr;
+    window.pixels = nullptr;
+    window.pixel_bytes = 0;
+    window.width = width;
+    window.height = height;
+    window.buffer_available = true;
+    if (!allocate_buffer(window)) {
+        window.buffer = previous.buffer;
+        window.pixels = previous.pixels;
+        window.pixel_bytes = previous.pixel_bytes;
+        window.width = previous_width;
+        window.height = previous_height;
+        window.buffer_available = previous_available;
+        return false;
+    }
+    if (previous.buffer != nullptr) {
+        if (previous_available) {
+            wl_buffer_destroy(previous.buffer);
+            if (previous.pixels != nullptr) munmap(previous.pixels, previous.pixel_bytes);
+        } else {
+            try {
+                window.retired_buffers.push_back(previous);
+            } catch (...) {
+                wl_buffer_destroy(window.buffer);
+                if (window.pixels != nullptr) munmap(window.pixels, window.pixel_bytes);
+                window.buffer = previous.buffer;
+                window.pixels = previous.pixels;
+                window.pixel_bytes = previous.pixel_bytes;
+                window.width = previous_width;
+                window.height = previous_height;
+                window.buffer_available = previous_available;
+                return false;
+            }
+        }
+    }
+    commit(window);
+    std::fprintf(stderr, "[tl][gui][info] backend=wayland window-resized size=%dx%d\n",
+                 width, height);
+    return true;
+}
+
 void commit(WaylandWindow& window) noexcept {
     if (window.surface == nullptr || window.buffer == nullptr) return;
     if (!window.buffer_available) { window.dirty = true; return; }
@@ -286,7 +371,17 @@ void commit(WaylandWindow& window) noexcept {
 
 void buffer_release(void* data, wl_buffer* buffer) {
     auto* window = static_cast<WaylandWindow*>(data);
-    if (window == nullptr || window->buffer != buffer) return;
+    if (window == nullptr) return;
+    const auto retired = std::find_if(window->retired_buffers.begin(),
+                                      window->retired_buffers.end(),
+        [buffer](const RetiredBuffer& item) { return item.buffer == buffer; });
+    if (retired != window->retired_buffers.end()) {
+        wl_buffer_destroy(retired->buffer);
+        if (retired->pixels != nullptr) munmap(retired->pixels, retired->pixel_bytes);
+        window->retired_buffers.erase(retired);
+        return;
+    }
+    if (window->buffer != buffer) return;
     window->buffer_available = true;
     if (window->dirty) commit(*window);
 }
@@ -361,6 +456,10 @@ void destroy_window(const NativeWindow value) noexcept {
     if (window == nullptr) return;
     if (window->buffer != nullptr) wl_buffer_destroy(window->buffer);
     if (window->pixels != nullptr) munmap(window->pixels, window->pixel_bytes);
+    for (const RetiredBuffer& retired : window->retired_buffers) {
+        if (retired.buffer != nullptr) wl_buffer_destroy(retired.buffer);
+        if (retired.pixels != nullptr) munmap(retired.pixels, retired.pixel_bytes);
+    }
     if (window->toplevel != nullptr) xdg_toplevel_destroy(window->toplevel);
     if (window->xdg != nullptr) xdg_surface_destroy(window->xdg);
     if (window->surface != nullptr) wl_surface_destroy(window->surface);
@@ -377,6 +476,8 @@ void set_window_title(const NativeWindow value, const char* const title) noexcep
             wl_display_flush(g_context.display);
         }
     }
+    std::fprintf(stderr, "[tl][gui][info] backend=wayland window-title caption=\"%s\"\n",
+                 window->caption.c_str());
 }
 
 bool map_window(const NativeWindow value) noexcept {
@@ -440,13 +541,25 @@ WindowEvent next_window_event(const NativeWindow value) noexcept {
     if (!initialize()) return {};
     WaylandWindow* window = find_window(value); if (window == nullptr) return {};
     if (wl_display_dispatch_pending(g_context.display) < 0) { g_context.failed = true; return {}; }
-    if (!window->pending.empty()) { WindowEvent event = window->pending.front(); window->pending.pop_front(); return event; }
+    if (!window->pending.empty()) {
+        WindowEvent event = window->pending.front();
+        window->pending.pop_front();
+        if (event.type == WindowEventType::Resize &&
+            !resize_buffer(*window, event.x, event.y)) return {};
+        return event;
+    }
     wl_display_flush(g_context.display);
     struct pollfd descriptor{wl_display_get_fd(g_context.display), POLLIN, 0};
     if (::poll(&descriptor, 1, 10) > 0 && wl_display_dispatch(g_context.display) < 0) {
         g_context.failed = true;
     }
-    if (!window->pending.empty()) { WindowEvent event = window->pending.front(); window->pending.pop_front(); return event; }
+    if (!window->pending.empty()) {
+        WindowEvent event = window->pending.front();
+        window->pending.pop_front();
+        if (event.type == WindowEventType::Resize &&
+            !resize_buffer(*window, event.x, event.y)) return {};
+        return event;
+    }
     return {};
 }
 std::uint32_t message_box(const char*, const char*) noexcept { return 0; }

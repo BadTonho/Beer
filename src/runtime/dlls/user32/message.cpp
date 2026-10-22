@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstring>
+#include <iostream>
 #include <limits>
 
 namespace tradutorlinux {
@@ -57,6 +58,22 @@ void update_keyboard_state(const gui::WindowEvent& event) noexcept {
         return nullptr;
     }
     return runtime_gui::find_control_at(parent, std::span<WindowSlot>{g_windows}, event.x, event.y);
+}
+
+void record_window_resize(WindowSlot& slot, const gui::WindowEvent& event) noexcept {
+    if (event.x <= 0 || event.y <= 0 || event.x > kMaxGuestWindowDimension ||
+        event.y > kMaxGuestWindowDimension) {
+        return;
+    }
+    slot.width = event.x;
+    slot.height = event.y;
+    const std::array fields{diagnostics::TraceField{"width", std::to_string(event.x)},
+                            diagnostics::TraceField{"height", std::to_string(event.y)}};
+    try {
+        diagnostics::write_trace(std::cerr, diagnostics::TraceComponent::Gui,
+                                 diagnostics::TraceLevel::Info, "window-resized", fields);
+    } catch (...) {
+    }
 }
 
 [[nodiscard]] bool logical_child_mouse_message(WindowSlot* const control) noexcept {
@@ -749,6 +766,11 @@ void notify_tree_selection(WindowSlot& tree, const std::uintptr_t old_handle,
         set_message(&slot, abi::kWmPaint, 0, 0);
         return true;
     }
+    if (event.type == gui::WindowEventType::Resize) {
+        record_window_resize(slot, event);
+        set_message(&slot, abi::kWmSize, 0, mouse_lparam(event.x, event.y));
+        return true;
+    }
     if (event.type == gui::WindowEventType::Press) {
         WindowSlot* const control = event_control(slot, event);
         handle_control_mouse(slot, event);
@@ -806,7 +828,7 @@ void notify_tree_selection(WindowSlot& tree, const std::uintptr_t old_handle,
             handle_control_key(slot, event);
         }
         target->last_key = event.character;
-        set_message(target, abi::kWmKeyDown,
+        set_message(target, key_message_id(event),
                     keydown_vkey(event.keysym, event.character), 0);
         return true;
     }
@@ -837,7 +859,7 @@ void notify_tree_selection(WindowSlot& tree, const std::uintptr_t old_handle,
             g_focused_control->wndproc != 0) {
             target = g_focused_control;
         }
-        set_message(target, abi::kWmKeyUp,
+        set_message(target, key_message_id(event),
                     keydown_vkey(event.keysym, event.character), 0);
         return true;
     }
@@ -1028,6 +1050,16 @@ TL_MSABI int tl_GetMessageA(void* const msg, const void* const window,
                 set_last_error(abi::kErrorSuccess);
                 return 1;
             }
+            if (event.type == gui::WindowEventType::Resize) {
+                record_window_resize(slot, event);
+                if (!write_guest_msg(msg, &slot, abi::kWmSize, 0,
+                                     mouse_lparam(event.x, event.y))) {
+                    set_last_error(abi::kErrorInvalidParameter);
+                    return -1;
+                }
+                set_last_error(abi::kErrorSuccess);
+                return 1;
+            }
             if (event.type == gui::WindowEventType::Press) {
                 WindowSlot* const control = event_control(slot, event);
                 handle_control_mouse(slot, event);
@@ -1110,7 +1142,7 @@ TL_MSABI int tl_GetMessageA(void* const msg, const void* const window,
                     handle_control_key(slot, event);
                 }
                 target->last_key = event.character;
-                if (!write_guest_msg(msg, target, abi::kWmKeyDown,
+                if (!write_guest_msg(msg, target, key_message_id(event),
                                      keydown_vkey(event.keysym, event.character), 0)) {
                     set_last_error(abi::kErrorInvalidParameter);
                     return -1;
@@ -1158,7 +1190,7 @@ TL_MSABI int tl_GetMessageA(void* const msg, const void* const window,
                     g_focused_control->wndproc != 0) {
                     target = g_focused_control;
                 }
-                if (!write_guest_msg(msg, target, abi::kWmKeyUp,
+                if (!write_guest_msg(msg, target, key_message_id(event),
                                      keydown_vkey(event.keysym, event.character), 0)) {
                     set_last_error(abi::kErrorInvalidParameter);
                     return -1;
@@ -1236,11 +1268,12 @@ TL_MSABI int tl_TranslateMessage(const void* const msg) noexcept {
         set_last_error(abi::kErrorInvalidParameter);
         return 0;
     }
-    if (message.message == abi::kWmKeyDown) {
+    if (message.message == abi::kWmKeyDown || message.message == abi::kWmSysKeyDown) {
         WindowSlot* const slot = find_window_slot(message.hwnd);
         if (slot != nullptr && slot->last_key != '\0' && !slot->has_pending) {
             slot->pending = {};
-            slot->pending.message = abi::kWmChar;
+            const bool system_character = message.message == abi::kWmSysKeyDown;
+            slot->pending.message = system_character ? abi::kWmSysChar : abi::kWmChar;
             slot->pending.wparam =
                 static_cast<abi::Wparam>(static_cast<unsigned char>(slot->last_key));
             slot->pending.lparam = 0;
@@ -1248,7 +1281,7 @@ TL_MSABI int tl_TranslateMessage(const void* const msg) noexcept {
             slot->has_pending = true;
             const std::array<diagnostics::TraceField, 4> fields{
                 diagnostics::TraceField{"symbol", "TranslateMessage"},
-                diagnostics::TraceField{"message", "WM_CHAR"},
+                diagnostics::TraceField{"message", system_character ? "WM_SYSCHAR" : "WM_CHAR"},
                 diagnostics::TraceField{"wparam", std::to_string(slot->pending.wparam)},
                 diagnostics::TraceField{"status", "translated"},
             };

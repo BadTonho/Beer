@@ -298,9 +298,12 @@ if(TL_BUILD_RUST)
 endif()
 
 find_program(TL_XVFB_EXECUTABLE NAMES Xvfb xvfb)
+find_program(TL_WESTON_EXECUTABLE NAMES weston)
 if(TL_XVFB_EXECUTABLE)
     find_path(TL_X11_INCLUDE_DIR X11/Xlib.h REQUIRED)
     find_library(TL_X11_LIBRARY X11 REQUIRED)
+    find_path(TL_XTEST_INCLUDE_DIR X11/extensions/XTest.h REQUIRED)
+    find_library(TL_XTEST_LIBRARY Xtst REQUIRED)
     add_executable(simple_todo_gui_smoke
         gui/simple_todo_gui_smoke.cpp
     )
@@ -368,8 +371,11 @@ if(TL_XVFB_EXECUTABLE)
     add_executable(notepadpp_smoke
         apps/notepadpp/notepadpp_smoke.cpp
     )
-    target_include_directories(notepadpp_smoke PRIVATE "${TL_X11_INCLUDE_DIR}")
-    target_link_libraries(notepadpp_smoke PRIVATE "${TL_X11_LIBRARY}")
+    target_include_directories(notepadpp_smoke PRIVATE
+        "${TL_X11_INCLUDE_DIR}"
+        "${TL_XTEST_INCLUDE_DIR}"
+    )
+    target_link_libraries(notepadpp_smoke PRIVATE "${TL_X11_LIBRARY}" "${TL_XTEST_LIBRARY}")
     tl_enable_warnings(notepadpp_smoke)
     tl_enable_sanitizers(notepadpp_smoke)
 
@@ -505,6 +511,19 @@ if(TL_XVFB_EXECUTABLE)
                 TIMEOUT 90
                 SKIP_RETURN_CODE 77
             )
+            if(TL_WESTON_EXECUTABLE)
+                add_test(
+                    NAME notepadpp_wayland_gui_smoke
+                    COMMAND notepadpp_smoke
+                        "$<TARGET_FILE:tradutorlinux>"
+                        "${TL_NOTEPADPP_EXECUTABLE}"
+                        --wayland
+                )
+                set_tests_properties(notepadpp_wayland_gui_smoke PROPERTIES
+                    LABELS "runtime;apps;gui;notepadpp;wayland"
+                    TIMEOUT 120
+                )
+            endif()
         endif()
 
         if(EXISTS "${TL_ROCKSTAR_EXECUTABLE}")
@@ -535,6 +554,19 @@ if(TL_XVFB_EXECUTABLE)
             TIMEOUT 90
             SKIP_RETURN_CODE 77
         )
+        if(TL_WESTON_EXECUTABLE)
+            add_test(
+                NAME notepadpp_wayland_gui_smoke
+                COMMAND notepadpp_smoke
+                    "$<TARGET_FILE:tradutorlinux>"
+                    "${PROJECT_SOURCE_DIR}/tests/fixtures/npp/notepad++.exe"
+                    --wayland
+            )
+            set_tests_properties(notepadpp_wayland_gui_smoke PROPERTIES
+                LABELS "runtime;apps;gui;notepadpp;wayland;file-open-save"
+                TIMEOUT 120
+            )
+        endif()
     endif()
 endif()
 

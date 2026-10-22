@@ -202,12 +202,25 @@ constexpr unsigned long kKeysymUp = 0xFF52;
 constexpr unsigned long kKeysymRight = 0xFF53;
 constexpr unsigned long kKeysymDown = 0xFF54;
 constexpr unsigned long kKeysymDelete = 0xFFFF;
+constexpr unsigned long kKeysymF4 = 0xFFC1;
 constexpr unsigned long kKeysymShiftLeft = 0xFFE1;
 constexpr unsigned long kKeysymShiftRight = 0xFFE2;
 constexpr unsigned long kKeysymControlLeft = 0xFFE3;
 constexpr unsigned long kKeysymControlRight = 0xFFE4;
 constexpr unsigned long kKeysymAltLeft = 0xFFE9;
 constexpr unsigned long kKeysymAltRight = 0xFFEA;
+
+[[nodiscard]] inline abi::Uint key_message_id(const gui::WindowEvent& event) noexcept {
+    const bool alt_key = event.keysym == kKeysymAltLeft || event.keysym == kKeysymAltRight;
+    const bool system_key = (event.modifiers & 4U) != 0U || alt_key;
+    if (event.type == gui::WindowEventType::KeyDown) {
+        return system_key ? abi::kWmSysKeyDown : abi::kWmKeyDown;
+    }
+    if (event.type == gui::WindowEventType::KeyUp) {
+        return system_key ? abi::kWmSysKeyUp : abi::kWmKeyUp;
+    }
+    return 0;
+}
 
 constexpr std::uint32_t kWsVisible = 0x10000000U;
 constexpr std::uint32_t kWsDisabled = 0x08000000U;
@@ -338,6 +351,7 @@ inline InternalMenu g_dummy_menu{0x4D454E55, 5, &g_dummy_sub_menu, {}};
         case kKeysymRight: return abi::kVkRight;
         case kKeysymDown: return abi::kVkDown;
         case kKeysymDelete: return abi::kVkDelete;
+        case kKeysymF4: return abi::kVkF4;
         case kKeysymShiftLeft:
         case kKeysymShiftRight: return 0x10U;
         case kKeysymControlLeft:

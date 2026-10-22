@@ -23,10 +23,11 @@ janelas do processo. Cada janela é um token opaco num pool fixo (`NativeWindow`
 Os eventos X11 são drenados pelo runtime via `next_window_event` e traduzidos
 para o subconjunto Win32: `Expose` → `WM_PAINT`, `ButtonPress`/`ButtonRelease` →
 `WM_LBUTTONDOWN`/`WM_LBUTTONUP`, botão secundário →
-`WM_RBUTTONDOWN`/`WM_RBUTTONUP`, `KeyPress` → `WM_KEYDOWN`, `KeyRelease` →
-`WM_KEYUP`, `KeyPress` com caractere → `WM_CHAR` (via `TranslateMessage`) e
-`WM_DELETE_WINDOW` (protocolo de janela) → `WM_CLOSE`. O pump também despacha
-timers expirados como `WM_TIMER`.
+`WM_RBUTTONDOWN`/`WM_RBUTTONUP`, `KeyPress`/`KeyRelease` → `WM_KEYDOWN`/
+`WM_KEYUP` ou `WM_SYSKEYDOWN`/`WM_SYSKEYUP` com Alt, e caracteres via
+`TranslateMessage` → `WM_CHAR`/`WM_SYSCHAR`. `WM_DELETE_WINDOW` → `WM_CLOSE`;
+`ConfigureNotify` gera `WM_SIZE` quando as dimensões mudam. O pump também
+despacha timers expirados como `WM_TIMER`.
 
 O pump mantém uma **fila de eventos por janela**: a cada consulta, todos os
 eventos X11 pendentes do display são demultiplexados para a fila da janela-alvo
@@ -41,6 +42,30 @@ Quando `TL_GUI_AUTOCLOSE_MS` é diferente de `0`, o pump gera `CloseRequested`
 numa sessão X11 sem interação humana. O ambiente precisa fornecer `DISPLAY`
 acessível. O display X11 do processo é fechado no teardown (`DisplayCloser` em
 `src/gui/x11.cpp`), de modo que o runtime não deixa conexão aberta ao sair.
+
+## Camada Wayland
+
+O backend Wayland cria uma superfície `wl_shm` por janela e usa `xdg-shell`
+para título, configuração inicial, redimensionamento e pedido de fechamento.
+Cada `xdg_toplevel.configure` com dimensões positivas gera um evento de resize;
+buffers substituídos durante o redimensionamento permanecem vivos até o
+compositor enviar `wl_buffer.release`. O listener `xdg_toplevel.close` produz
+`CloseRequested`, que o pump entrega ao convidado como `WM_CLOSE`.
+
+Teclado e ponteiro chegam por `wl_seat`; `xkbcommon` traduz keysyms, caracteres
+e os estados Shift, Control e Alt. Teclas pressionadas com Alt usam
+`WM_SYSKEYDOWN`/`WM_SYSKEYUP`, e `TranslateMessage` pode gerar `WM_SYSCHAR`. O
+subconjunto compartilhado de `USER32` trata Alt+F4 como
+`WM_SYSCOMMAND/SC_CLOSE` na janela top-level, inclusive quando o foco está num
+controle filho.
+
+O smoke `notepadpp_wayland_gui_smoke` executa Notepad++ com Weston usando o
+backend X11 dentro de um Xvfb isolado. O driver envia eventos XTest ao Weston;
+o runtime do aplicativo conecta-se ao socket Wayland. O teste verifica título,
+redimensionamento para 1600×1200, foco e edição por teclado e mouse, gravação
+no arquivo externo com espaço e Unicode no caminho e encerramento por Alt+F4
+com exit code `0`. Isso valida esse fluxo de Notepad++ num compositor Weston
+aninhado; não cobre uma sessão Wayland nativa nem declara suporte GUI geral.
 
 Menus popup são modais, mas não ficam bloqueados indefinidamente: o backend
 usa `TL_GUI_POPUP_TIMEOUT_MS` para definir o limite, com padrão de 30 segundos
@@ -60,8 +85,8 @@ ferramenta.
 
 ## Afinidade de thread da GUI
 
-No escopo atual, o estado de USER32 e o display X11 pertencem ao thread
-convidado principal, identificado por `GetCurrentThreadId() == 1`. As APIs
+No escopo atual, o estado de USER32 e a conexão do backend gráfico pertencem ao
+thread convidado principal, identificado por `GetCurrentThreadId() == 1`. As APIs
 stateful de janela, fila, menu, foco, captura, timer, diálogo e pintura só
 podem ser chamadas por esse thread. `PostMessageA/W` é a exceção deliberada:
 uma thread secundária pode postar para um `HWND` registrado, e o thread
@@ -93,31 +118,31 @@ Além de `MessageBoxA`, `USER32.dll` exporta um subconjunto mínimo de janela:
 | API | Comportamento suportado |
 |---|---|
 | `RegisterClassExA` | Lê a `WNDCLASSEXA` do convidado (layout Microsoft x64, 80 bytes), valida `cbSize >= 80`, `lpfnWndProc` e `lpszClassName`, registra por nome (comparação sem diferenciar maiúsculas) e retorna um atom `>= 1`. |
-| `CreateWindowExA` | Procura a classe, cria a janela X11 e despacha `WM_CREATE` ao `WNDPROC` do convidado antes de devolver o `HWND` token opaco; se o `WNDPROC` retornar `-1`, destrói a janela e devolve `NULL` (`lParam` do `WM_CREATE` é `0`; não há `CREATESTRUCT`). Aceita largura/altura `<= 0` (usa 480×180). Parent, menu, instância e parâmetro são ignorados; classes próprias usadas como filhos ficam em uma side-table lógica e entram no hit-test de mouse. |
-| `ShowWindow` | Mapeia/desmapeia a janela X11; `cmdShow != 0` mostra, `0` esconde. |
+| `CreateWindowExA` | Procura a classe, cria a janela no backend gráfico ativo e despacha `WM_CREATE` ao `WNDPROC` do convidado antes de devolver o `HWND` token opaco; se o `WNDPROC` retornar `-1`, destrói a janela e devolve `NULL` (`lParam` do `WM_CREATE` é `0`; não há `CREATESTRUCT`). Aceita largura/altura `<= 0` (usa 480×180). Parent, menu, instância e parâmetro são ignorados; classes próprias usadas como filhos ficam em uma side-table lógica e entram no hit-test de mouse. |
+| `ShowWindow` | Mapeia/desmapeia a janela no backend gráfico ativo; `cmdShow != 0` mostra, `0` esconde. |
 | `UpdateWindow` | Despacha `WM_PAINT` diretamente ao `WNDPROC` do convidado. |
-| `InvalidateRect` | Valida o `RECT` opcional e enfileira um `WM_PAINT` no `HWND` até a entrega; chamadas repetidas antes do consumo não duplicam a pintura. Para filhos lógicos, faz flush da superfície X11 projetada pelos offsets dos pais. |
-| `GetMessageA` | Drena os eventos X11 da janela, traduz e preenche o `MSG` do convidado; retorna `0` quando `PostQuitMessage` foi chamado (preenche `WM_QUIT`). Uma mensagem traduzida em espera (`WM_CHAR` gerado por `TranslateMessage`) é entregue antes dos próximos eventos X11. `KeyPress` vira `WM_KEYDOWN` e `KeyRelease` vira `WM_KEYUP`, ambos com a virtual key; o caractere da tecla é guardado para o `TranslateMessage` subsequente. `ButtonPress`/`ButtonRelease`/movimento fazem hit-test dos filhos lógicos; quando o filho tem `WNDPROC`, a mensagem preserva seu `HWND` e usa coordenadas locais, e controles comuns sem `WNDPROC` continuam gerando notificações no parent. Timers expirados são entregues como `WM_TIMER` entre as consultas X11. Os filtros `wMsgFilterMin`/`wMsgFilterMax` e `hWnd` (quando `NULL` não filtra) são ignorados; `hWnd != NULL` filtra por janela. |
+| `InvalidateRect` | Valida o `RECT` opcional e enfileira um `WM_PAINT` no `HWND` até a entrega; chamadas repetidas antes do consumo não duplicam a pintura. Para filhos lógicos, projeta a pintura na superfície nativa do pai usando os offsets dos pais. |
+| `GetMessageA` | Drena eventos do backend gráfico ativo e preenche o `MSG` do convidado; retorna `0` quando `PostQuitMessage` foi chamado (preenche `WM_QUIT`). Mensagens traduzidas em espera (`WM_CHAR`/`WM_SYSCHAR`) são entregues antes dos próximos eventos nativos. Teclado gera `WM_KEYDOWN`/`WM_KEYUP` ou, com Alt, `WM_SYSKEYDOWN`/`WM_SYSKEYUP`, todos com virtual key; o caractere é guardado para `TranslateMessage`. Eventos de resize atualizam dimensões e geram `WM_SIZE`. `ButtonPress`/`ButtonRelease`/movimento fazem hit-test dos filhos lógicos; quando o filho tem `WNDPROC`, a mensagem preserva seu `HWND` e usa coordenadas locais, e controles comuns sem `WNDPROC` continuam gerando notificações no parent. Timers expirados são entregues como `WM_TIMER`. Os filtros `wMsgFilterMin`/`wMsgFilterMax` e `hWnd` (quando `NULL` não filtra) são ignorados; `hWnd != NULL` filtra por janela. |
 | `PeekMessageA/W` | Consulta sem bloqueio as mensagens internas, cross-thread, eventos nativos do backend, timers expirados e pinturas pendentes. Uma mensagem nativa disponível fica numa cache por janela: `PM_NOREMOVE` preserva a mesma mensagem para a chamada seguinte e `PM_REMOVE` a entrega e limpa a pendência; `PeekMessageW` delega ao mesmo caminho. Os filtros `wMsgFilterMin`/`wMsgFilterMax` ainda não são aplicados. |
-| `TranslateMessage` | Converte o `WM_KEYDOWN` mais recente de cada janela em `WM_CHAR` (com o caractere real) enfileirado para o próximo `GetMessageA`; retorna `1` quando traduziu e `0` caso contrário. |
+| `TranslateMessage` | Converte `WM_KEYDOWN` em `WM_CHAR` e `WM_SYSKEYDOWN` em `WM_SYSCHAR`, quando há caractere, e enfileira o resultado para o próximo `GetMessageA`; retorna `1` quando traduziu e `0` caso contrário. |
 | `SetTimer` | Cria/atualiza um timer periódico por janela (`WM_TIMER`), exigindo `lpTimerFunc == NULL` e `uElapse != 0`; devolve o id informado ou `0` em falha. |
 | `KillTimer` | Remove um timer ativo; devolve `1` quando existia, `0` caso contrário. |
 | `DispatchMessageA` | Lê o `MSG`, localiza o `HWND` e invoca o `WNDPROC` do convidado. |
-| `DefWindowProcA` | `WM_CLOSE` → `DestroyWindow`; demais mensagens retornam `0`. |
-| `DestroyWindow` | Destrói a janela X11 e despacha `WM_DESTROY` ao `WNDPROC` do convidado. |
+| `DefWindowProcA` | `WM_CLOSE` → `DestroyWindow`; `WM_SYSKEYDOWN/VK_F4` → `WM_SYSCOMMAND/SC_CLOSE` na janela top-level → `WM_CLOSE`; `WM_NCCREATE` → `1`; sincroniza mensagens de texto e título descritas abaixo. |
+| `DestroyWindow` | Destrói a janela nativa e despacha `WM_DESTROY` ao `WNDPROC` do convidado. |
 | `PostQuitMessage` | Sinaliza `WM_QUIT` com o código informado; `GetMessageA` passa a retornar `0`. |
-| `GetDC` / `ReleaseDC` | Devolvem um `HDC` que é o próprio handle de janela (token opaco) e validam o par `hwnd`/`dc`; servem de base para o desenho com GDI mínimo. Para controles lógicos, o destino é a superfície X11 da janela principal com o deslocamento acumulado dos pais. |
+| `GetDC` / `ReleaseDC` | Devolvem um `HDC` que é o próprio handle de janela (token opaco) e validam o par `hwnd`/`dc`; servem de base para o desenho com GDI mínimo. Para controles lógicos, o destino é a superfície nativa da janela principal com o deslocamento acumulado dos pais. |
 
 ### Virtual keys e `TranslateMessage`
 
-O mapeamento tecla→virtual key usa o `keysym` X11 entregue pelo pump. Teclas
+O mapeamento tecla→virtual key usa o keysym entregue pelo backend ativo. Teclas
 especiais têm tabela fixa (`XK_Return`→`VK_RETURN`, `XK_BackSpace`→`VK_BACK`,
 `XK_Tab`→`VK_TAB`, `XK_Escape`→`VK_ESCAPE`, setas `XK_Left/Up/Right/Down`→
-`VK_LEFT/UP/RIGHT/DOWN`, `XK_Delete`→`VK_DELETE`); letras usam a maiúscula
-(`VK_A`…`VK_Z`, já refletindo o estado de `Shift` via `XLookupString`) e demais
-caracteres ASCII imprimíveis usam o próprio valor. Teclas sem caractere (setas,
-`Return`, etc.) geram `WM_KEYDOWN`/`WM_KEYUP` normalmente, mas `TranslateMessage`
-só emite `WM_CHAR` quando o `WM_KEYDOWN` tinha caractere real.
+`VK_LEFT/UP/RIGHT/DOWN`, `XK_Delete`→`VK_DELETE`, `XK_F4`→`VK_F4`); letras
+usam a maiúscula (`VK_A`…`VK_Z`) e caracteres ASCII imprimíveis usam o próprio
+valor. Teclas sem caractere (setas, `Return`, `F4`) geram mensagens de tecla
+normalmente; Alt seleciona a família `WM_SYS*`. `TranslateMessage` só emite
+`WM_CHAR` ou `WM_SYSCHAR` quando a tecla tinha caractere real.
 
 `MSG` é tratado com o layout Microsoft x64 (48 bytes). O `WNDPROC` do convidado
 é invocado pela convenção Microsoft x64 (`TL_MSABI`) a partir do endereço lido
@@ -125,10 +150,12 @@ na classe; como o hospedeiro já executa sobre a pilha convidada quando o
 convidado chama as APIs hospedeiras, essa fronteira host→convidado não precisa
 de trampolim de pilha (`call_wndproc` em `src/runtime/dlls/user32/user32_internal.hpp`).
 
-`Expose` não desenha conteúdo diretamente: o driver X11 apenas enfileira o
-evento `Redraw`. O runtime repinta o client area completo antes de entregar o
-`WM_PAINT` equivalente ao convidado. O título permanece somente na decoração
-da janela X11. Além disso, o GDI mínimo desenha na janela X11:
+Em X11, `Expose` não desenha conteúdo diretamente: o driver enfileira o evento
+`Redraw`. O runtime repinta o client area antes de entregar o `WM_PAINT` ao
+convidado. No Wayland, o runtime redesenha e commita o buffer após a
+configuração da superfície. Os títulos são enviados ao servidor de janelas
+ativo (`WM_NAME`/`_NET_WM_NAME` no X11 e `xdg_toplevel.set_title` no Wayland).
+O GDI mínimo desenha na superfície do backend ativo:
 
 ### GDI mínimo (subconjunto)
 
@@ -139,11 +166,11 @@ modelo suportado é uma janela por operação de desenho, o `HDC` identifica o
 destino sem objeto DC real. `BeginPaint` preenche o `PAINTSTRUCT` convidado
 (layout Microsoft x64, 72 bytes; `R`ECT de 16 bytes) com o tamanho armazenado
 no `CreateWindowExA` e marca a janela como "pintando" até o `EndPaint`
-correspondente. `TextOutA` desenha o texto (com o comprimento explícito) via
-`XDrawString` no `HDC`/janela. Quando o `HDC` pertence a um controle lógico,
+correspondente. `TextOutA` desenha o texto (com o comprimento explícito) pelo
+renderer do backend no `HDC`/janela. Quando o `HDC` pertence a um controle lógico,
 `TextOut`, `FillRect` e `Rectangle` somam a posição do controle e desenham na
-superfície X11 da janela principal; o controle não precisa virar uma janela
-X11 individual. `GetStockObject` devolve um token opaco por
+superfície nativa da janela principal; o controle não precisa virar uma janela
+nativa individual. `GetStockObject` devolve um token opaco por
 objeto (endereço de uma tabela estática; stock objects não são liberados).
 
 O subconjunto atual de `COMCTL32` segue o mesmo modelo: `CreateStatusWindowW`
@@ -237,6 +264,15 @@ A entrada de teclado no runtime é testada de ponta a ponta pelo cenário
 **teclado** (KeyPress sintético), mas num display com window manager o evento
 real do teclado também chega como `KeyPress` ao cliente, então digitar na janela
 funciona da mesma forma; não há teste automatizado com um WM real.
+
+O smoke real `notepadpp_file_open_save_smoke` valida o fluxo X11 de abrir,
+editar, salvar e fechar Notepad++ sob Xvfb. `notepadpp_wayland_gui_smoke` repete
+o fluxo pelo backend Wayland com Weston aninhado em Xvfb. Em 22 de outubro de
+2026, ambos passaram nos presets Debug e Sanitizers, incluindo título,
+redimensionamento às dimensões esperadas, entrada por teclado e mouse,
+gravação no arquivo original e encerramento Alt+F4 com exit code `0`. O cenário
+Wayland valida esse caminho do Notepad++ sob Weston; não representa uma sessão
+Wayland nativa ou compatibilidade GUI geral.
 
 recursos, ícones, menus, toolkits e a maioria do GDI (regiões,
 pincéis, fontes, `BeginPaint` com atualização de região inválida, HDC de
