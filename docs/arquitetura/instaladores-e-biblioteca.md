@@ -192,8 +192,11 @@ do launcher e separa stdout de stderr no console visual. O contrato completo,
 os limites e os testes estão em
 [`guia-ui-qt6.md`](guia-ui-qt6.md).
 
-## 5. Pacote Debian
+## 5. Pacotes Linux
 
 O CMake instala `tradutorlinux` e `tradutorlinux_gui` em `/usr/bin`, o launcher
 `tradutorlinux.desktop` em `/usr/share/applications` e o ícone SVG no tema
-Hicolor. O pacote é gerado por CPack com o gerador `DEB`.
+Hicolor. O CPack gera DEB por padrão e também pode gerar RPM com
+`cpack -G RPM`; as dependências ELF do RPM são detectadas automaticamente pelo
+gerador. Ambos declaram `desktop-file-utils`, usado para atualizar o cache do
+menu quando um cadastro muda, e usam o prefixo `/usr`.

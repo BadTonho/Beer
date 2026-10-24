@@ -53,17 +53,19 @@ TradutorLinux não é um sandbox.
 O contrato completo da CLI, do trace e dos códigos de saída está em
 [`docs/diagnostico.md`](docs/diagnostico.md).
 
-### Gerar o pacote Debian
+### Instalar no Fedora
 
-Depois de compilar, gere e instale o pacote localmente:
+O caminho de instalação do Fedora 44 e a configuração da biblioteca estão em
+[`docs/instalacao.md`](docs/instalacao.md). Para gerar o RPM a partir do preset
+Debug:
 
 ```bash
-cpack --config build/debug/CPackConfig.cmake -G DEB
-sudo apt install ./tradutorlinux_0.0.0_amd64.deb
+cpack -G RPM --config build/debug/CPackConfig.cmake -B /tmp/tradutorlinux-rpms
+sudo dnf install /tmp/tradutorlinux-rpms/*.rpm
 ```
 
-Após a instalação, o launcher aparece no menu de aplicativos como
-**TradutorLinux**.
+O pacote instala o runtime, o launcher Qt, o ícone e a entrada do menu. A
+validação no Ubuntu será publicada depois de ser executada nesse ambiente.
 
 ## Compilar e desenvolver
 
@@ -100,6 +102,7 @@ devem ser adicionadas ao Git.
 | [`ROADMAP.md`](ROADMAP.md) | Etapas atuais e critérios de saída |
 | [`docs/compatibilidade.md`](docs/compatibilidade.md) | Matriz de compatibilidade e limitações |
 | [`docs/diagnostico.md`](docs/diagnostico.md) | Trace, relatórios e códigos de saída |
+| [`docs/instalacao.md`](docs/instalacao.md) | Instalação Fedora, biblioteca, prefixos, atualização e remoção |
 | [`docs/guia-visual.md`](docs/guia-visual.md) | Testes visuais da GUI experimental |
 | [`AGENTS.md`](AGENTS.md) | Diretrizes de contribuição e desenvolvimento |
 
