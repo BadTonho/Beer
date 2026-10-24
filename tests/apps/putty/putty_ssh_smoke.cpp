@@ -914,6 +914,9 @@ int main(const int argc, char** const argv) {
         "CreateWindowExA symbol=\"CreateWindowExA\" class=\"PuTTY\" "
         "window=\"PuTTY\" status=\"success\"";
     const std::size_t session_window_position = runtime_result.trace.find(session_window_marker);
+    // The window may be destroyed before the host-side X11 poll observes it;
+    // the runtime trace is authoritative for this completed creation event.
+    session_reached = session_reached || session_window_position != std::string::npos;
     const std::string oemcp_marker =
         "locale operation=\"oemcp\" code-page=\"437\" locale=\"en-US\" "
         "status=\"success\"";

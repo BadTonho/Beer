@@ -36,9 +36,12 @@ ou rejeição pré-entry já documentados: os cinco binários do ecossistema 7-Z
 (`7z_x64.exe`, `7zFM_x64.exe`, `7-Zip/7z.exe`, `7-Zip/7zFM.exe`, `7-Zip/7zG.exe`),
 os dois binários WinRAR, Rockstar, Rufus, HWiNFO64, Logitech G HUB e seu alias, e os
 dois executáveis GUP de atualização do Notepad++ (`Notepad++/updater/GUP.exe` e `npp_extracted/updater/GUP.exe`).
-Cada caso usa prefixo temporário, ambiente headless, `--timeout 3`, limites de CPU/memória e
-verifica o exit code e o diagnóstico esperado; instaladores, DLLs e cenários
-interativos de GUI permanecem nos testes específicos.
+Cada caso usa `HOME`, configuração e dados XDG, `APPDATA` e prefixo isolados em
+ambiente headless, e verifica o exit code e o diagnóstico esperado. G HUB recebe
+limites de 30 s para execução/CPU e 1 GiB porque seu bootstrapper precisa de
+cerca de 9 s para chegar a `ExitProcess(0)` neste host; os demais casos mantêm
+3 s e 512 MiB. Instaladores, DLLs e cenários interativos de GUI permanecem nos
+testes específicos.
 
 `popular_apps_install_matrix` cobre doze casos controlados: Roblox, G HUB, o
 alias byte-a-byte, o preparo de HWiNFO e as rejeições pré-extração por arquitetura
@@ -46,19 +49,19 @@ x86 de CPU-Z, GPU-Z, HWMonitor, CapCut, Creative Cloud, Epic Installer, Office
 Deployment Tool e RTSS. Cada caso usa `HOME`, `XDG_CONFIG_HOME`, `APPDATA` e
 prefixo temporários, verifica o estágio/erro esperado e exige ausência de
 arquivos residuais, extração e cadastro após a rejeição. O pacote MSIX de grande porte
-Affinity x64 é instalado e registrado com sucesso e validado em testes próprios.
+Affinity x64 tem o smoke `affinity_msix_install_smoke`: análise do MSIX,
+extração e cadastro, análise do executável principal, remoção do cadastro e
+preservação dos arquivos. O relatório identifica .NET CLR; a aplicação não é
+iniciada pelo runtime nativo.
 Instaladores PE32/x86 permanecem fora da execução funcional direta.
 
-`popular_apps_archive_install_matrix` cobre os instaladores de arquivo auto-extraíveis
-NSIS/SFX do corpus (`7-Zip_x64_Installer.exe`, `Notepad++_x64_Installer.exe`,
-`Everything_Search_x64.exe` e `RTSSSetup737.exe`), verificando a extração do payload
-PE32+ (x86-64) em prefixo isolado, o cadastro bem-sucedido no catálogo (`tradutorlinux app list`),
-a execução do binário CLI quando aplicável (`7z.exe` com exit `0` e `everything.exe` com
-`-create-file-list` gerando `.efu` com o cabeçalho `Filename` e uma entrada UTF-8 de teste
-com espaços e Unicode, tudo com exit `0`)
-e a posterior remoção limpa da aplicação do catálogo (`tradutorlinux app remove <id>`).
-O teste do Everything usa um diretório controlado dentro do staging; não indexa o
-diretório pessoal do usuário.
+`popular_apps_x86_installer_rejection_matrix` verifica `--report` e tentativa de
+instalação dos quatro containers com nome x64 no corpus (`7-Zip_x64_Installer.exe`,
+`Notepad++_x64_Installer.exe`, `Everything_Search_x64.exe` e `RTSSSetup737.exe`).
+Todos são PE32 (x86): o teste exige exit `5`, diagnóstico `unsupported-architecture`,
+nenhum executável extraído e nenhum cadastro. Os smokes dos executáveis PE32+
+disponíveis do 7-Zip e do Notepad++ são independentes; o corpus atual não inclui
+um `everything.exe` autônomo para repetir o fluxo `.efu` nesta etapa.
 
 Com o mesmo parâmetro e Xvfb disponível, os smokes GUI reais de 7-Zip File
 Manager (`seven_zip_gui_smoke` e `seven_zip_subdir_gui_smoke`), PuTTY (`putty_real_gui_smoke`

@@ -56,10 +56,24 @@ foreach(case IN LISTS CASES)
     set(ENV{XDG_CONFIG_HOME} "${config}")
     set(ENV{APPDATA} "${appdata}")
 
+    set(guest_timeout 3)
+    set(cpu_limit 3)
+    set(memory_limit 512)
+    set(process_timeout 30)
+    if("${app_id}" STREQUAL "ghub" OR "${app_id}" STREQUAL "ghub_alias")
+        # O setup termina com ExitProcess(0) após cerca de 9 s no host; o
+        # orçamento de 3 s produzia um timeout antes de avaliar o candidato.
+        set(guest_timeout 30)
+        set(cpu_limit 30)
+        set(memory_limit 1024)
+        set(process_timeout 60)
+    endif()
+
     execute_process(
         COMMAND "${TL_RUNTIME}" install "${input_path}" --name "${app_id}"
-            --prefix "${prefix}" --timeout 3 --trace --cpu 3 --memory 512
-        TIMEOUT 30
+            --prefix "${prefix}" --timeout "${guest_timeout}" --trace
+            --cpu "${cpu_limit}" --memory "${memory_limit}"
+        TIMEOUT "${process_timeout}"
         RESULT_VARIABLE actual_exit
         OUTPUT_VARIABLE install_stdout
         ERROR_VARIABLE install_trace

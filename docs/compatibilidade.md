@@ -59,16 +59,20 @@ auditoria 2026-10-18 corrigiu expectativas obsoletas do script (achado B7). Em
 de leitura/relatório), `26` com exit 5 (`Unsupported`) e nenhum com exit 4;
 o script `verify_popular_apps_recursive_report.cmake` é a fonte oficial das
 expectativas por arquivo.
+Na rodada U5, ambas as matrizes passaram em Debug com diretórios temporários;
+`--report` confirmou que não cria prefixo, mesmo se o caminho configurado
+ainda não existir.
 
-O teste `popular_apps_native_matrix` cobre onze casos de execução direta ou
+O teste `popular_apps_native_matrix` cobre quatorze casos de execução direta ou
 rejeição pré-entry: os cinco binários 7-Zip (`7z_x64.exe`, `7zFM_x64.exe`,
 `7-Zip/7z.exe`, `7-Zip/7zFM.exe`, `7-Zip/7zG.exe`) e os dois WinRAR terminam
 com `0`, Rockstar preserva seu `ExitProcess(1)`, Rufus e HWiNFO64 são
 rejeitados com `4` no parsing/mapeamento de seções (entry point fora de página
-executável) e o GUP do Notepad++ é rejeitado com `255` (`4294967295`). Cada
-caso recebe prefixo temporário, limites de CPU/memória e timeout; isso é
-evidência de comportamento controlado, não uma promoção geral de
-compatibilidade.
+executável), o G HUB encerra com `0` e os dois GUP do Notepad++ são rejeitados
+com `255` (`4294967295`). O G HUB recebe limite de 30 s de CPU/execução e 1 GiB
+de memória porque o limite anterior de 3 s expirava antes do encerramento
+observável. Cada caso recebe prefixo temporário e limites de recursos; isso é
+evidência de comportamento controlado, não uma promoção geral de compatibilidade.
 
 O teste `notepadpp_fh4_headless_smoke` acrescenta uma execução real do
 `Notepad++/notepad++.exe` sem display: o runtime seleciona os catches FH4
@@ -85,17 +89,51 @@ as autorizadas de Roblox (`72` após guest-timeout) e G HUB / alias (`6` após
 rejeições pré-extração por arquitetura de máquina x86/PE32 de CPU-Z, GPU-Z,
 HWMonitor, CapCut, Creative Cloud, Epic Installer, Office Deployment Tool e RTSS
 (`5`, stage `parse`). Ele isola prefixo, `HOME`, configuração e `APPDATA`, exige
-que não haja arquivos residuais, extração ou cadastro parcial nas rejeições e
-preserva o fallback genérico somente para instaladores cujo payload PE32+ seja
-validado antes do cadastro.
+que não haja arquivos residuais, extração ou cadastro parcial nas rejeições.
+G HUB e o alias recebem limite de 30 s; 3 s
+encerravam o bootstrapper antes de `ExitProcess(0)` e impediam a avaliação do
+estado `no-candidate`.
 
-O teste `popular_apps_archive_install_matrix` complementa a matriz validando a
-instalação completa e extração em prefixo de instaladores de arquivo auto-extraíveis
-NSIS/SFX do corpus (`7-Zip_x64_Installer.exe`, `Notepad++_x64_Installer.exe`,
-`Everything_Search_x64.exe` e `RTSSSetup737.exe`), verificando a descoberta do payload
-PE32+ (x86-64), suporte a `--app-exe` determinístico ou seleção automática do melhor candidato PE32+,
-cadastro no catálogo (`tradutorlinux app list`), execução de smoke dos
-binários CLI (`7z.exe` com exit `0` e `everything.exe` com `-create-file-list` gerando `.efu` e exit `0`) e desinstalação limpa (`tradutorlinux app remove`).
+O teste `affinity_msix_install_smoke`, adicionado na rodada U5, analisa o MSIX,
+instala e cadastra o pacote em prefixo limpo, confere o executável principal e
+seu relatório .NET CLR, remove o cadastro e verifica que os arquivos persistem.
+O executável gerenciado não é iniciado pelo runtime nativo.
+
+O teste `popular_apps_x86_installer_rejection_matrix` verifica os quatro
+containers de instalador do corpus (`7-Zip_x64_Installer.exe`,
+`Notepad++_x64_Installer.exe`, `Everything_Search_x64.exe` e `RTSSSetup737.exe`).
+Apesar dos nomes de payload x64, os arquivos são PE32 x86: `--report` e
+`install` devem retornar `5` (`unsupported-architecture`), sem extração ou
+cadastro. Os executáveis 7-Zip PE32+ existentes no corpus são cobertos por
+smokes CLI e GUI separados. O corpus atual não inclui um executável standalone
+do Everything para repetir seu fluxo `.efu`.
+
+### Evidência U5 — Fedora 44 (24/10/2026)
+
+O RPM foi instalado por DNF em container Fedora descartável. O DNF resolveu as
+dependências ELF e `desktop-file-utils`; foram verificados os binários CLI e
+Qt, o ícone SVG, a entrada `tradutorlinux.desktop` e
+`tradutorlinux --version`. O pacote DEB continua sendo o gerador CPack padrão.
+
+Em Debug, as matrizes `popular_apps_report_matrix`,
+`popular_apps_recursive_report_matrix`, `popular_apps_native_matrix`,
+`popular_apps_install_matrix` e `popular_apps_x86_installer_rejection_matrix`
+passaram em série; a matriz confirma como resultado esperado a rejeição dos
+quatro containers PE32 e que nenhum deles deixa payload ou cadastro. Os
+smokes de cópia 7-Zip, extração real WinRAR, edição de
+arquivo Notepad++ em X11 e Wayland, e GUI Rockstar passaram duas vezes no
+container Fedora com Xvfb/Weston. Os smokes PuTTY de GUI e probe SSH local
+também passaram duas vezes; o probe encerra com `GuestTimeout 72` após chegar
+a `SSH_MSG_KEXDH_INIT`, que continua sendo uma limitação publicada. O smoke
+MSIX Affinity passou duas vezes e não executa o app .NET.
+
+O `--report` deixou de preparar prefixos, corrigindo a falha das matrizes em
+`HOME` somente leitura. O orçamento do G HUB foi ampliado após a repetição
+mostrar que 3 s expiravam antes de `ExitProcess(0)`. O smoke PuTTY passou a
+aceitar a criação da janela registrada no trace quando a consulta X11 ocorre
+depois que ela já foi fechada. Os logs integrais estão em
+`/tmp/tl-u5-evidence/`. A verificação Sanitizers do driver C++ PuTTY e a
+validação Ubuntu permanecem pendentes.
 
 ## Documentos temáticos
 

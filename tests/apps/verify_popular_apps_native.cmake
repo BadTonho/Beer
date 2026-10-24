@@ -53,15 +53,38 @@ foreach(case IN LISTS CASES)
     endif()
 
     math(EXPR index "${index} + 1")
-    set(prefix "${TL_STAGING_ROOT}/prefix-${index}")
-    file(MAKE_DIRECTORY "${prefix}/appdata")
+    set(case_root "${TL_STAGING_ROOT}/case-${index}")
+    set(prefix "${case_root}/prefix")
+    set(home "${case_root}/home")
+    set(config "${case_root}/config")
+    set(data "${case_root}/data")
+    set(appdata "${case_root}/appdata")
+    file(MAKE_DIRECTORY "${prefix}" "${home}" "${config}" "${data}" "${appdata}")
+    set(ENV{HOME} "${home}")
+    set(ENV{XDG_CONFIG_HOME} "${config}")
+    set(ENV{XDG_DATA_HOME} "${data}")
     set(ENV{TL_PREFIX} "${prefix}")
-    set(ENV{APPDATA} "${prefix}/appdata")
+    set(ENV{APPDATA} "${appdata}")
+
+    set(guest_timeout 3)
+    set(cpu_limit 3)
+    set(memory_limit 512)
+    set(process_timeout 30)
+    if("${relative_path}" STREQUAL "Logitech_GHUB_x64.exe" OR
+       "${relative_path}" STREQUAL "lghub_installer.exe")
+        # O bootstrapper consome cerca de 9 s no host antes do ExitProcess(0).
+        # O limite antigo de 3 s encerrava o teste antes do resultado observável.
+        set(guest_timeout 30)
+        set(cpu_limit 30)
+        set(memory_limit 1024)
+        set(process_timeout 60)
+    endif()
 
     execute_process(
-        COMMAND "${TL_RUNTIME}" --trace=loader,process --timeout 3 --cpu 3 --memory 512
+        COMMAND "${TL_RUNTIME}" --trace=loader,process
+            --timeout "${guest_timeout}" --cpu "${cpu_limit}" --memory "${memory_limit}"
             "${input_path}"
-        TIMEOUT 30
+        TIMEOUT "${process_timeout}"
         RESULT_VARIABLE actual_exit
         OUTPUT_VARIABLE run_stdout
         ERROR_VARIABLE run_stderr

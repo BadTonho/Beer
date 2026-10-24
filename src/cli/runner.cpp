@@ -969,7 +969,7 @@ ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_strea
 
     const std::filesystem::path prefix_dir =
         effective_cmd.custom_prefix.value_or(prefix::default_prefix_root());
-    if (!prefix::initialize_prefix(prefix_dir)) {
+    if (!effective_cmd.report_only && !prefix::initialize_prefix(prefix_dir)) {
         stderr_stream << "erro: não foi possível preparar o prefixo da execução\n";
         return ExitCode::InternalError;
     }

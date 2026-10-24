@@ -1,5 +1,5 @@
-if(NOT DEFINED TL_RUNTIME OR NOT DEFINED TL_CORPUS)
-    message(FATAL_ERROR "TL_RUNTIME e TL_CORPUS são obrigatórios")
+if(NOT DEFINED TL_RUNTIME OR NOT DEFINED TL_CORPUS OR NOT DEFINED TL_STAGING_ROOT)
+    message(FATAL_ERROR "TL_RUNTIME, TL_CORPUS e TL_STAGING_ROOT são obrigatórios")
 endif()
 
 if(NOT EXISTS "${TL_RUNTIME}")
@@ -82,6 +82,9 @@ set(CASES
 
 set(passed 0)
 set(total 0)
+set(index 0)
+file(REMOVE_RECURSE "${TL_STAGING_ROOT}")
+file(MAKE_DIRECTORY "${TL_STAGING_ROOT}")
 foreach(case IN LISTS CASES)
     string(REPLACE "|" ";" fields "${case}")
     list(GET fields 0 relative_path)
@@ -91,8 +94,16 @@ foreach(case IN LISTS CASES)
         message(FATAL_ERROR "caso ausente: ${relative_path}")
     endif()
 
+    math(EXPR index "${index} + 1")
+    set(case_root "${TL_STAGING_ROOT}/case-${index}")
+    set(home "${case_root}/home")
+    set(config "${case_root}/config")
+    set(prefix "${case_root}/prefix")
+    file(MAKE_DIRECTORY "${home}" "${config}")
     execute_process(
-        COMMAND "${TL_RUNTIME}" --report "${input_path}"
+        COMMAND "${CMAKE_COMMAND}" -E env
+            "HOME=${home}" "XDG_CONFIG_HOME=${config}" "TL_PREFIX=${prefix}"
+            "${TL_RUNTIME}" --report "${input_path}"
         TIMEOUT 30
         RESULT_VARIABLE actual_exit
         OUTPUT_VARIABLE report_stdout
@@ -104,8 +115,12 @@ foreach(case IN LISTS CASES)
             "stdout:\n${report_stdout}\n"
             "stderr:\n${report_stderr}")
     endif()
+    if(EXISTS "${prefix}")
+        message(FATAL_ERROR "${relative_path}: --report criou o prefixo ${prefix}")
+    endif()
     math(EXPR passed "${passed} + 1")
     math(EXPR total "${total} + 1")
 endforeach()
 
+file(REMOVE_RECURSE "${TL_STAGING_ROOT}")
 message(STATUS "matriz recursiva --report do corpus: ${passed}/${total} casos passaram")

@@ -42,6 +42,7 @@ if(TL_POPULAR_APPS_DIR AND TARGET tradutorlinux)
         COMMAND ${CMAKE_COMMAND}
             "-DTL_RUNTIME=$<TARGET_FILE:tradutorlinux>"
             "-DTL_CORPUS=${TL_POPULAR_APPS_DIR}"
+            "-DTL_STAGING_ROOT=${CMAKE_BINARY_DIR}/popular-apps-report-matrix"
             -P "${PROJECT_SOURCE_DIR}/tests/apps/verify_popular_apps_report.cmake"
     )
     set_tests_properties(popular_apps_report_matrix PROPERTIES
@@ -54,6 +55,7 @@ if(TL_POPULAR_APPS_DIR AND TARGET tradutorlinux)
         COMMAND ${CMAKE_COMMAND}
             "-DTL_RUNTIME=$<TARGET_FILE:tradutorlinux>"
             "-DTL_CORPUS=${TL_POPULAR_APPS_DIR}"
+            "-DTL_STAGING_ROOT=${CMAKE_BINARY_DIR}/popular-apps-recursive-report-matrix"
             -P "${PROJECT_SOURCE_DIR}/tests/apps/verify_popular_apps_recursive_report.cmake"
     )
     set_tests_properties(popular_apps_recursive_report_matrix PROPERTIES
@@ -134,17 +136,32 @@ if(TL_POPULAR_APPS_DIR AND TARGET tradutorlinux)
     )
 
     add_test(
-        NAME popular_apps_archive_install_matrix
+        NAME popular_apps_x86_installer_rejection_matrix
         COMMAND ${CMAKE_COMMAND}
             "-DTL_RUNTIME=$<TARGET_FILE:tradutorlinux>"
             "-DTL_CORPUS=${TL_POPULAR_APPS_DIR}"
-            "-DTL_STAGING_ROOT=${CMAKE_BINARY_DIR}/popular-apps-archive-install-matrix"
-            -P "${PROJECT_SOURCE_DIR}/tests/apps/verify_popular_apps_archive_install.cmake"
+            "-DTL_STAGING_ROOT=${CMAKE_BINARY_DIR}/popular-apps-x86-installer-rejection-matrix"
+            -P "${PROJECT_SOURCE_DIR}/tests/apps/verify_popular_apps_x86_installer_rejection.cmake"
     )
-    set_tests_properties(popular_apps_archive_install_matrix PROPERTIES
-        LABELS "runtime;apps;install;archive;corpus"
+    set_tests_properties(popular_apps_x86_installer_rejection_matrix PROPERTIES
+        LABELS "runtime;apps;install;architecture;corpus"
         TIMEOUT 180
     )
+
+    if(EXISTS "${TL_POPULAR_APPS_DIR}/Affinity x64.msix")
+        add_test(
+            NAME affinity_msix_install_smoke
+            COMMAND ${CMAKE_COMMAND}
+                "-DTL_RUNTIME=$<TARGET_FILE:tradutorlinux>"
+                "-DTL_PACKAGE=${TL_POPULAR_APPS_DIR}/Affinity x64.msix"
+                "-DTL_STAGING_ROOT=${CMAKE_BINARY_DIR}/affinity-msix-install-smoke"
+                -P "${PROJECT_SOURCE_DIR}/tests/apps/affinity/verify_msix_install.cmake"
+        )
+        set_tests_properties(affinity_msix_install_smoke PROPERTIES
+            LABELS "runtime;apps;install;msix;affinity;corpus"
+            TIMEOUT 300
+        )
+    endif()
 endif()
 
 add_executable(tl_rust_pe_contract_c rust_pe_contract_c.c)

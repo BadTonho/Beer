@@ -107,34 +107,41 @@ do início ao resultado observável.
 **Saída:** pelo menos três tarefas do portfólio são repetíveis de ponta a ponta
 e têm evidência e limites publicados.
 
-**Evidência (24/10/2026):** os CTests `seven_zip_gui_smoke`,
+**Evidência U4 (24/10/2026):** os CTests `seven_zip_gui_smoke`,
 `seven_zip_subdir_gui_smoke`, `winrar_extract_real_smoke`,
-`winrar_723_extract_real_smoke`, `popular_apps_archive_install_matrix`,
-`notepadpp_real_gui_smoke` e `notepadpp_wayland_gui_smoke` passaram duas vezes
-em série nos presets Debug e Sanitizers. Os testes usam staging/prefixos e
-processos novos; o WinRAR cria um `.rar` com `Rar.exe`, extrai com `UnRAR.exe`
-via catálogo e compara os bytes; Everything valida cabeçalho e registro UTF-8
-do `.efu`; Notepad++ abre, edita, grava no arquivo original e fecha em X11 e
-Weston aninhado. O build Sanitizers usou `ASAN_OPTIONS=detect_leaks=0` porque
-LeakSanitizer não inicia sob ptrace neste ambiente; AddressSanitizer e UBSan
-permaneceram ativos.
+`winrar_723_extract_real_smoke`, `notepadpp_real_gui_smoke` e
+`notepadpp_wayland_gui_smoke` passaram duas vezes em série nos presets Debug e
+Sanitizers. A execução U4 da matriz de instaladores também registrou o `.efu`
+do Everything. Na avaliação U5, porém, os instaladores disponíveis para
+7-Zip, Notepad++, Everything e RTSS foram confirmados como PE32 x86; o corpus
+atual não inclui um `everything.exe` autônomo e o resultado `.efu` não pôde ser
+reproduzido. A matriz vigente verifica e documenta a rejeição desses
+containers. O WinRAR cria um `.rar` com `Rar.exe`, extrai com `UnRAR.exe` via
+catálogo e compara os bytes; Notepad++ abre, edita, grava no arquivo original e
+fecha em X11 e Weston aninhado. O build Sanitizers usou
+`ASAN_OPTIONS=detect_leaks=0` porque LeakSanitizer não inicia sob ptrace neste
+ambiente; AddressSanitizer e UBSan permaneceram ativos.
 
-### U5 — Instalação e diagnóstico para uso contínuo
+### U5 — Instalação Fedora e avaliação do corpus
 
-**Objetivo:** tornar a instalação e a recuperação de problemas claras para
-quem usa o aplicativo no dia a dia.
+**Objetivo:** fornecer um pacote RPM Fedora instalável e registrar os resultados
+de análise, instalação e inicialização dos produtos identificáveis do corpus.
 
-- [ ] Definir um caminho reproduzível de instalação e inicialização do
-  TradutorLinux em Linux x86-64.
-- [ ] Documentar requisitos do host, instalação de aplicativos, prefixos,
-  biblioteca, atualização e remoção de cadastro.
-- [ ] Garantir que erros comuns indiquem aplicativo, etapa, módulo ou símbolo
-  envolvido e a próxima limitação conhecida.
-- [ ] Validar instruções em uma instalação limpa e manter exemplos alinhados
-  com os comandos realmente disponíveis.
+- [x] Gerar RPM por CPack sem remover o gerador DEB e instalar o pacote no
+  Fedora 44 descartável, conferindo dependências, binários, ícone e menu.
+- [x] Documentar requisitos, compilação, instalação, atualização, diagnóstico,
+  biblioteca, prefixos e remoção de cadastro para Fedora.
+- [x] Analisar e registrar os 19 produtos identificados no corpus; cobrir
+  instalação e inicialização quando o formato e o runtime permitirem, sem
+  promover rejeições ou limitações conhecidas.
+- [x] Corrigir a análise `--report` para não preparar prefixos e ajustar limites
+  e critérios dos smokes quando a primeira execução expôs problemas do método.
+- [ ] Validar o driver C++ PuTTY no preset Sanitizers ou no CI.
+- [ ] Validar as instruções no Ubuntu quando esse ambiente estiver disponível.
 
-**Saída:** uma pessoa consegue instalar, cadastrar, abrir, diagnosticar e
-remover um aplicativo seguindo as instruções publicadas.
+**Evidência parcial (24/10/2026):** Debug, RPM Fedora e as matrizes/smokes
+selecionados passaram em ambiente descartável. A revisão Sanitizers e Ubuntu
+continuam pendentes; não declarar U5 concluída antes dessas validações.
 
 ## Regras para avançar os marcos
 
