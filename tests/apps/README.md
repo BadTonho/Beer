@@ -54,8 +54,11 @@ NSIS/SFX do corpus (`7-Zip_x64_Installer.exe`, `Notepad++_x64_Installer.exe`,
 `Everything_Search_x64.exe` e `RTSSSetup737.exe`), verificando a extração do payload
 PE32+ (x86-64) em prefixo isolado, o cadastro bem-sucedido no catálogo (`tradutorlinux app list`),
 a execução do binário CLI quando aplicável (`7z.exe` com exit `0` e `everything.exe` com
-`-create-file-list` indexando a árvore de diretórios e gerando arquivo `.efu` válido com exit `0`)
+`-create-file-list` gerando `.efu` com o cabeçalho `Filename` e uma entrada UTF-8 de teste
+com espaços e Unicode, tudo com exit `0`)
 e a posterior remoção limpa da aplicação do catálogo (`tradutorlinux app remove <id>`).
+O teste do Everything usa um diretório controlado dentro do staging; não indexa o
+diretório pessoal do usuário.
 
 Com o mesmo parâmetro e Xvfb disponível, os smokes GUI reais de 7-Zip File
 Manager (`seven_zip_gui_smoke` e `seven_zip_subdir_gui_smoke`), PuTTY (`putty_real_gui_smoke`
@@ -66,6 +69,12 @@ também são registrados separadamente no CTest.
 O smoke do 7-Zip prepara catálogo, prefixo e `compat/profile.json` schema 4
 temporários, cadastra o aplicativo com ID `7zip` e executa somente por `app run`; o
 trace exige `compat-profile` carregado e `compat-extension` selecionada. O smoke do
+7-Zip verifica o arquivo de saída da cópia e o exit code `0`. Os smokes
+`winrar_extract_real_smoke` e `winrar_723_extract_real_smoke` mantêm a extração do
+instalador SFX como uma verificação separada e, depois, criam um `.rar` com o
+`Rar.exe` extraído, cadastram temporariamente `UnRAR.exe`, extraem o arquivo por
+`app run` e comparam byte a byte o conteúdo resultante. O cadastro temporário é
+removido ao final; o staging e os prefixos são novos em cada execução. O smoke do
 Rockstar Games Launcher valida a inicialização da janela GUI "Rockstar Games Launcher Installer"
 sob Xvfb, recepção de eventos de encerramento via `WM_DELETE_WINDOW` e finalização limpa
 com exit code 1. Cada cenário cria seu próprio Xvfb/staging e mantém seu resultado

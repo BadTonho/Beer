@@ -422,12 +422,15 @@ TEST(CommandRunTest, AppRemoveSynchronizesCatalogAndDesktopAndPreservesApplicati
     catalog::AppEntry without_shortcut = make_removal_test_entry("without_shortcut", root);
     ASSERT_TRUE(reloaded.add_app(without_shortcut));
     ASSERT_TRUE(reloaded.save_to_file());
+    std::filesystem::remove_all(data_home / "applications", error);
+    ASSERT_FALSE(error);
     command_line.app_id = without_shortcut.id;
     stdout_stream.str({});
     stderr_stream.str({});
     EXPECT_EQ(run_command(command_line, stdout_stream, stderr_stream), ExitCode::Success);
     ASSERT_TRUE(reloaded.load_from_file());
     EXPECT_FALSE(reloaded.find_app(without_shortcut.id).has_value());
+    EXPECT_FALSE(std::filesystem::exists(data_home / "applications"));
 
     catalog::AppEntry blocked = make_removal_test_entry("blocked_shortcut", root);
     ASSERT_TRUE(reloaded.add_app(blocked));

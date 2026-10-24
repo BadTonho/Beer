@@ -576,15 +576,6 @@ void dump_root_windows(Display* const display, const Window root) {
     sent = send_key(display, window, XK_s, true, ControlMask, use_xtest) && sent;
     sent = send_key(display, window, XK_s, false, ControlMask, use_xtest) && sent;
     sent = send_key(display, window, XK_Control_L, false, 0, use_xtest) && sent;
-    if (use_xtest) {
-        std::this_thread::sleep_for(100ms);
-        sent = send_key(display, window, XK_Alt_L, true, 0, true) && sent;
-        sent = send_key(display, window, XK_f, true, Mod1Mask, true) && sent;
-        sent = send_key(display, window, XK_f, false, Mod1Mask, true) && sent;
-        sent = send_key(display, window, XK_Alt_L, false, 0, true) && sent;
-        sent = send_key(display, window, XK_s, true, 0, true) && sent;
-        sent = send_key(display, window, XK_s, false, 0, true) && sent;
-    }
     return sent;
 }
 

@@ -1,8 +1,10 @@
 #include <chrono>
 #include <csignal>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <poll.h>
 #include <string>
 #include <thread>
@@ -110,17 +112,115 @@ void stop_runtime_process(const pid_t pid) {
     return XvfbProcess{pid, ":" + display_number};
 }
 
-[[nodiscard]] std::string to_windows_z_path(const std::filesystem::path& path) {
+[[nodiscard]] std::string to_windows_z_path(const std::filesystem::path& path,
+                                            const bool trailing_separator = false) {
     std::string s = "Z:" + path.string();
     for (char& c : s) {
         if (c == '/') {
             c = '\\';
         }
     }
-    if (s.empty() || s.back() != '\\') {
+    if (trailing_separator && (s.empty() || s.back() != '\\')) {
         s.push_back('\\');
     }
     return s;
+}
+
+struct ProcessOutcome {
+    bool launched{false};
+    bool exited{false};
+    bool timed_out{false};
+    int status{0};
+};
+
+[[nodiscard]] ProcessOutcome run_process(const std::filesystem::path& runtime,
+                                         const std::vector<std::string>& arguments,
+                                         const std::filesystem::path& home,
+                                         const std::filesystem::path& working_directory,
+                                         const std::filesystem::path& log_path,
+                                         const std::string& display,
+                                         const std::chrono::milliseconds timeout) {
+    const int log_fd = ::open(log_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (log_fd < 0) {
+        return {};
+    }
+
+    const pid_t pid = ::fork();
+    if (pid == 0) {
+        (void)::setpgid(0, 0);
+        const std::filesystem::path config_home = home / "config";
+        const std::filesystem::path data_home = home / "data";
+        const std::filesystem::path appdata = home / "appdata";
+        if (::setenv("HOME", home.c_str(), 1) != 0 ||
+            ::setenv("XDG_CONFIG_HOME", config_home.c_str(), 1) != 0 ||
+            ::setenv("XDG_DATA_HOME", data_home.c_str(), 1) != 0 ||
+            ::setenv("APPDATA", appdata.c_str(), 1) != 0 ||
+            ::setenv("DISPLAY", display.c_str(), 1) != 0 ||
+            ::unsetenv("WAYLAND_DISPLAY") != 0 ||
+            (!working_directory.empty() && ::chdir(working_directory.c_str()) != 0)) {
+            ::_exit(126);
+        }
+        (void)::dup2(log_fd, STDOUT_FILENO);
+        (void)::dup2(log_fd, STDERR_FILENO);
+        ::close(log_fd);
+
+        std::vector<char*> child_argv;
+        child_argv.reserve(arguments.size() + 2);
+        child_argv.push_back(const_cast<char*>(runtime.c_str()));
+        for (const std::string& argument : arguments) {
+            child_argv.push_back(const_cast<char*>(argument.c_str()));
+        }
+        child_argv.push_back(nullptr);
+        ::execv(runtime.c_str(), child_argv.data());
+        ::_exit(127);
+    }
+
+    ::close(log_fd);
+    if (pid < 0) {
+        return {};
+    }
+    (void)::setpgid(pid, pid);
+
+    ProcessOutcome outcome;
+    outcome.launched = true;
+    outcome.exited = wait_for_exit(pid, timeout, &outcome.status);
+    if (!outcome.exited) {
+        outcome.timed_out = true;
+        stop_runtime_process(pid);
+    }
+    return outcome;
+}
+
+[[nodiscard]] bool exited_successfully(const ProcessOutcome& result) {
+    return result.launched && result.exited && !result.timed_out &&
+           WIFEXITED(result.status) && WEXITSTATUS(result.status) == 0;
+}
+
+[[nodiscard]] std::string read_file(const std::filesystem::path& path) {
+    std::ifstream input(path, std::ios::binary);
+    return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
+}
+
+[[nodiscard]] std::string read_text_file(const std::filesystem::path& path) {
+    std::ifstream input(path);
+    return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
+}
+
+[[nodiscard]] std::string tail_lines(const std::string& contents, const std::size_t maximum_lines) {
+    std::size_t end = contents.size();
+    if (end > 0 && contents[end - 1] == '\n') --end;
+    std::size_t start = end;
+    std::size_t lines = 0;
+    while (start > 0 && lines < maximum_lines) {
+        const std::size_t newline = contents.rfind('\n', start - 1);
+        if (newline == std::string::npos) {
+            start = 0;
+            break;
+        }
+        start = newline + 1;
+        ++lines;
+    }
+    return contents.substr(start, end - start);
 }
 
 [[nodiscard]] SmokeResult run_extraction_smoke(const std::filesystem::path& runtime,
@@ -131,9 +231,20 @@ void stop_runtime_process(const pid_t pid) {
                                            std::to_string(::getpid()) + "-" +
                                            std::to_string(stamp));
     const std::filesystem::path dest = staging / "dest";
+    const std::filesystem::path archive_workspace = staging / "archive-work";
+    const std::filesystem::path prefix = staging / "prefix";
+    const std::filesystem::path home = staging / "home";
+    const std::filesystem::path config_home = home / "config";
+    const std::filesystem::path data_home = home / "data";
+    const std::filesystem::path appdata = home / "appdata";
 
     std::error_code error;
     std::filesystem::create_directories(dest, error);
+    if (!error) std::filesystem::create_directories(archive_workspace, error);
+    if (!error) std::filesystem::create_directories(prefix, error);
+    if (!error) std::filesystem::create_directories(config_home, error);
+    if (!error) std::filesystem::create_directories(data_home, error);
+    if (!error) std::filesystem::create_directories(appdata, error);
     if (error) {
         std::cerr << "falha ao criar diretorio de staging: " << error.message() << '\n';
         return SmokeResult::Failed;
@@ -146,89 +257,151 @@ void stop_runtime_process(const pid_t pid) {
         return SmokeResult::Skipped;
     }
 
-    const std::string dest_arg = "-d" + to_windows_z_path(dest);
-    const std::filesystem::path trace_path = staging / "trace.log";
-    const int trace_fd = ::open(trace_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    const std::string dest_arg = "-d" + to_windows_z_path(dest, true);
+    const auto installer_run = run_process(
+        runtime,
+        {"--trace=runtime,process,gui", "--timeout", "15", "--cpu", "10", "--memory", "1024",
+         target.string(), "--", "-s", dest_arg},
+        home, {}, staging / "installer-extraction.log", xvfb.display, 15s);
+    const std::string installer_trace = read_text_file(staging / "installer-extraction.log");
+    const bool installer_run_ok = exited_successfully(installer_run);
+    const bool installer_trace_ok = installer_trace.find(
+                                        "ExitProcess symbol=\"ExitProcess\" exit-code=\"0\"") != std::string::npos &&
+                                    installer_trace.find("guest-timeout") == std::string::npos &&
+                                    installer_trace.find("guest-signal") == std::string::npos;
 
-    const pid_t runtime_pid = trace_fd < 0 ? -1 : ::fork();
-    if (runtime_pid == 0) {
-        (void)::setpgid(0, 0);
-        (void)::setenv("DISPLAY", xvfb.display.c_str(), 1);
-        (void)::dup2(trace_fd, STDERR_FILENO);
-        ::close(trace_fd);
-
-        ::execl(runtime.c_str(), runtime.c_str(),
-                "--trace=runtime,process,gui",
-                "--timeout", "15",
-                "--cpu", "10",
-                "--memory", "1024",
-                target.c_str(),
-                "--",
-                "-s",
-                dest_arg.c_str(),
-                static_cast<char*>(nullptr));
-        ::_exit(127);
-    }
-    if (trace_fd >= 0) {
-        ::close(trace_fd);
-    }
-    if (runtime_pid < 0) {
-        stop_process(xvfb.pid);
-        std::filesystem::remove_all(staging, error);
-        return SmokeResult::Failed;
-    }
-    (void)::setpgid(runtime_pid, runtime_pid);
-
-    int runtime_status = 0;
-    const bool runtime_exited = wait_for_exit(runtime_pid, 15000ms, &runtime_status);
-    if (!runtime_exited) {
-        stop_runtime_process(runtime_pid);
-    }
-    stop_process(xvfb.pid);
-
-    const bool exit_ok = runtime_exited && WIFEXITED(runtime_status) &&
-                         WEXITSTATUS(runtime_status) == 0;
-
-    std::ifstream trace_input(trace_path);
-    const std::string trace{std::istreambuf_iterator<char>{trace_input}, {}};
-
-    const bool trace_ok = trace.find("ExitProcess symbol=\"ExitProcess\" exit-code=\"0\"") != std::string::npos &&
-                          trace.find("guest-timeout") == std::string::npos &&
-                          trace.find("guest-signal") == std::string::npos;
-
-    // Verify extracted files
+    // Keep validation of the SFX installer payload separate from the RAR workflow.
     const std::filesystem::path license_file = dest / "License.txt";
     const std::filesystem::path winrar_exe = dest / "WinRAR.exe";
     const std::filesystem::path rar_exe = dest / "Rar.exe";
+    const std::filesystem::path unrar_exe = dest / "UnRAR.exe";
 
-    bool files_ok = std::filesystem::is_regular_file(license_file, error) && !error &&
-                    std::filesystem::file_size(license_file, error) > 1000 && !error &&
-                    std::filesystem::is_regular_file(winrar_exe, error) && !error &&
-                    std::filesystem::file_size(winrar_exe, error) > 1000000 && !error &&
-                    std::filesystem::is_regular_file(rar_exe, error) && !error &&
-                    std::filesystem::file_size(rar_exe, error) > 500000 && !error;
+    bool installer_files_ok = std::filesystem::is_regular_file(license_file, error) && !error &&
+                              std::filesystem::file_size(license_file, error) > 1000 && !error &&
+                              std::filesystem::is_regular_file(winrar_exe, error) && !error &&
+                              std::filesystem::file_size(winrar_exe, error) > 1000000 && !error &&
+                              std::filesystem::is_regular_file(rar_exe, error) && !error &&
+                              std::filesystem::file_size(rar_exe, error) > 500000 && !error &&
+                              std::filesystem::is_regular_file(unrar_exe, error) && !error &&
+                              std::filesystem::file_size(unrar_exe, error) > 100000 && !error;
 
-    if (files_ok) {
-        std::ifstream license_in(license_file);
-        const std::string license_content{std::istreambuf_iterator<char>{license_in}, {}};
+    if (installer_files_ok) {
+        const std::string license_content = read_text_file(license_file);
         if (license_content.find("END USER LICENSE AGREEMENT") == std::string::npos) {
-            files_ok = false;
+            installer_files_ok = false;
         }
     }
 
-    const bool passed = exit_ok && trace_ok && files_ok;
+    bool rar_created_ok = false;
+    bool catalog_add_ok = false;
+    bool unrar_run_ok = false;
+    bool extracted_bytes_ok = false;
+    bool catalog_remove_ok = false;
+    bool catalog_cleanup_ok = false;
+    std::string rar_create_log;
+    std::string catalog_add_log;
+    std::string unrar_run_log;
+    std::string catalog_remove_log;
+    std::string catalog_list_log;
+
+    const std::filesystem::path input_file = archive_workspace / "arquivo de teste.txt";
+    const std::filesystem::path rar_file = archive_workspace / "u4-real.rar";
+    const std::filesystem::path extract_dest = archive_workspace / "unpacked";
+    const std::string expected_content = "fixture RAR da U4\nconteudo com espacos e acentos: ação, café e 日本語\n";
+    bool fixture_written = false;
+    {
+        std::ofstream fixture(input_file, std::ios::binary);
+        fixture.write(expected_content.data(), static_cast<std::streamsize>(expected_content.size()));
+        fixture_written = fixture.good();
+    }
+    std::filesystem::create_directory(extract_dest, error);
+    if (!error && fixture_written && installer_run_ok && installer_trace_ok && installer_files_ok) {
+        const auto rar_create = run_process(
+            runtime,
+            {"--trace=runtime,process", "--timeout", "15", "--cpu", "10", "--memory", "1024",
+             rar_exe.string(), "a", "-ep1", to_windows_z_path(rar_file),
+             to_windows_z_path(input_file)},
+            home, dest, staging / "rar-create.log", xvfb.display, 15s);
+        rar_create_log = read_text_file(staging / "rar-create.log");
+        rar_created_ok = exited_successfully(rar_create) &&
+                         rar_create_log.find("ExitProcess symbol=\"ExitProcess\" exit-code=\"0\"") != std::string::npos &&
+                         rar_create_log.find("guest-timeout") == std::string::npos &&
+                         rar_create_log.find("guest-signal") == std::string::npos &&
+                         std::filesystem::is_regular_file(rar_file, error) && !error &&
+                         std::filesystem::file_size(rar_file, error) > 64 && !error;
+    }
+
+    const std::string app_id = "winrar-unrar-u4";
+    if (rar_created_ok) {
+        const auto add = run_process(
+            runtime,
+            {"app", "add", unrar_exe.string(), "--name", "WinRAR UnRAR U4", "--prefix", prefix.string(),
+             "--id", app_id},
+            home, {}, staging / "catalog-add.log", xvfb.display, 10s);
+        catalog_add_log = read_text_file(staging / "catalog-add.log");
+        catalog_add_ok = exited_successfully(add);
+    }
+
+    if (catalog_add_ok) {
+        const auto unrar_run = run_process(
+            runtime,
+            {"app", "run", app_id, "--trace=runtime,process", "--timeout", "15", "--cpu", "10", "--memory", "1024",
+             "x", "-o+", to_windows_z_path(rar_file), to_windows_z_path(extract_dest, true)},
+            home, {}, staging / "unrar-extract.log", xvfb.display, 15s);
+        unrar_run_log = read_text_file(staging / "unrar-extract.log");
+        unrar_run_ok = exited_successfully(unrar_run) &&
+                       unrar_run_log.find("ExitProcess symbol=\"ExitProcess\" exit-code=\"0\"") != std::string::npos &&
+                       unrar_run_log.find("guest-timeout") == std::string::npos &&
+                       unrar_run_log.find("guest-signal") == std::string::npos;
+        extracted_bytes_ok = read_file(extract_dest / input_file.filename()) == expected_content;
+
+        const auto remove = run_process(runtime, {"app", "remove", app_id}, home, {},
+                                        staging / "catalog-remove.log", xvfb.display, 10s);
+        catalog_remove_log = read_text_file(staging / "catalog-remove.log");
+        catalog_remove_ok = exited_successfully(remove);
+        const auto list = run_process(runtime, {"app", "list"}, home, {},
+                                      staging / "catalog-list.log", xvfb.display, 10s);
+        catalog_list_log = read_text_file(staging / "catalog-list.log");
+        catalog_cleanup_ok = exited_successfully(list) &&
+                             catalog_list_log.find("[" + app_id + "]") == std::string::npos &&
+                             std::filesystem::is_regular_file(unrar_exe, error) && !error &&
+                             std::filesystem::is_directory(prefix, error) && !error;
+    }
+
+    stop_process(xvfb.pid);
+
+    const bool passed = installer_run_ok && installer_trace_ok && installer_files_ok &&
+                        rar_created_ok && catalog_add_ok && unrar_run_ok && extracted_bytes_ok &&
+                        catalog_remove_ok && catalog_cleanup_ok;
     if (!passed) {
-        std::cerr << "smoke de extracao do WinRAR falhou:\n"
-                  << "  exit_ok: " << (exit_ok ? "true" : "false")
-                  << " (status=" << runtime_status << ")\n"
-                  << "  trace_ok: " << (trace_ok ? "true" : "false") << '\n'
-                  << "  files_ok: " << (files_ok ? "true" : "false") << '\n';
-        if (!trace.empty()) {
-            std::cerr << "Trace log:\n" << trace << '\n';
-        }
+        std::cerr << "smoke de fluxos CLI do WinRAR falhou:\n"
+                  << "  instalador ExitProcess 0: " << (installer_run_ok && installer_trace_ok ? "true" : "false") << '\n'
+                  << "  arquivos do instalador (WinRAR/Rar/UnRAR/licença): " << (installer_files_ok ? "true" : "false") << '\n'
+                  << "  criação de RAR real por Rar.exe: " << (rar_created_ok ? "true" : "false") << '\n'
+                  << "  cadastro temporário do UnRAR.exe: " << (catalog_add_ok ? "true" : "false") << '\n'
+                  << "  extração via app run, exit normal: " << (unrar_run_ok ? "true" : "false") << '\n'
+                  << "  bytes extraídos iguais à entrada: " << (extracted_bytes_ok ? "true" : "false") << '\n'
+                  << "  remoção do cadastro: " << (catalog_remove_ok ? "true" : "false") << '\n'
+                  << "  catálogo limpo e prefixo/executável preservados: " << (catalog_cleanup_ok ? "true" : "false") << '\n';
+        const auto print_log = [](const char* label, const std::string& content) {
+            if (content.empty()) return;
+            const std::string tail = tail_lines(content, 40);
+            std::cerr << label << ":\n";
+            if (tail.size() < content.size()) std::cerr << "[mostrando as últimas 40 linhas]\n";
+            std::cerr << tail << '\n';
+        };
+        print_log("Instalador", installer_trace);
+        print_log("Criação do RAR", rar_create_log);
+        print_log("app add", catalog_add_log);
+        print_log("app run UnRAR", unrar_run_log);
+        print_log("app remove", catalog_remove_log);
+        print_log("app list", catalog_list_log);
     }
 
     std::filesystem::remove_all(staging, error);
+    if (passed) {
+        std::cout << "WinRAR: instalador SFX conferido; Rar.exe criou um .rar, UnRAR.exe o extraiu via catálogo com bytes idênticos; app remove preservou prefixo e executável\n";
+    }
     return passed ? SmokeResult::Passed : SmokeResult::Failed;
 }
 

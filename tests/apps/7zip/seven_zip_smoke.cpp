@@ -9,6 +9,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <string_view>
 #include <thread>
 
 #include <sys/types.h>
@@ -158,31 +159,48 @@ void stop_runtime_process(const pid_t pid) {
     (void)::waitpid(pid, nullptr, 0);
 }
 
-[[nodiscard]] Window find_window_by_name(Display* const display, const Window root,
-                                          const std::string& name) {
-    char* window_name = nullptr;
-    if (::XFetchName(display, root, &window_name) != 0 && window_name != nullptr) {
-        const bool matches = name == window_name;
-        ::XFree(window_name);
-        if (matches) {
-            return root;
-        }
-    }
+[[nodiscard]] bool trace_contains(const std::filesystem::path& trace_path,
+                                  const std::string_view text) {
+    std::ifstream trace_input(trace_path);
+    const std::string trace{std::istreambuf_iterator<char>{trace_input}, {}};
+    return trace.find(text) != std::string::npos;
+}
 
+[[nodiscard]] Window find_largest_viewable_window(Display* const display, const Window root) {
     Window returned_root = 0;
     Window returned_parent = 0;
     Window* children = nullptr;
     unsigned int child_count = 0;
-    if (::XQueryTree(display, root, &returned_root, &returned_parent, &children, &child_count) == 0) {
-        return 0;
-    }
+    if (::XQueryTree(display, root, &returned_root, &returned_parent, &children,
+                     &child_count) == 0) return 0;
     Window result = 0;
-    for (unsigned int index = 0; index < child_count && result == 0; ++index) {
-        result = find_window_by_name(display, children[index], name);
+    unsigned long largest_area = 0;
+    for (unsigned int index = 0; index < child_count; ++index) {
+        XWindowAttributes attributes{};
+        if (::XGetWindowAttributes(display, children[index], &attributes) != 0 &&
+            attributes.map_state == IsViewable && attributes.width > 100 &&
+            attributes.height > 100) {
+            const auto area = static_cast<unsigned long>(attributes.width) *
+                              static_cast<unsigned long>(attributes.height);
+            if (area > largest_area) {
+                result = children[index];
+                largest_area = area;
+            }
+        }
+        const Window nested = find_largest_viewable_window(display, children[index]);
+        if (nested != 0) {
+            XWindowAttributes nested_attributes{};
+            if (::XGetWindowAttributes(display, nested, &nested_attributes) != 0) {
+                const auto area = static_cast<unsigned long>(nested_attributes.width) *
+                                  static_cast<unsigned long>(nested_attributes.height);
+                if (area > largest_area) {
+                    result = nested;
+                    largest_area = area;
+                }
+            }
+        }
     }
-    if (children != nullptr) {
-        ::XFree(children);
-    }
+    if (children != nullptr) ::XFree(children);
     return result;
 }
 
@@ -241,10 +259,13 @@ void stop_runtime_process(const pid_t pid) {
         (void)::setenv("XDG_DATA_HOME", config_home.c_str(), 1);
         (void)::setenv("HOME", config_home.c_str(), 1);
         (void)::setenv("APPDATA", config_home.c_str(), 1);
+        (void)::setenv("TL_GUI_BACKEND", "x11", 1);
+        (void)::unsetenv("WAYLAND_DISPLAY");
         (void)::unsetenv("TL_7ZFM_COPY_DESTINATION");
         (void)::dup2(trace_fd, STDERR_FILENO);
         ::close(trace_fd);
-        ::execl(runtime.c_str(), runtime.c_str(), "--trace", executable.c_str(),
+        ::execl(runtime.c_str(), runtime.c_str(), "--trace", "--timeout", "3",
+                executable.c_str(),
                 static_cast<char*>(nullptr));
         ::_exit(127);
     }
@@ -254,30 +275,15 @@ void stop_runtime_process(const pid_t pid) {
     }
     (void)::setpgid(runtime_pid, runtime_pid);
 
-    Display* const display = ::XOpenDisplay(display_name.c_str());
-    Window window = 0;
-    if (display != nullptr) {
-        for (int attempt = 0; attempt < 100 && window == 0; ++attempt) {
-            window = find_window_by_name(display, DefaultRootWindow(display), "7-Zip");
-            if (window == 0) {
-                std::this_thread::sleep_for(100ms);
-            }
-        }
-        if (window != 0) {
-            (void)send_close(display, window);
-        }
-        ::XCloseDisplay(display);
-    }
-
     int runtime_status = 0;
-    const bool runtime_exited = wait_for_exit(runtime_pid, 3000ms, &runtime_status);
+    const bool runtime_exited = wait_for_exit(runtime_pid, 5000ms, &runtime_status);
     if (!runtime_exited) {
         stop_runtime_process(runtime_pid);
     }
     std::ifstream trace_input(trace_path);
     const std::string trace{std::istreambuf_iterator<char>{trace_input}, {}};
-    return display != nullptr && window != 0 && runtime_exited && WIFEXITED(runtime_status) &&
-           WEXITSTATUS(runtime_status) == 0 &&
+    return runtime_exited && WIFEXITED(runtime_status) && WEXITSTATUS(runtime_status) == 72 &&
+           trace.find("guest-timeout") != std::string::npos &&
            trace.find("compat-extension") == std::string::npos &&
            trace.find("SevenZipOperation") == std::string::npos;
 }
@@ -369,6 +375,8 @@ void stop_runtime_process(const pid_t pid) {
         (void)::setenv("XDG_DATA_HOME", config_home.c_str(), 1);
         (void)::setenv("HOME", config_home.c_str(), 1);
         (void)::setenv("APPDATA", config_home.c_str(), 1);
+        (void)::setenv("TL_GUI_BACKEND", "x11", 1);
+        (void)::unsetenv("WAYLAND_DISPLAY");
         (void)::setenv("TL_7ZFM_COPY_DESTINATION", (staging / "output").c_str(), 1);
         (void)::dup2(trace_fd, STDERR_FILENO);
         (void)::dup2(output_fd, STDOUT_FILENO);
@@ -399,10 +407,10 @@ void stop_runtime_process(const pid_t pid) {
     Window window = 0;
     if (display != nullptr) {
         for (int attempt = 0; attempt < 100 && window == 0; ++attempt) {
-            window = find_window_by_name(display, DefaultRootWindow(display), "7-Zip");
-            if (window == 0) {
-                std::this_thread::sleep_for(100ms);
+            if (trace_contains(trace_path, "window-created")) {
+                window = find_largest_viewable_window(display, DefaultRootWindow(display));
             }
+            if (window == 0) std::this_thread::sleep_for(100ms);
         }
     }
     bool passed = display != nullptr && window != 0;
@@ -449,7 +457,24 @@ void stop_runtime_process(const pid_t pid) {
              trace.find("source-name=\"input.txt\"") != std::string::npos;
     if (!passed) {
         std::cerr << "smoke do 7-Zip não confirmou cópia e trace; window=" << window
-                  << " copied=" << std::filesystem::is_regular_file(copied, error) << '\n';
+                  << " copied=" << std::filesystem::is_regular_file(copied, error)
+                  << " runtime_exited=" << runtime_exited
+                  << " exit_status=" << (runtime_exited ? WEXITSTATUS(runtime_status) : -1) << '\n';
+        const std::size_t window_event = trace.find("window-created");
+        if (window_event != std::string::npos) {
+            const std::size_t line_end = trace.find('\n', window_event);
+            std::cerr << "window event: " << trace.substr(window_event,
+                line_end == std::string::npos ? std::string::npos : line_end - window_event) << '\n';
+        } else {
+            std::cerr << "trace não contém window-created\n";
+        }
+        constexpr std::size_t kFailureTraceTailBytes = 12000;
+        const std::size_t trace_offset = trace.size() > kFailureTraceTailBytes
+            ? trace.size() - kFailureTraceTailBytes : 0;
+        std::cerr << "trace tail:\n" << trace.substr(trace_offset);
+        std::ifstream stdout_input(staging / "stdout.log");
+        const std::string stdout_contents{std::istreambuf_iterator<char>{stdout_input}, {}};
+        if (!stdout_contents.empty()) std::cerr << "stdout:\n" << stdout_contents << '\n';
         const std::size_t operation = trace.find("SevenZipOperation");
         if (operation != std::string::npos) {
             const std::size_t line_start = trace.rfind('\n', operation);

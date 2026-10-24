@@ -93,19 +93,31 @@ Wayland/Weston/Xvfb, com limites publicados para cada ambiente.
 **Objetivo:** transformar os smokes parciais existentes em tarefas verificadas
 do início ao resultado observável.
 
-- [ ] Priorizar cópia no 7-Zip File Manager, extração no WinRAR, edição e
+- [x] Priorizar cópia no 7-Zip File Manager, extração no WinRAR, edição e
   gravação no Notepad++ e geração de lista `.efu` no Everything.
-- [ ] Para cada tarefa, verificar entradas, interação ou argumentos, artefato
+- [x] Para cada tarefa, verificar entradas, interação ou argumentos, artefato
   final, código de saída e encerramento.
-- [ ] Repetir o cenário em prefixo limpo e após reiniciar o aplicativo quando
+- [x] Repetir o cenário em prefixo limpo e após reiniciar o aplicativo quando
   isso fizer parte do fluxo.
-- [ ] Manter comportamento específico de aplicativo em `compat/apps/<app-id>/`
+- [x] Manter comportamento específico de aplicativo em `compat/apps/<app-id>/`
   e ativado somente por seleção explícita.
-- [ ] Promover na matriz somente os fluxos que passaram integralmente; imports
+- [x] Promover na matriz somente os fluxos que passaram integralmente; imports
   resolvidos e janela aberta, isoladamente, não bastam.
 
 **Saída:** pelo menos três tarefas do portfólio são repetíveis de ponta a ponta
 e têm evidência e limites publicados.
+
+**Evidência (24/10/2026):** os CTests `seven_zip_gui_smoke`,
+`seven_zip_subdir_gui_smoke`, `winrar_extract_real_smoke`,
+`winrar_723_extract_real_smoke`, `popular_apps_archive_install_matrix`,
+`notepadpp_real_gui_smoke` e `notepadpp_wayland_gui_smoke` passaram duas vezes
+em série nos presets Debug e Sanitizers. Os testes usam staging/prefixos e
+processos novos; o WinRAR cria um `.rar` com `Rar.exe`, extrai com `UnRAR.exe`
+via catálogo e compara os bytes; Everything valida cabeçalho e registro UTF-8
+do `.efu`; Notepad++ abre, edita, grava no arquivo original e fecha em X11 e
+Weston aninhado. O build Sanitizers usou `ASAN_OPTIONS=detect_leaks=0` porque
+LeakSanitizer não inicia sob ptrace neste ambiente; AddressSanitizer e UBSan
+permaneceram ativos.
 
 ### U5 — Instalação e diagnóstico para uso contínuo
 

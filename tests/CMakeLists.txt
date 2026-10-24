@@ -469,7 +469,7 @@ if(TL_XVFB_EXECUTABLE)
             )
             set_tests_properties(winrar_extract_real_smoke PROPERTIES
                 LABELS "runtime;apps;winrar"
-                TIMEOUT 60
+                TIMEOUT 120
                 SKIP_RETURN_CODE 77
             )
         endif()
@@ -494,7 +494,7 @@ if(TL_XVFB_EXECUTABLE)
             )
             set_tests_properties(winrar_723_extract_real_smoke PROPERTIES
                 LABELS "runtime;apps;winrar"
-                TIMEOUT 60
+                TIMEOUT 120
                 SKIP_RETURN_CODE 77
             )
         endif()

@@ -774,11 +774,12 @@ ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_strea
 
         const auto restore_shortcut = [&desktop_path, &shortcut_snapshot]() {
             const bool restored = restore_shortcut_snapshot(desktop_path, *shortcut_snapshot);
-            if (!restored) return false;
+            if (!restored || !shortcut_snapshot->existed) return restored;
             return catalog::AppCatalog::refresh_desktop_database();
         };
         std::string cache_error;
-        if (!catalog::AppCatalog::refresh_desktop_database({}, &cache_error)) {
+        if (shortcut_snapshot->existed &&
+            !catalog::AppCatalog::refresh_desktop_database({}, &cache_error)) {
             const bool restored = restore_shortcut();
             stderr_stream << "erro: não foi possível atualizar o cache do desktop após remover o atalho: "
                           << cache_error;

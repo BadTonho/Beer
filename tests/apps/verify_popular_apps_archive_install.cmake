@@ -113,8 +113,14 @@ foreach(case IN LISTS CASES)
         endif()
     elseif("${can_run_smoke}" STREQUAL "everything_file_list")
         set(efu_target "${prefix}/drive_c/test_filelist.efu")
+        set(efu_input_dir "${prefix}/drive_c/Program Files/U4 inputs")
+        set(efu_sentinel_name "arquivo com espaços café-日本.txt")
+        set(efu_sentinel "${efu_input_dir}/${efu_sentinel_name}")
+        file(MAKE_DIRECTORY "${efu_input_dir}")
+        file(WRITE "${efu_sentinel}" "entrada EFU U4\n")
+
         execute_process(
-            COMMAND "${TL_RUNTIME}" app run "${app_id}" --timeout 10 -create-file-list "C:\\test_filelist.efu" "C:\\Program Files"
+            COMMAND "${TL_RUNTIME}" app run "${app_id}" --timeout 10 -create-file-list "C:\\test_filelist.efu" "C:\\Program Files\\U4 inputs"
             TIMEOUT 20
             RESULT_VARIABLE run_exit
             OUTPUT_VARIABLE run_stdout
@@ -131,6 +137,17 @@ foreach(case IN LISTS CASES)
             file(REMOVE_RECURSE "${TL_STAGING_ROOT}")
             message(FATAL_ERROR
                 "${relative_path}: arquivo .efu não foi gerado pelo app run: ${efu_target}")
+        endif()
+
+        file(READ "${efu_target}" efu_contents)
+        string(FIND "${efu_contents}" "Filename" efu_header_pos)
+        string(FIND "${efu_contents}" "C:\\Program Files\\U4 inputs\\${efu_sentinel_name}" efu_record_pos)
+        if(efu_header_pos EQUAL -1 OR efu_record_pos EQUAL -1)
+            file(REMOVE_RECURSE "${TL_STAGING_ROOT}")
+            message(FATAL_ERROR
+                "${relative_path}: .efu não contém o cabeçalho Filename e o registro UTF-8 esperado\n"
+                "cabeçalho encontrado: ${efu_header_pos}; registro encontrado: ${efu_record_pos}\n"
+                "conteúdo:\n${efu_contents}")
         endif()
     endif()
 
