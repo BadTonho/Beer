@@ -13,7 +13,7 @@ file(MAKE_DIRECTORY "${package_source}/bin" "${home}")
 file(COPY_FILE "${HELLO}" "${package_source}/bin/tl_hello.exe")
 file(WRITE "${package_source}/AppxManifest.xml" [=[<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10">
-  <Identity Name="TradutorLinux.NativeFixture" Publisher="CN=TradutorLinux" Version="1.0.0.0" />
+  <Identity Name="Beer.NativeFixture" Publisher="CN=Beer" Version="1.0.0.0" />
   <Applications>
     <Application Id="App" Executable="bin/tl_hello.exe" EntryPoint="Windows.FullTrustApplication" />
   </Applications>
@@ -92,7 +92,7 @@ set(extracted "${prefix}/drive_c/Program Files/tl_msix_fixture/bin/tl_hello.exe"
 if(NOT EXISTS "${extracted}")
     message(FATAL_ERROR "MSIX executable was not extracted to the prefix: ${extracted}")
 endif()
-set(catalog "${config}/tradutorlinux/library.json")
+set(catalog "${config}/beer/library.json")
 if(NOT EXISTS "${catalog}")
     message(FATAL_ERROR "MSIX install did not create a catalog")
 endif()

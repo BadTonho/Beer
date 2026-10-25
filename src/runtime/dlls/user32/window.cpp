@@ -501,7 +501,7 @@ TL_MSABI abi::HWnd tl_CreateWindowExA(const std::uint32_t ex_style,
                                             0xE2E8F0U);
         gui::platform::fill_rectangle_color(slot.native, 0, 0, slot.width, 56,
                                             0x1D4ED8U);
-        gui::platform::draw_text_color(slot.native, "TradutorLinux - inicializando aplicativo", 24,
+        gui::platform::draw_text_color(slot.native, "Beer - inicializando aplicativo", 24,
                                        34,
                                        0xFFFFFFU, true);
         gui::platform::draw_text_color(slot.native,

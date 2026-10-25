@@ -735,7 +735,7 @@ TL_MSABI std::uint32_t tl_GetFullPathNameW(const std::uint16_t* path, std::uint3
     }
     const std::string utf8 = util::wide_to_utf8(
         reinterpret_cast<const std::uint16_t*>(guest_path.data()), guest_path.size());
-    // Caso especial: string vazia -> retorna 0 como Wine.
+    // O contrato Win32 retorna 0 para uma string vazia.
     if (utf8.empty()) {
         set_last_error(abi::kErrorInvalidParameter);
         return 0;
@@ -743,7 +743,7 @@ TL_MSABI std::uint32_t tl_GetFullPathNameW(const std::uint16_t* path, std::uint3
     const std::string full = build_full_windows_path(utf8);
     const std::u16string wide = util::utf8_to_wide(full);
     if (buffer == nullptr || buffer_length == 0) {
-        // Wine: com buffer nulo, retorna tamanho necessário sem escrever.
+        // Com buffer nulo, retorna o tamanho necessário sem escrever.
         // Retornamos wide.size() (sem terminador) para compatibilidade com teste existente,
         // mas documentamos que inclui terminador no cálculo de insuficiência.
         set_last_error(abi::kErrorSuccess);

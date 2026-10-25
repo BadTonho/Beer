@@ -9,7 +9,7 @@ endif()
 set(prefix_dir "${CMAKE_CURRENT_BINARY_DIR}/memory-limit-prefix")
 file(REMOVE_RECURSE "${prefix_dir}")
 execute_process(
-    COMMAND "${CMAKE_COMMAND}" -E env "TL_PREFIX=${prefix_dir}"
+    COMMAND "${CMAKE_COMMAND}" -E env "BEER_PREFIX=${prefix_dir}"
         "${RUNTIME}" --trace --memory 128 "${INPUT}"
     RESULT_VARIABLE runtime_result
     OUTPUT_VARIABLE runtime_stdout

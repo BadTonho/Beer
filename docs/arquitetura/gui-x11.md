@@ -2,13 +2,13 @@
 
 Este é um protótipo isolado para avaliar GUI, não uma promessa de compatibilidade
 Win32 gráfica geral. As janelas convidadas usam `libX11` ou `libwayland-client`
-diretamente, sem Qt, GTK, SDL ou Wine; o launcher Qt permanece separado como
-catálogo e interface de diagnóstico.
+diretamente; o launcher Qt permanece separado como catálogo e interface de
+diagnóstico.
 
 ## Seleção do backend plain
 
-`TL_GUI_BACKEND=auto` (padrão) tenta Wayland quando `WAYLAND_DISPLAY` está
-disponível e depois X11. `TL_GUI_BACKEND=wayland` e `TL_GUI_BACKEND=x11` tornam
+`BEER_GUI_BACKEND=auto` (padrão) tenta Wayland quando `WAYLAND_DISPLAY` está
+disponível e depois X11. `BEER_GUI_BACKEND=wayland` e `BEER_GUI_BACKEND=x11` tornam
 a exigência explícita. Falhas de conexão, globals ausentes e buffers inválidos
 são registradas em `stderr`, sem substituir silenciosamente o backend pedido.
 
@@ -253,7 +253,7 @@ CMake somente quando `xvfb` está disponível (CI instala `xvfb`). Para o smoke
 test manual interativo de `tl_win.exe`:
 
 ```bash
-TL_GUI_AUTOCLOSE_MS=0 ./build/debug/src/tradutorlinux \
+TL_GUI_AUTOCLOSE_MS=0 ./build/debug/src/beer \
   build/debug/tests/samples/generated/tl_win.exe
 ```
 
@@ -380,7 +380,7 @@ O alvo Simple Todo recebe um overlay Linux versionado em
 `tests/targets/patches/`: a opção de inicialização com Windows é removida e o
 fechamento da janela destrói o alvo em vez de apenas ocultá-lo; o fluxo continua
 usando somente dados dentro do `APPDATA` virtual do prefixo ativo. O smoke
-`targetapp_simple_todo_gui_smoke` cria um CWD e um `TL_PREFIX` próprios, prepara
+`targetapp_simple_todo_gui_smoke` cria um CWD e um `BEER_PREFIX` próprios, prepara
 `drive_c/users/guest/AppData/Roaming` e verifica o artefato persistente de todos.
 
 ## Diálogos modais e controles reutilizáveis (Fase 13.11)

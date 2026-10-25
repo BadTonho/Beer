@@ -81,7 +81,7 @@ execute_process(
     OUTPUT_VARIABLE report_stdout
     ERROR_VARIABLE report_stderr
 )
-if(NOT report_result EQUAL 0 OR NOT report_stdout MATCHES "TradutorLinux compatibility report")
+if(NOT report_result EQUAL 0 OR NOT report_stdout MATCHES "Beer compatibility report")
     message(FATAL_ERROR "app run --report failed (${report_result})\nstdout:\n${report_stdout}\nstderr:\n${report_stderr}")
 endif()
 tl_assert_profile_parser("${report_stderr}" "success" "app run --report profile")

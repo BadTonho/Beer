@@ -8,19 +8,19 @@
 namespace tradutorlinux::prefix {
 
 std::filesystem::path default_prefix_root() {
-    const char* custom_prefix = std::getenv("TL_PREFIX");
+    const char* custom_prefix = std::getenv("BEER_PREFIX");
     if (custom_prefix != nullptr && *custom_prefix != '\0') {
         return std::filesystem::path(custom_prefix);
     }
     const char* home = std::getenv("HOME");
     if (home != nullptr && *home != '\0') {
-        return std::filesystem::path(home) / ".tradutorlinux";
+        return std::filesystem::path(home) / ".beer";
     }
     const char* userprofile = std::getenv("USERPROFILE");
     if (userprofile != nullptr && *userprofile != '\0') {
-        return std::filesystem::path(userprofile) / ".tradutorlinux";
+        return std::filesystem::path(userprofile) / ".beer";
     }
-    return std::filesystem::current_path() / ".tradutorlinux";
+    return std::filesystem::current_path() / ".beer";
 }
 
 std::filesystem::path managed_prefixes_root() {

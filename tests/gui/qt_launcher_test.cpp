@@ -57,7 +57,7 @@ public:
         test_filter_ = qEnvironmentVariable("TL_QT_SMOKE_FILTER");
         require(config_dir_.isValid(), QStringLiteral("diretório temporário inválido"));
         require(QFileInfo::exists(runtime_path()),
-                QStringLiteral("o executável tradutorlinux não foi compilado"));
+                QStringLiteral("o executável beer não foi compilado"));
         if (test_filter_.isEmpty()) {
             require(QFileInfo::exists(fixture_path(QStringLiteral("tl_hello.exe"))),
                     QStringLiteral("a fixture tl_hello.exe não foi compilada"));
@@ -133,7 +133,7 @@ private:
         qputenv("XDG_CONFIG_HOME", config_dir_.path().toUtf8());
         qputenv("XDG_DATA_HOME", QDir(config_dir_.path()).filePath(QStringLiteral("data")).toUtf8());
         qputenv("HOME", config_dir_.path().toUtf8());
-        qputenv("TL_PREFIX", QDir(config_dir_.path()).filePath(QStringLiteral("prefix-root")).toUtf8());
+        qputenv("BEER_PREFIX", QDir(config_dir_.path()).filePath(QStringLiteral("prefix-root")).toUtf8());
     }
 
     [[nodiscard]] tradutorlinux::catalog::AppEntry add_removal_fixture() const {
@@ -189,7 +189,7 @@ private:
         return QStringLiteral(TL_GUI_TEST_RUNTIME_PATH);
 #else
         return QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(
-            QStringLiteral("../src/tradutorlinux"));
+            QStringLiteral("../src/beer"));
 #endif
     }
 
@@ -209,7 +209,7 @@ private:
             entry.name = name.toStdString();
             entry.id = tradutorlinux::catalog::AppCatalog::generate_id(entry.name);
             entry.executable_path = executable.toStdString();
-            entry.prefix_path = "/tmp/tradutorlinux-test-prefix";
+            entry.prefix_path = "/tmp/beer-test-prefix";
             entry.working_directory = QFileInfo(executable).absolutePath().toStdString();
             require(catalog.add_app(entry), QStringLiteral("falha ao adicionar entrada de teste"));
         }
@@ -308,6 +308,9 @@ private:
         window.show();
         QApplication::processEvents();
 
+        require(window.windowTitle() == QStringLiteral("Beer — Launcher"),
+                QStringLiteral("título do launcher não usa a marca Beer"));
+
         QListWidget* const list = app_list(window);
         QLineEdit* const search = search_input(window);
         QLineEdit* const path = path_input(window);
@@ -378,7 +381,7 @@ private:
         require(catalog.find_app(entry.id).has_value(),
                 QStringLiteral("cancelar removeu o cadastro"));
         require(QFileInfo::exists(QDir(tradutorlinux::catalog::AppCatalog::default_desktop_entries_dir())
-                                      .filePath(QStringLiteral("tradutorlinux-removal_fixture.desktop"))),
+                                      .filePath(QStringLiteral("beer-removal_fixture.desktop"))),
                 QStringLiteral("cancelar removeu o atalho"));
         list->clearSelection();
         require(!button(window, "file_types_button")->isEnabled(),
@@ -490,7 +493,7 @@ private:
         const auto entry = add_removal_fixture();
         const QString desktop_path = QDir(
             tradutorlinux::catalog::AppCatalog::default_desktop_entries_dir())
-                                         .filePath(QStringLiteral("tradutorlinux-removal_fixture.desktop"));
+                                         .filePath(QStringLiteral("beer-removal_fixture.desktop"));
         const QString executable_path = QString::fromStdString(entry.executable_path);
         const QString prefix_marker = QDir(QString::fromStdString(entry.prefix_path))
                                           .filePath(QStringLiteral("keep.dat"));
@@ -519,7 +522,7 @@ private:
         const auto entry = add_removal_fixture();
         const QString desktop_path = QDir(
             tradutorlinux::catalog::AppCatalog::default_desktop_entries_dir())
-                                         .filePath(QStringLiteral("tradutorlinux-removal_fixture.desktop"));
+                                         .filePath(QStringLiteral("beer-removal_fixture.desktop"));
         require(QFile::remove(desktop_path),
                 QStringLiteral("não foi possível substituir o atalho da fixture"));
         require(QDir().mkpath(QDir(desktop_path).filePath(QStringLiteral("child"))),
@@ -568,7 +571,7 @@ private:
             return status_label(window)->text() == QStringLiteral("Operação concluída");
         }, 10000, QStringLiteral("relatório não terminou com sucesso"));
         const QString output = log_output(window)->toPlainText();
-        require(output.contains(QStringLiteral("TradutorLinux compatibility report")),
+        require(output.contains(QStringLiteral("Beer compatibility report")),
                 QStringLiteral("relatório não apareceu no console"));
         require(output.contains(QStringLiteral("execution-result: not-attempted")),
                 QStringLiteral("resultado do relatório não apareceu"));
@@ -688,7 +691,7 @@ private:
 
     void reports_start_failure() {
         tradutorlinux::gui::MainWindow window(
-            QStringLiteral("/definitely/missing/tradutorlinux"));
+            QStringLiteral("/definitely/missing/beer"));
         window.show();
         path_input(window)->setText(fixture_path(QStringLiteral("tl_hello.exe")));
         button(window, "analyze_button")->click();

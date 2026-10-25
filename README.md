@@ -1,7 +1,7 @@
 <div align="center">
-  <img src="beer.png" alt="Caneca de cerveja ilustrada, logo do TradutorLinux" width="180">
+  <img src="beer.png" alt="Logo do aplicativo Beer" width="180">
 
-  <h1>TradutorLinux</h1>
+  <h1>Beer</h1>
 
   <p><strong>Runtime de compatibilidade Win32 para Linux</strong></p>
 
@@ -13,7 +13,7 @@
 
 ## O projeto
 
-O TradutorLinux carrega programas Windows de 64 bits e oferece as APIs Win32
+O Beer carrega programas Windows de 64 bits e oferece as APIs Win32
 implementadas pelo runtime. O objetivo é ampliar esse suporte por etapas
 verificáveis, com diagnósticos reproduzíveis e regressões para cada capacidade.
 
@@ -25,7 +25,7 @@ na matriz de compatibilidade com evidências de teste.
 
 - **Analisar imports sem executar:** `--report` mostra dependências resolvidas e limitações conhecidas; retorna `0` quando todas foram resolvidas e `5` quando há uma limitação conhecida.
 - **Investigar uma execução:** `--trace` registra diagnósticos em `stderr`; a saída padrão fica reservada ao programa convidado.
-- **Usar a interface gráfica do TradutorLinux:** informar um `.exe`, analisar imports e acompanhar a execução.
+- **Usar a interface gráfica do Beer:** informar um `.exe`, analisar imports e acompanhar a execução.
 - **Consultar evidências:** a matriz separa resolução de imports, resultado da execução e nível funcional.
 
 Para detalhes e limitações por aplicativo, consulte [`docs/compatibilidade.md`](docs/compatibilidade.md) e [`docs/compatibilidade-aplicativos.md`](docs/compatibilidade-aplicativos.md).
@@ -34,21 +34,21 @@ Para detalhes e limitações por aplicativo, consulte [`docs/compatibilidade.md`
 
 ```bash
 # Ajuda da linha de comando
-./build/debug/src/tradutorlinux --help
+./build/debug/src/beer --help
 
 # Analisar imports sem iniciar o programa
-./build/debug/src/tradutorlinux --report /caminho/para/programa.exe
+./build/debug/src/beer --report /caminho/para/programa.exe
 
 # Executar com diagnóstico detalhado
-./build/debug/src/tradutorlinux --trace /caminho/para/programa.exe
+./build/debug/src/beer --trace /caminho/para/programa.exe
 
 # Abrir a interface gráfica experimental
-./build/debug/src/tradutorlinux_gui
+./build/debug/src/beer-gui
 ```
 
 `--report` não executa o programa e não comprova que seus fluxos funcionam.
 Executáveis convidados rodam com os privilégios do usuário atual: o
-TradutorLinux não é um sandbox.
+Beer não é um sandbox.
 
 O contrato completo da CLI, do trace e dos códigos de saída está em
 [`docs/diagnostico.md`](docs/diagnostico.md).
@@ -60,8 +60,8 @@ O caminho de instalação do Fedora 44 e a configuração da biblioteca estão e
 Debug:
 
 ```bash
-cpack -G RPM --config build/debug/CPackConfig.cmake -B /tmp/tradutorlinux-rpms
-sudo dnf install /tmp/tradutorlinux-rpms/*.rpm
+cpack -G RPM --config build/debug/CPackConfig.cmake -B /tmp/beer-rpms
+sudo dnf install /tmp/beer-rpms/*.rpm
 ```
 
 O pacote instala o runtime, o launcher Qt, o ícone e a entrada do menu. A
@@ -116,4 +116,4 @@ matriz.
 
 ## Licença
 
-TradutorLinux é distribuído sob a [GNU LGPL v3.0](LICENSE).
+Beer é distribuído sob a [GNU LGPL v3.0](LICENSE).

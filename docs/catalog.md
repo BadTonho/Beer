@@ -1,4 +1,4 @@
-# Catálogo de aplicativos — TradutorLinux
+# Catálogo de aplicativos — Beer
 
 Este catálogo orienta a expansão para uma cobertura prática ampla: lista
 aplicativos reais avaliados, agrupados por categoria e com nível de
@@ -38,7 +38,7 @@ criados pelo convidado. Eles são contenção de recursos do runtime, não uma
 sandbox ou uma fronteira de segurança.
 
 `app remove <id>` remove o registro do catálogo e o atalho
-`tradutorlinux-<id>.desktop`, sem apagar o executável instalado nem o prefixo.
+`beer-<id>.desktop`, sem apagar o executável instalado nem o prefixo.
 Os atalhos individuais usam `$XDG_DATA_HOME/applications`, com fallback para
 `$HOME/.local/share/applications`. Um atalho ausente é aceito; falhas de
 remoção ou persistência retornam erro e não são reportadas como sucesso.
@@ -50,9 +50,9 @@ arquivos regulares e são convertidos para a visão do prefixo (`C:\...` dentro
 de `drive_c`, `Z:\...` fora). Não há interpretação por shell.
 
 `app associate <id> add|remove <mime-type>` altera a lista `MimeType` do
-atalho `tradutorlinux-<id>.desktop`; a entrada `Exec` inclui `%F` como campo
+atalho `beer-<id>.desktop`; a entrada `Exec` inclui `%F` como campo
 isolado uma única vez. A associação apenas faz o aplicativo aparecer em “Abrir
-com”. O TradutorLinux não grava `mimeapps.list` e não define o aplicativo como
+com”. O Beer não grava `mimeapps.list` e não define o aplicativo como
 padrão. O cache MIME do diretório de atalhos é atualizado após as mudanças.
 
 ## Console

@@ -687,7 +687,7 @@ constexpr std::size_t kControlledKexInitNameListsSize = [] {
     if (pid == 0) {
         (void)::setpgid(0, 0);
         (void)::setenv("DISPLAY", display.c_str(), 1);
-        (void)::setenv("TL_PREFIX", prefix.c_str(), 1);
+        (void)::setenv("BEER_PREFIX", prefix.c_str(), 1);
         (void)::setenv("APPDATA", (prefix / "appdata").c_str(), 1);
         (void)::dup2(trace_fd, STDERR_FILENO);
         (void)::dup2(stdout_fd, STDOUT_FILENO);

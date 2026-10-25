@@ -28,33 +28,33 @@ sudo dnf install cmake ninja-build gcc-c++ qt6-qtbase-devel zlib-devel \
   rpm-build
 cmake --preset debug
 cmake --build --preset debug --target tradutorlinux tradutorlinux_gui --parallel 2
-cpack -G RPM --config build/debug/CPackConfig.cmake -B /tmp/tradutorlinux-rpms
+cpack -G RPM --config build/debug/CPackConfig.cmake -B /tmp/beer-rpms
 ```
 
 Smokes gráficos usam `xorg-x11-server-Xvfb`; o teste Wayland também requer
 Weston. Os nomes dos pacotes de desenvolvimento podem variar entre versões do
 Fedora.
 
-## Instalar ou atualizar o TradutorLinux
+## Instalar ou atualizar o Beer
 
 Instale o RPM gerado pelo projeto; o DNF resolve as dependências do pacote:
 
 ```bash
-sudo dnf install /tmp/tradutorlinux-rpms/*.rpm
+sudo dnf install /tmp/beer-rpms/*.rpm
 ```
 
-O menu do desktop terá **TradutorLinux**. Também é possível abrir o launcher
-com `tradutorlinux_gui`, usar a CLI com `tradutorlinux` e verificar o host com:
+O menu do desktop terá **Beer**. Também é possível abrir o launcher
+com `beer-gui`, usar a CLI com `beer` e verificar o host com:
 
 ```bash
-tradutorlinux doctor
-tradutorlinux doctor --json
+beer doctor
+beer doctor --json
 ```
 
 Para atualizar usando um RPM de versão mais nova:
 
 ```bash
-sudo dnf upgrade /tmp/tradutorlinux-rpms/*.rpm
+sudo dnf upgrade /tmp/beer-rpms/*.rpm
 ```
 
 ## Analisar, instalar e abrir aplicativos
@@ -62,21 +62,21 @@ sudo dnf upgrade /tmp/tradutorlinux-rpms/*.rpm
 Antes de instalar um executável, consulte seus requisitos estáticos:
 
 ```bash
-tradutorlinux --report /caminho/para/aplicativo.exe
+beer --report /caminho/para/aplicativo.exe
 ```
 
 Para um instalador PE32+ x86-64 compatível:
 
 ```bash
-tradutorlinux install /caminho/para/instalador.exe --name "Nome do aplicativo"
-tradutorlinux app list
-tradutorlinux app run <id> --trace
+beer install /caminho/para/instalador.exe --name "Nome do aplicativo"
+beer app list
+beer app run <id> --trace
 ```
 
 Se o instalador concluir mas não houver um único executável novo identificável,
 o comando retorna `6` (`InstallPending`); escolha o executável dentro do
 prefixo usando `--app-exe`. Para um aplicativo portátil, cadastre seu
-executável com `tradutorlinux app add /caminho/aplicativo.exe --name "Nome"`.
+executável com `beer app add /caminho/aplicativo.exe --name "Nome"`.
 O aplicativo também pode ser aberto pela biblioteca do launcher.
 
 `doctor` verifica o ambiente Linux. Para investigar um aplicativo, use
@@ -88,29 +88,38 @@ privilégios do usuário atual.
 
 ## Biblioteca, configurações e prefixos
 
-- Catálogo: `$XDG_CONFIG_HOME/tradutorlinux/library.json`; sem
-  `XDG_CONFIG_HOME`, usa `$HOME/.config/tradutorlinux/library.json`.
-- Prefixo padrão dos aplicativos: `$HOME/.tradutorlinux/prefixes/<id>/`.
+- Catálogo: `$XDG_CONFIG_HOME/beer/library.json`; sem
+  `XDG_CONFIG_HOME`, usa `$HOME/.config/beer/library.json`.
+- Prefixo padrão dos aplicativos: `$HOME/.beer/prefixes/<id>/`.
+- Configuração do backend Proton: `$XDG_CONFIG_HOME/beer/backends.json`; sem
+  `XDG_CONFIG_HOME`, usa `$HOME/.config/beer/backends.json`.
+- `BEER_PREFIX` substitui a raiz padrão dos prefixos; `BEER_PROTON_ROOT`
+  seleciona temporariamente a instalação Proton; `BEER_GUI_BACKEND` escolhe
+  `auto`, `x11` ou `wayland` para a GUI Win32 experimental.
 - Dados de aplicativos convidados ficam dentro do prefixo, em `drive_c`, e são
   separados por ID.
 - Atalhos individuais: `$XDG_DATA_HOME/applications`; sem essa variável,
   `$HOME/.local/share/applications`.
 
-`tradutorlinux app remove <id>` remove o cadastro e o atalho, mas preserva o
+`beer app remove <id>` remove o cadastro e o atalho, mas preserva o
 executável e o prefixo. Isso permite recadastrar o aplicativo sem reinstalá-lo.
+
+Instalações anteriores podem ter dados em `$HOME/.config/tradutorlinux/` e
+`$HOME/.tradutorlinux/`. Beer não lê, migra nem remove esses caminhos; eles
+permanecem intactos. O catálogo e os prefixos novos começam nos caminhos Beer.
 
 ## Remover
 
 Remova primeiro os cadastros que não deseja manter e depois o pacote:
 
 ```bash
-tradutorlinux app list
-tradutorlinux app remove <id>
-sudo dnf remove tradutorlinux
+beer app list
+beer app remove <id>
+sudo dnf remove beer
 ```
 
 A remoção do pacote não apaga os prefixos nem arquivos pessoais. Apague um
-prefixo em `$HOME/.tradutorlinux/prefixes/<id>/` somente se também quiser
+prefixo em `$HOME/.beer/prefixes/<id>/` somente se também quiser
 remover os dados daquele aplicativo.
 
 ## Diagnóstico rápido

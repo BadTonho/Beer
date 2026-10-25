@@ -52,7 +52,7 @@ file(WRITE "${profile}"
     "  \"backend\": {\"kind\": \"proton\", \"min_version\": \"11.0\"}\n"
     "}\n"
 )
-file(WRITE "${WORK}/config/tradutorlinux/backends.json"
+file(WRITE "${WORK}/config/beer/backends.json"
     "{\n"
     "  \"schema\": 1,\n"
     "  \"proton\": {\n"
@@ -75,7 +75,7 @@ execute_process(
         "${CMAKE_COMMAND}" -E env
         "HOME=${WORK}/home"
         "XDG_CONFIG_HOME=${WORK}/config"
-        "TL_PROTON_ROOT=${PROTON_ROOT}"
+        "BEER_PROTON_ROOT=${PROTON_ROOT}"
         "PROTON_LOG=1"
         "DXVK_LOG_LEVEL=info"
         "TL_GRAPHICS_RUNTIME=${RUNTIME}"

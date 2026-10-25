@@ -169,7 +169,7 @@ std::string registry_path() {
         return explicit_path;
     }
     if (const char* appdata = std::getenv("APPDATA"); appdata != nullptr && appdata[0] != '\0') {
-        return std::string{appdata} + "/tradutorlinux-registry.db";
+        return std::string{appdata} + "/beer-registry.db";
     }
     return ".tl-registry.db";
 }

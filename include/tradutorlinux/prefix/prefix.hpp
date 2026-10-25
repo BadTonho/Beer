@@ -23,7 +23,7 @@ struct EnvironmentPaths {
     std::filesystem::path compat_dlls_dir;
 };
 
-// Retorna o caminho padrão do prefixo do TradutorLinux (~/.tradutorlinux)
+// Retorna o caminho padrão do prefixo do Beer (~/.beer)
 [[nodiscard]] std::filesystem::path default_prefix_root();
 
 // Diretório que agrupa os prefixos exclusivos de aplicativos cadastrados.

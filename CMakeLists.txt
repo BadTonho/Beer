@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(TradutorLinux VERSION 0.0.0 LANGUAGES C CXX ASM)
+project(Beer VERSION 0.0.0 LANGUAGES C CXX ASM)
 
 include(GNUInstallDirs)
 
@@ -52,19 +52,20 @@ add_subdirectory(src)
 install(TARGETS tradutorlinux ${TL_GUI_INSTALL_TARGET}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
-install(FILES resources/tradutorlinux.desktop
+install(FILES resources/beer.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
 )
-install(FILES resources/tradutorlinux.svg
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+install(FILES beer.png
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/pixmaps
 )
 
 set(CPACK_GENERATOR "DEB")
-set(CPACK_PACKAGE_NAME "tradutorlinux")
-set(CPACK_PACKAGE_VENDOR "TradutorLinux")
+set(CPACK_PACKAGE_NAME "beer")
+set(CPACK_PACKAGE_VENDOR "Beer Project")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Runtime de compatibilidade Win32 para Linux")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
-set(CPACK_DEBIAN_PACKAGE_MAINTAINER "TradutorLinux")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Beer Project")
+set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6, libx11-6, libwayland-client0, libxkbcommon0, libqt6widgets6, zlib1g, libstdc++6, libgcc-s1, desktop-file-utils")
 set(CPACK_RPM_PACKAGE_LICENSE "LGPL-3.0-only")

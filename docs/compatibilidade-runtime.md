@@ -96,7 +96,7 @@ Comportamento de rejeição:
 
 Em qualquer falha o entry point não é executado e todas as entradas são reportadas no trace (ver `docs/diagnostico.md`).
 
-**Forwarders e API Sets (inspirado em Wine `dlls/*/*.spec`):** `KERNELBASE.dll` encaminha para `KERNEL32.dll`; `api-ms-win-*` e `ext-ms-win-*` encaminham para o provedor real (`KERNEL32`, `USER32`, `GDI32`, `ADVAPI32`, `WS2_32`, `SHELL32`, `ole32`, `SHLWAPI`, `version`, `WINMM`, `COMCTL32`, `COMDLG32`, `IMM32`, `PSAPI`, `msvcrt`) — ver `src/loader/module.cpp:52` (`is_api_set_dll`/`is_kernelbase_dll`/`find_export_forwarded`). Falha de símbolo em API Set vira `unknown-symbol`, não `unknown-dll`.
+**Forwarders e API Sets:** `KERNELBASE.dll` encaminha para `KERNEL32.dll`; `api-ms-win-*` e `ext-ms-win-*` encaminham para o provedor real (`KERNEL32`, `USER32`, `GDI32`, `ADVAPI32`, `WS2_32`, `SHELL32`, `ole32`, `SHLWAPI`, `version`, `WINMM`, `COMCTL32`, `COMDLG32`, `IMM32`, `PSAPI`, `msvcrt`) — ver `src/loader/module.cpp:52` (`is_api_set_dll`/`is_kernelbase_dll`/`find_export_forwarded`). Falha de símbolo em API Set vira `unknown-symbol`, não `unknown-dll`.
 
 ### Extensões de DLL por aplicativo (B14.4)
 
@@ -332,7 +332,7 @@ fixa a lista de 105 imports. O build aplica os overlays
 `simple_todo_linux_autorun.patch` e `simple_todo_linux_close.patch`: a tela
 ganha layout Linux, a opção de autorun no Windows é removida e o fechamento da
 janela destrói o processo. O teste `targetapp_simple_todo_gui_smoke` usa
-um Xvfb próprio, um `TL_PREFIX` temporário e verifica o fluxo de adicionar,
+um Xvfb próprio, um `BEER_PREFIX` temporário e verifica o fluxo de adicionar,
 editar, buscar, concluir, excluir, esconder, mostrar e sair pelo menu emulado;
 o arquivo persistente é conferido em
 `C:\users\guest\AppData\Roaming\TodoApp\todos.dat` dentro do prefixo.
@@ -435,7 +435,7 @@ Contratos de ABI em `docs/arquitetura/msvcrt.md` e
 | `KERNEL32.dll` | `FreeLibrary` | Suportado | Aceita `0x1000` ou base do exe; `NULL`/inválido → `0` + `ERROR_INVALID_HANDLE` |
 | `KERNEL32.dll` | `GetProcAddress` | Suportado no subconjunto | Em execuções nativas não-Proton, busca no módulo identificado pelo handle e suporta ordinal via `MAKEINTRESOURCE`; aplica fallback por export do grafo. No caminho sem grafo, usa a busca global dos módulos internos; valida `proc_name` e `module`; `ERROR_PROC_NOT_FOUND` (127) ou `ERROR_INVALID_HANDLE` |
 | `KERNEL32.dll` | `GetVersionExA/W` | Suportado | Reporta Windows 10 (10.0.19044, `VER_PLATFORM_WIN32_NT=2`, `szCSDVersion` zero, `wServicePackMajor/Minor=0`, `wSuiteMask=0`, `wProductType=1`); lê e publica `lpVersionInformation` por cópia protegida, com tamanhos A:148/156 e W:276/284 (até 284); `ERROR_INVALID_PARAMETER` em ponteiro/size inválido |
-| `KERNEL32.dll` | `VerifyVersionInfoW` / `VerSetConditionMask` | Suportado | `VerifyVersionInfoW` lê `lpVersionInfo` por cópia protegida, valida `dwTypeMask` e retorna `TRUE` (versão sempre compatível); `VerSetConditionMask` codifica 3 bits por `TypeMask` (`&0x07`, `shift=i*3`) como no Wine |
+| `KERNEL32.dll` | `VerifyVersionInfoW` / `VerSetConditionMask` | Suportado | `VerifyVersionInfoW` lê `lpVersionInfo` por cópia protegida, valida `dwTypeMask` e retorna `TRUE` (versão sempre compatível); `VerSetConditionMask` codifica 3 bits por `TypeMask` (`&0x07`, `shift=i*3`) |
 | `KERNEL32.dll` | `GetUserDefaultLocaleName` | Suportado | Retorna `en-US` (wide, `0x0409`) por cópia protegida; `NULL/0` → `6` (inclui NUL); buffer <6 → `0` + `ERROR_INSUFFICIENT_BUFFER` (122) |
 | `KERNEL32.dll` | `LocaleNameToLCID` | Suportado | Copia o nome wide do convidado antes de converter; `en-US`→`0x0409`, `pt-BR`→`0x0416`, `en`→`0x09`, `pt`→`0x16` (case-insensitive); `NULL`/vazio/desconhecido → `0` + `ERROR_INVALID_PARAMETER` |
 | `version.dll` | `GetFileVersionInfoSizeA/W` / `GetFileVersionInfoA/W` / `GetFileVersionInfoSizeExA/W` / `GetFileVersionInfoExA/W` / `VerQueryValueA/W` | Não suportado controlado | As dez exports são `ExportSupport::Stub`: não inventam tamanho, bloco `RT_VERSION` ou ponteiro host; consultas válidas retornam falha com `ERROR_NOT_SUPPORTED`, zeram `GetFileVersionInfoSize`/`VerQueryValue`/`len` por cópias protegidas e não sondam o bloco de dados que nunca é consumido |
@@ -519,7 +519,7 @@ do host como argumentos.
 | `KERNEL32.dll` | `GetVolumeInformationA/W` / `GetFileAttributesExW` / `GetFileTime` / `SetFileTime` / `GetFileInformationByHandle` / `GetFileInformationByHandleEx` | Suportado no subconjunto | Metadados determinísticos ou derivados de `stat`/`fstat`; entradas e saídas usam cópias protegidas, sem pré-validação por snapshot de `/proc/self/maps`; o horário de criação é lido para validar o ponteiro, mas não é alterado no Linux |
 | `KERNEL32.dll` | `GetCurrentDirectoryA/W` | Suportado | Retorna o diretório de execução convertido para caminho Windows lógico: `C:\\...` dentro do prefixo, `Z:\\...` para arquivo/diretório externo |
 | `KERNEL32.dll` | `GetModuleFileNameA/W` | Suportado | Retorna o módulo definido via `set_guest_module_path()` como caminho Windows lógico: aplicação instalada no prefixo usa `C:\\...`; setup externo usa `Z:\\...` |
-| `KERNEL32.dll` | `GetFullPathNameW` | Suportado | Normalização Windows completa (Wine `dlls/kernel32/path.c`): resolve relativo via `GetCurrentDirectory`, colapsa `.`/`..`, trata `C:`, `\` e `\\` (UNC); `file_part` aponta para após último `\`/`:` |
+| `KERNEL32.dll` | `GetFullPathNameW` | Suportado | Normalização Windows completa: resolve relativo via `GetCurrentDirectory`, colapsa `.`/`..`, trata `C:`, `\` e `\\` (UNC); `file_part` aponta para após último `\`/`:` |
 | `KERNEL32.dll` | `GetFullPathNameA` | Suportado | Conversão `A` → `W` com mesma normalização; buffer insuficiente retorna `tamanho+1` e `ERROR_INSUFFICIENT_BUFFER` |
 | `KERNEL32.dll` | `lstrcatW` | Suportado no subconjunto | Concatena strings UTF-16 guest e retorna o destino; valida as strings e o intervalo gravável do resultado |
 | `SHELL32.dll` | `CommandLineToArgvW` | Suportado | Divide a linha de comando UTF-16 em argumentos, preservando grupos entre aspas; o bloco único retornado é liberado por `LocalFree` |

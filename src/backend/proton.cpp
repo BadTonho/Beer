@@ -369,13 +369,13 @@ struct Version {
 std::filesystem::path default_config_path() {
     const char* xdg_config_home = std::getenv("XDG_CONFIG_HOME");
     if (xdg_config_home != nullptr && *xdg_config_home != '\0') {
-        return std::filesystem::path{xdg_config_home} / "tradutorlinux" / "backends.json";
+        return std::filesystem::path{xdg_config_home} / "beer" / "backends.json";
     }
     const char* home = std::getenv("HOME");
     if (home != nullptr && *home != '\0') {
-        return std::filesystem::path{home} / ".config" / "tradutorlinux" / "backends.json";
+        return std::filesystem::path{home} / ".config" / "beer" / "backends.json";
     }
-    return std::filesystem::current_path() / ".config" / "tradutorlinux" / "backends.json";
+    return std::filesystem::current_path() / ".config" / "beer" / "backends.json";
 }
 
 ProtonConfigResult load_config_file(const std::filesystem::path& path) {
@@ -419,7 +419,7 @@ ProtonConfigResult load_config_file(const std::filesystem::path& path) {
 }
 
 ProtonConfigResult load_config() {
-    const char* environment_root = std::getenv("TL_PROTON_ROOT");
+    const char* environment_root = std::getenv("BEER_PROTON_ROOT");
     if (environment_root != nullptr && *environment_root != '\0') {
         ProtonConfigResult result;
         result.status = ConfigStatus::Loaded;
@@ -462,7 +462,7 @@ ProtonValidationResult validate_proton(const ProtonConfig& config,
         return result;
     }
     if (!validate_elf_x86_64(wine) || !validate_elf_x86_64(wineserver)) {
-        result.error = "Wine do Proton não é ELF x86-64";
+        result.error = "o componente executável do Proton não é ELF x86-64";
         return result;
     }
     if (!read_first_line(version_file, result.version)) {

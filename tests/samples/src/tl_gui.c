@@ -8,7 +8,7 @@ void tl_entry(void);
 __attribute__((used, section(".rdata"))) void (*const tl_relocation_anchor)(void) = &tl_entry;
 
 void tl_entry(void) {
-    if (MessageBoxA((void*)0, "TradutorLinux GUI", "Fase 7", 0) == 0) {
+    if (MessageBoxA((void*)0, "Beer GUI", "Fase 7", 0) == 0) {
         ExitProcess(1U);
     }
     ExitProcess(0U);

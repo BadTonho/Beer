@@ -6,8 +6,8 @@ if(NOT EXISTS "${RUNTIME}")
 endif()
 
 file(REMOVE_RECURSE "${WORK}")
-file(MAKE_DIRECTORY "${WORK}/home" "${WORK}/config/tradutorlinux")
-set(catalog "${WORK}/config/tradutorlinux/library.json")
+file(MAKE_DIRECTORY "${WORK}/home" "${WORK}/config/beer")
+set(catalog "${WORK}/config/beer/library.json")
 set(env_args
     "HOME=${WORK}/home"
     "XDG_CONFIG_HOME=${WORK}/config"

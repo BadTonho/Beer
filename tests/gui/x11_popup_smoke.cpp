@@ -127,7 +127,7 @@ Window find_popup(Display* const dpy) noexcept {
     for (unsigned int index = 0; index < count && result == 0; ++index) {
         char* name = nullptr;
         if (XFetchName(dpy, children[index], &name) != 0 && name != nullptr &&
-            std::strcmp(name, "TradutorLinuxPopup") == 0) {
+            std::strcmp(name, "BeerPopup") == 0) {
             result = children[index];
         }
         if (name != nullptr) {

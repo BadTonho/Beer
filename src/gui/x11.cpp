@@ -389,7 +389,7 @@ NativeWindow create_window(const char* const caption, const int width,  // NOLIN
         write_gui_trace(diagnostics::TraceLevel::Error, "window-create", fields);
         return nullptr;
     }
-    const char* const initial_caption = caption != nullptr ? caption : "TradutorLinux";
+    const char* const initial_caption = caption != nullptr ? caption : "Beer";
     XStoreName(dpy, window, initial_caption);
     const Atom net_wm_name = XInternAtom(dpy, "_NET_WM_NAME", False);
     const Atom utf8_string = XInternAtom(dpy, "UTF8_STRING", False);
@@ -655,7 +655,7 @@ std::uint32_t track_popup_menu(const std::vector<PopupMenuItem>& items, int x, i
     if (menu == 0) {
         return 0;
     }
-    XStoreName(dpy, menu, "TradutorLinuxPopup");
+    XStoreName(dpy, menu, "BeerPopup");
     XSelectInput(dpy, menu, ExposureMask | ButtonPressMask | KeyPressMask |
                                StructureNotifyMask);
     XMapRaised(dpy, menu);

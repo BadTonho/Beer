@@ -239,7 +239,7 @@ convidada — por exemplo, `VirtualAlloc` retorna nulo e `GetLastError` informa
 `ERROR_NOT_ENOUGH_MEMORY` — e não são confundidas com OOM global do hospedeiro.
 
 O filho ignora `SIGPIPE` antes do entry point: uma escrita do convidado em um
-pipe sem leitor (ex.: `tradutorlinux prog.exe | head -c 0`) falha com
+pipe sem leitor (ex.: `beer prog.exe | head -c 0`) falha com
 `errno=32` e `win32-error="109"` (`ERROR_BROKEN_PIPE`) no evento
 `linux-failure` do `WriteFile`, em vez de matar o convidado pelo sinal.
 
@@ -304,7 +304,7 @@ execução ao backend Proton:
 
 ### Saída estruturada em JSON (`--report --json`)
 
-Quando combinado com a flag `--json` (`tradutorlinux --report --json <app.exe>`), o comando emite o relatório completo em formato JSON padronizado diretamente em `stdout`. Isso viabiliza o consumo automatizado pelo lançador gráfico Qt (`src/ui/`), ferramentas de CI e scripts de análise:
+Quando combinado com a flag `--json` (`beer --report --json <app.exe>`), o comando emite o relatório completo em formato JSON padronizado diretamente em `stdout`. Isso viabiliza o consumo automatizado pelo lançador gráfico Qt (`src/ui/`), ferramentas de CI e scripts de análise:
 
 - Chaves de primeiro nível: `format`, `entry_point`, `image_base`, `size_of_image`, `sections_count`.
 - Objetos estruturados: `mitigations` (ASLR/DEP/CFG/SEH/AppContainer), `packer` (is_packed, name, indicators), `toolchain` (compiler, .NET, frameworks GUI), `security` (anticheat e APIs de driver/serviços), `identity` (metadados do bloco `RT_VERSION`), `resources` (inventário por tipo), `manifest` (UAC, DPI, SOs suportados) e `imports` (módulos, contadores, status e suporte por símbolo).
@@ -323,24 +323,24 @@ de evidência:
 Um `result: supported` sem execução correspondente significa apenas
 `imports-resolved`; não deve ser apresentado como suporte funcional ao usuário.
 
-### Diagnóstico de ambiente com o comando `doctor` (`tradutorlinux doctor [--json]`)
+### Diagnóstico de ambiente com o comando `doctor` (`beer doctor [--json]`)
 
-O subcomando `tradutorlinux doctor` verifica a prontidão do ambiente Linux hospedeiro para executar aplicativos Windows pelo TradutorLinux (tanto via runtime nativo quanto via backend Proton).
+O subcomando `beer doctor` verifica a prontidão do ambiente Linux hospedeiro para executar aplicativos Windows pelo Beer (tanto via runtime nativo quanto via backend Proton).
 
 Ele inspeciona e relata o status de 6 categorias principais:
 1. **Sistema e Kernel**: arquitetura do host (`x86_64`), versão do kernel Linux via `uname()`.
 2. **Servidor Gráfico**: detecção de X11 (`$DISPLAY`), Wayland (`$WAYLAND_DISPLAY`) e disponibilidade de `Xvfb` no `$PATH` para testes headless.
 3. **Aceleração 3D e GPU**: presença de nós de renderização DRM (`/dev/dri/renderD*`) e manifestos ICD de drivers Vulkan instalados (`/usr/share/vulkan/icd.d`, `/etc/vulkan/icd.d`).
-4. **Backend Proton**: status da configuração de runtime (`root` configurada em `~/.config/tradutorlinux/proton.json` ou `TRADUTORLINUX_PROTON_ROOT`).
+4. **Backend Proton**: status da configuração de runtime (`root` configurada em `$XDG_CONFIG_HOME/beer/backends.json`, com fallback para `~/.config/beer/backends.json`, ou `BEER_PROTON_ROOT`).
 5. **Sandbox e Isolamento**: presença do utilitário Bubblewrap (`bwrap`) no `$PATH` e status de namespaces de usuário desprivilegiados (`/proc/sys/kernel/unprivileged_userns_clone`).
 6. **Servidor de Áudio**: detecção de sockets de runtime PipeWire (`$XDG_RUNTIME_DIR/pipewire-0`) e PulseAudio (`$XDG_RUNTIME_DIR/pulse/native`).
 
-Com a opção `--json` (`tradutorlinux doctor --json`), o comando emite um documento JSON estruturado contendo as chaves `system`, `display`, `graphics_3d`, `proton`, `sandbox`, `audio` e a lista `issues`, viabilizando diagnósticos automáticos integrados a scripts de instalação, CI e interface gráfica Qt.
+Com a opção `--json` (`beer doctor --json`), o comando emite um documento JSON estruturado contendo as chaves `system`, `display`, `graphics_3d`, `proton`, `sandbox`, `audio` e a lista `issues`, viabilizando diagnósticos automáticos integrados a scripts de instalação, CI e interface gráfica Qt.
 
 ### Backend Rust no relatório direto e no `app run` nativo — R21.3–R21.5
 
 Quando o projeto é construído com `TL_BUILD_RUST=ON`, somente
-`tradutorlinux [--trace] --report arquivo.exe` e `app run <id>` nativo sem
+`beer [--trace] --report arquivo.exe` e `app run <id>` nativo sem
 `--report` usam Rust para analisar a imagem principal do PE. O evento de
 parsing identifica o backend:
 

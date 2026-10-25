@@ -1,9 +1,9 @@
-# Roadmap de uso diário — TradutorLinux
+# Roadmap de uso diário — Beer
 
 ## Objetivo
 
 Tornar confiável o uso, no desktop Linux, dos aplicativos PE32+ x86-64 que o
-TradutorLinux já executa parcialmente. O ciclo prioriza tarefas completas de
+Beer já executa parcialmente. O ciclo prioriza tarefas completas de
 ponta a ponta: instalar, cadastrar, abrir, trabalhar com arquivos, diagnosticar
 problemas e remover um aplicativo da biblioteca.
 
@@ -136,6 +136,9 @@ de análise, instalação e inicialização dos produtos identificáveis do corp
   promover rejeições ou limitações conhecidas.
 - [x] Corrigir a análise `--report` para não preparar prefixos e ajustar limites
   e critérios dos smokes quando a primeira execução expôs problemas do método.
+- [x] Adotar a identidade Beer na CLI, launcher, pacotes, entrada de menu,
+  ícone, configurações e prefixos, preservando os dados dos caminhos anteriores
+  sem leitura ou migração.
 - [ ] Validar o driver C++ PuTTY no preset Sanitizers ou no CI.
 - [ ] Validar as instruções no Ubuntu quando esse ambiente estiver disponível.
 

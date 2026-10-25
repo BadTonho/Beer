@@ -304,7 +304,7 @@ template <typename T>
 }
 
 [[nodiscard]] std::filesystem::path state_path(const std::filesystem::path& prefix) {
-    return prefix / ".tradutorlinux-security.bin";
+    return prefix / ".beer-security.bin";
 }
 
 [[nodiscard]] std::uint32_t fallback_seed(const std::string& value, const std::uint32_t salt) noexcept {

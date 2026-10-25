@@ -8,7 +8,7 @@ if(NOT DEFINED PREFIX_DIR)
     set(PREFIX_DIR "${CMAKE_CURRENT_BINARY_DIR}/default-report-prefix-${prefix_suffix}")
 endif()
 file(REMOVE_RECURSE "${PREFIX_DIR}")
-set(runtime_command "${CMAKE_COMMAND}" -E env "TL_PREFIX=${PREFIX_DIR}" "${RUNTIME}" --report "${INPUT}")
+set(runtime_command "${CMAKE_COMMAND}" -E env "BEER_PREFIX=${PREFIX_DIR}" "${RUNTIME}" --report "${INPUT}")
 
 execute_process(
     COMMAND ${runtime_command}

@@ -1,8 +1,8 @@
-# Diretriz do agente — TradutorLinux
+# Diretriz do agente — Beer
 
 ## Missão do projeto
 
-O TradutorLinux é um runtime de compatibilidade **sério e de produção** para executar, de forma progressiva e confiável, **classes cada vez mais amplas de aplicativos Win32 reais** no Linux, sem máquina virtual e sem emular a CPU — com foco em uso diário, não apenas educacional.
+O Beer é um runtime de compatibilidade **sério e de produção** para executar, de forma progressiva e confiável, **classes cada vez mais amplas de aplicativos Win32 reais** no Linux, sem máquina virtual e sem emular a CPU — com foco em uso diário, não apenas educacional.
 
 O alvo inicial é estrito: **executáveis PE32+ x86-64 em Linux x86-64**. A meta estratégica é tornar o runtime útil para o portfólio real `Aplicativos_Windows_Populares/` (`Roblox`, `WinRAR`, `HWiNFO64`, `7-Zip`, `putty`, `RTSSHooks`) avançando por classes de uso com `--report`/`--trace` e `exit code` reproduzíveis, sem prometer compatibilidade universal imediata.
 
@@ -21,7 +21,7 @@ Antes de iniciar qualquer trabalho, leia `PROJETO.md`, `ROADMAP.md`, `docs/compa
 
 ## Runtime genérico e extensões por aplicativo
 
-- O TradutorLinux é um runtime genérico: `src/runtime/`, o loader e os
+- O Beer é um runtime genérico: `src/runtime/`, o loader e os
   módulos comuns não podem incorporar regras, DLLs, shims ou hacks exclusivos
   de um aplicativo.
 - Código específico deve ficar isolado em `compat/apps/<app-id>/` e ser
@@ -85,7 +85,7 @@ Compatibilidade ampla é o objetivo de longo prazo, não uma autorização para 
 - Não execute o entry point antes de mapear a imagem, aplicar relocations, resolver imports e preparar o contexto mínimo definido para a fase.
 - Não deixe memória executável gravável por conveniência. Respeite permissões de seção e o princípio do menor privilégio.
 - Use tipos de largura fixa para dados binários e documente toda conversão entre representações Windows e Linux.
-- Não copie código de Wine ou de outro runtime. Referencie comportamento por documentação pública e testes; antes de reutilizar código de terceiros, revise sua licença.
+- Não copie código de terceiros ou de outros runtimes. Referencie comportamento por documentação pública e testes; antes de reutilizar código de terceiros, revise sua licença.
 
 ## Qualidade, testes e documentação
 

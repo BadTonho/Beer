@@ -6,17 +6,10 @@
 namespace tradutorlinux::ntdll {
 
 // ---------------------------------------------------------------------------
-// Camada NTDLL Unix — inspirada em dlls/ntdll/unix/virtual.c do Wine.
-//
-// No Wine, ntdll é a ponte entre o lado PE (kernel32 → ntdll → syscall) e o
-// lado Unix (mmap/mprotect). O TradutorLinux mantém a mesma separação:
+// Camada NTDLL Unix, que mantém a separação entre APIs Win32 e operações POSIX:
 //   kernel32!VirtualAlloc → ntdll!NtAllocateVirtualMemory → mmap
-// Isso deixa a fronteira ABI pequena, facilita testes e prepara o runtime
-// para MEM_RESERVE/MEM_COMMIT separados, exatamente como Wine faz em
-// virtual.c.
-//
-// Não copiamos código do Wine (LGPL-2.1); apenas o contrato e a organização
-// são reused. Toda implementação usa chamadas POSIX diretas.
+// Isso mantém a fronteira ABI pequena, facilita testes e permite implementar
+// MEM_RESERVE e MEM_COMMIT separadamente. A implementação usa chamadas POSIX.
 // ---------------------------------------------------------------------------
 
 // NTSTATUS mínimos usados pelo subconjunto suportado. Valores compatíveis
@@ -32,7 +25,7 @@ enum class NtStatus : std::uint32_t {
 
 [[nodiscard]] std::uint32_t NtStatusToDosError(NtStatus status) noexcept;
 
-// Aloca memória virtual anotada como Wine faz em NtAllocateVirtualMemory.
+// Implementa a reserva e o commit de memória virtual de NtAllocateVirtualMemory.
 //  - BaseAddress: in/out ponteiro (nullptr para uma nova reserva; endereço exato
 //    de uma reserva existente ao fazer MEM_COMMIT separado)
 //  - RegionSize: in/out tamanho em bytes (arredondado à página na saída)
@@ -53,7 +46,7 @@ enum class NtStatus : std::uint32_t {
                                            std::size_t* RegionSize,
                                            std::uint32_t FreeType) noexcept;
 
-// Altera proteção de região já mapeada (mprotect). Wine: NtProtectVirtualMemory.
+// Altera a proteção de uma região já mapeada (mprotect).
 [[nodiscard]] NtStatus NtProtectVirtualMemory(void* BaseAddress,
                                               std::size_t* RegionSize,
                                               std::uint32_t NewProtect,

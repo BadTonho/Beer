@@ -108,7 +108,7 @@ void stop_process(const pid_t pid) {
         if (input_fd >= 0) ::close(input_fd);
         ::close(output_fd);
         ::close(error_fd);
-        (void)::setenv("TL_PREFIX", prefix.c_str(), 1);
+        (void)::setenv("BEER_PREFIX", prefix.c_str(), 1);
         ::execv(runtime.c_str(), argv.data());
         ::_exit(127);
     }

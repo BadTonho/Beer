@@ -10,7 +10,7 @@ sandbox.
 
 ## Estado persistente
 
-O arquivo versionado `.tradutorlinux-security.bin`, na raiz do prefixo, guarda
+O arquivo versionado `.beer-security.bin`, na raiz do prefixo, guarda
 o SID do usuário virtual e as DACLs explicitamente gravadas. Seu SID tem a
 forma `S-1-5-21-<a>-<b>-<c>-1000`; os três valores são criados uma vez e nunca
 vêm de UID, grupos ou ACLs do hospedeiro. O token retornado para o processo

@@ -143,7 +143,7 @@ foreach(case IN LISTS CASES)
     endif()
 
     # O prefixo contém symlinks padrão em drive_c/dosdevices e metadados de segurança
-    # (.tradutorlinux-security.bin). Use find em drive_c para contar arquivos da aplicação.
+    # (.beer-security.bin). Use find em drive_c para contar arquivos da aplicação.
     execute_process(
         COMMAND find "${prefix}/drive_c" "${config}" "${appdata}" -type f -print
         RESULT_VARIABLE residual_result

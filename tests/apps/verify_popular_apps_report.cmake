@@ -63,7 +63,7 @@ foreach(case IN LISTS CASES)
     file(MAKE_DIRECTORY "${home}" "${config}")
     execute_process(
         COMMAND "${CMAKE_COMMAND}" -E env
-            "HOME=${home}" "XDG_CONFIG_HOME=${config}" "TL_PREFIX=${prefix}"
+            "HOME=${home}" "XDG_CONFIG_HOME=${config}" "BEER_PREFIX=${prefix}"
             "${TL_RUNTIME}" --report "${input_path}"
         TIMEOUT 30
         RESULT_VARIABLE actual_exit

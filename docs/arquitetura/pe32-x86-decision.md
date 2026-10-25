@@ -4,7 +4,7 @@ Data da decisão: 2026-09-07
 
 ## Decisão
 
-O TradutorLinux continuará rejeitando PE32/x86 com `Unsupported` enquanto não
+O Beer continuará rejeitando PE32/x86 com `Unsupported` enquanto não
 houver uma fase própria, autorização explícita e um contrato técnico completo
 para essa arquitetura. O escopo operacional atual permanece PE32+ AMD64 em
 host Linux x86-64.

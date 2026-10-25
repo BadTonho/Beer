@@ -817,7 +817,7 @@ void print_support_report_json(
                    entry.support == loader::ExportSupport::Stub;
         }));
 
-    stream << "TradutorLinux compatibility report\n";
+    stream << "Beer compatibility report\n";
     stream << "format: " << (info.is_pe32_plus ? "PE32+ x86-64" : "unsupported") << '\n';
     stream << "entry-point: " << util::format_hex(info.address_of_entry_point) << '\n';
     if (!file_bytes.empty()) {

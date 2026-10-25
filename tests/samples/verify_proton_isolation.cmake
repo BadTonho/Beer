@@ -14,7 +14,7 @@ if(NOT XVFB_RUN_EXECUTABLE)
 endif()
 
 file(REMOVE_RECURSE "${WORK}")
-file(MAKE_DIRECTORY "${WORK}/home" "${WORK}/config/tradutorlinux")
+file(MAKE_DIRECTORY "${WORK}/home" "${WORK}/config/beer")
 
 set(prefix_a "${WORK}/prefix-a")
 set(prefix_b "${WORK}/prefix-b")
@@ -101,7 +101,7 @@ string(CONFIGURE [=[{
 ]=] profile_b_contents @ONLY)
 file(WRITE "${profile_b}" "${profile_b_contents}")
 
-file(WRITE "${WORK}/config/tradutorlinux/backends.json"
+file(WRITE "${WORK}/config/beer/backends.json"
     "{\n"
     "  \"schema\": 1,\n"
     "  \"proton\": {\n"
@@ -125,7 +125,7 @@ function(run_isolation_app app_id stdout_file stderr_file result_var)
             "${CMAKE_COMMAND}" -E env
             "HOME=${WORK}/home"
             "XDG_CONFIG_HOME=${WORK}/config"
-            "TL_PROTON_ROOT=${PROTON_ROOT}"
+            "BEER_PROTON_ROOT=${PROTON_ROOT}"
             "WINEDEBUG=-all"
             "TL_ISOLATION_RUNTIME=${RUNTIME}"
             "TL_ISOLATION_APP_ID=${app_id}"

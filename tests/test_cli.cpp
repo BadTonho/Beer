@@ -1,6 +1,8 @@
 #include "tradutorlinux/cli.hpp"
 #include "tradutorlinux/catalog/app_catalog.hpp"
+#include "tradutorlinux/backend/proton.hpp"
 #include "tradutorlinux/diagnostics/trace.hpp"
+#include "tradutorlinux/prefix/prefix.hpp"
 
 #include <cstdlib>
 #include <filesystem>
@@ -62,7 +64,7 @@ private:
 }
 
 TEST(CommandLineTest, AcceptsTraceAndExecutable) {
-    const std::vector<const char*> arguments{"tradutorlinux", "--trace", "programa.exe"};
+    const std::vector<const char*> arguments{"beer", "--trace", "programa.exe"};
 
     const ParseResult result = parse_arguments(arguments);
 
@@ -74,7 +76,7 @@ TEST(CommandLineTest, AcceptsTraceAndExecutable) {
 
 TEST(CommandLineTest, AcceptsJsonTraceDirectory) {
     const std::vector<const char*> arguments{
-        "tradutorlinux", "--trace-json", "/tmp/tl-events", "programa.exe"};
+        "beer", "--trace-json", "/tmp/tl-events", "programa.exe"};
 
     const ParseResult result = parse_arguments(arguments);
 
@@ -84,7 +86,7 @@ TEST(CommandLineTest, AcceptsJsonTraceDirectory) {
 }
 
 TEST(CommandLineTest, AcceptsReportAndExecutable) {
-    const std::vector<const char*> arguments{"tradutorlinux", "--report", "programa.exe"};
+    const std::vector<const char*> arguments{"beer", "--report", "programa.exe"};
 
     const ParseResult result = parse_arguments(arguments);
 
@@ -95,7 +97,7 @@ TEST(CommandLineTest, AcceptsReportAndExecutable) {
 
 TEST(CommandLineTest, AcceptsInstallWithExplicitExecutableAndPrefix) {
     const std::vector<const char*> arguments{
-        "tradutorlinux", "install", "setup.exe", "--name", "Aplicativo de teste", "--prefix",
+        "beer", "install", "setup.exe", "--name", "Aplicativo de teste", "--prefix",
         "/tmp/tl-prefix", "--app-exe", "C:\\Program Files\\Teste\\app.exe", "--timeout", "2",
         "--trace=install"};
 
@@ -118,7 +120,7 @@ TEST(CommandLineTest, AcceptsInstallWithExplicitExecutableAndPrefix) {
 
 TEST(CommandLineTest, AcceptsInstallWithGuestArguments) {
     const std::vector<const char*> arguments{
-        "tradutorlinux", "install", "setup.exe", "-s", "/VERYSILENT"};
+        "beer", "install", "setup.exe", "-s", "/VERYSILENT"};
 
     const ParseResult result = parse_arguments(arguments);
 
@@ -133,7 +135,7 @@ TEST(CommandLineTest, AcceptsInstallWithGuestArguments) {
 
 TEST(CommandLineTest, AcceptsInstallWithDoubleDash) {
     const std::vector<const char*> arguments{
-        "tradutorlinux", "install", "--prefix", "/tmp/tl-prefix", "setup.exe", "--", "-s", "--prefix", "guest_val"};
+        "beer", "install", "--prefix", "/tmp/tl-prefix", "setup.exe", "--", "-s", "--prefix", "guest_val"};
 
     const ParseResult result = parse_arguments(arguments);
 
@@ -150,7 +152,7 @@ TEST(CommandLineTest, AcceptsInstallWithDoubleDash) {
 }
 
 TEST(CommandLineTest, RejectsUnknownOption) {
-    const std::vector<const char*> arguments{"tradutorlinux", "--invalida"};
+    const std::vector<const char*> arguments{"beer", "--invalida"};
 
     const ParseResult result = parse_arguments(arguments);
 
@@ -159,7 +161,7 @@ TEST(CommandLineTest, RejectsUnknownOption) {
 }
 
 TEST(CommandLineTest, AcceptsTimeoutOption) {
-    const std::vector<const char*> arguments{"tradutorlinux", "--timeout", "5", "programa.exe"};
+    const std::vector<const char*> arguments{"beer", "--timeout", "5", "programa.exe"};
 
     const ParseResult result = parse_arguments(arguments);
 
@@ -170,7 +172,7 @@ TEST(CommandLineTest, AcceptsTimeoutOption) {
 
 TEST(CommandLineTest, AcceptsCpuAndMemoryLimits) {
     const std::vector<const char*> arguments{
-        "tradutorlinux", "--cpu", "3", "--memory", "128", "programa.exe"};
+        "beer", "--cpu", "3", "--memory", "128", "programa.exe"};
 
     const ParseResult result = parse_arguments(arguments);
 
@@ -183,7 +185,7 @@ TEST(CommandLineTest, AcceptsCpuAndMemoryLimits) {
 
 TEST(CommandLineTest, AcceptsResourceLimitsForCatalogRun) {
     const std::vector<const char*> arguments{
-        "tradutorlinux", "app", "run", "app-id", "--cpu", "2", "--memory", "64", "argument"};
+        "beer", "app", "run", "app-id", "--cpu", "2", "--memory", "64", "argument"};
 
     const ParseResult result = parse_arguments(arguments);
 
@@ -199,7 +201,7 @@ TEST(CommandLineTest, AcceptsResourceLimitsForCatalogRun) {
 
 TEST(CommandLineTest, AcceptsTimeoutForCatalogRun) {
     const std::vector<const char*> arguments{
-        "tradutorlinux", "app", "run", "app-id", "--timeout", "1"};
+        "beer", "app", "run", "app-id", "--timeout", "1"};
 
     const ParseResult result = parse_arguments(arguments);
 
@@ -212,7 +214,7 @@ TEST(CommandLineTest, AcceptsTimeoutForCatalogRun) {
 
 TEST(CommandLineTest, KeepsFilesAfterSeparatorAsDistinctArguments) {
     const std::vector<const char*> arguments{
-        "tradutorlinux", "app", "run", "notepad++", "--trace", "--", "./um arquivo.txt",
+        "beer", "app", "run", "notepad++", "--trace", "--", "./um arquivo.txt",
         "/tmp/ação 😀.txt"};
     const ParseResult result = parse_arguments(arguments);
     ASSERT_TRUE(result.command_line.has_value()) << result.error_message;
@@ -223,7 +225,7 @@ TEST(CommandLineTest, KeepsFilesAfterSeparatorAsDistinctArguments) {
 }
 
 TEST(CommandLineTest, RejectsEmptyFileListAfterSeparator) {
-    const std::vector<const char*> arguments{"tradutorlinux", "app", "run", "notepad++", "--"};
+    const std::vector<const char*> arguments{"beer", "app", "run", "notepad++", "--"};
     const ParseResult result = parse_arguments(arguments);
     EXPECT_FALSE(result.command_line.has_value());
     EXPECT_NE(result.error_message.find("ao menos um caminho"), std::string::npos);
@@ -231,7 +233,7 @@ TEST(CommandLineTest, RejectsEmptyFileListAfterSeparator) {
 
 TEST(CommandLineTest, ParsesAssociationCommand) {
     const std::vector<const char*> arguments{
-        "tradutorlinux", "app", "associate", "notepad++", "add", "text/plain"};
+        "beer", "app", "associate", "notepad++", "add", "text/plain"};
     const ParseResult result = parse_arguments(arguments);
     ASSERT_TRUE(result.command_line.has_value()) << result.error_message;
     EXPECT_EQ(result.command_line->mode, CommandMode::AppAssociate);
@@ -241,7 +243,7 @@ TEST(CommandLineTest, ParsesAssociationCommand) {
 
 TEST(CommandLineTest, RejectsRepeatedResourceLimit) {
     const std::vector<const char*> arguments{
-        "tradutorlinux", "--memory", "64", "--memory", "128", "programa.exe"};
+        "beer", "--memory", "64", "--memory", "128", "programa.exe"};
 
     const ParseResult result = parse_arguments(arguments);
 
@@ -250,7 +252,7 @@ TEST(CommandLineTest, RejectsRepeatedResourceLimit) {
 }
 
 TEST(CommandLineTest, AcceptsZeroTimeoutAsUnlimited) {
-    const std::vector<const char*> arguments{"tradutorlinux", "--timeout", "0", "programa.exe"};
+    const std::vector<const char*> arguments{"beer", "--timeout", "0", "programa.exe"};
 
     const ParseResult result = parse_arguments(arguments);
 
@@ -260,7 +262,7 @@ TEST(CommandLineTest, AcceptsZeroTimeoutAsUnlimited) {
 }
 
 TEST(CommandLineTest, RejectsTimeoutWithoutValue) {
-    const std::vector<const char*> arguments{"tradutorlinux", "--timeout"};
+    const std::vector<const char*> arguments{"beer", "--timeout"};
 
     const ParseResult result = parse_arguments(arguments);
 
@@ -269,7 +271,7 @@ TEST(CommandLineTest, RejectsTimeoutWithoutValue) {
 }
 
 TEST(CommandLineTest, RejectsNonNumericTimeout) {
-    const std::vector<const char*> arguments{"tradutorlinux", "--timeout", "abc"};
+    const std::vector<const char*> arguments{"beer", "--timeout", "abc"};
 
     const ParseResult result = parse_arguments(arguments);
 
@@ -278,7 +280,7 @@ TEST(CommandLineTest, RejectsNonNumericTimeout) {
 }
 
 TEST(CommandLineTest, RejectsRepeatedTimeout) {
-    const std::vector<const char*> arguments{"tradutorlinux", "--timeout", "1", "--timeout", "2"};
+    const std::vector<const char*> arguments{"beer", "--timeout", "1", "--timeout", "2"};
 
     const ParseResult result = parse_arguments(arguments);
 
@@ -287,7 +289,7 @@ TEST(CommandLineTest, RejectsRepeatedTimeout) {
 }
 
 TEST(CommandLineTest, TimeoutAfterExecutableBelongsToGuest) {
-    const std::vector<const char*> arguments{"tradutorlinux", "programa.exe", "--timeout", "3"};
+    const std::vector<const char*> arguments{"beer", "programa.exe", "--timeout", "3"};
 
     const ParseResult result = parse_arguments(arguments);
 
@@ -299,12 +301,32 @@ TEST(CommandLineTest, TimeoutAfterExecutableBelongsToGuest) {
 }
 
 TEST(CommandLineTest, RejectsHelpWithExecutable) {
-    const std::vector<const char*> arguments{"tradutorlinux", "--help", "programa.exe"};
+    const std::vector<const char*> arguments{"beer", "--help", "programa.exe"};
 
     const ParseResult result = parse_arguments(arguments);
 
     EXPECT_FALSE(result.command_line.has_value());
     EXPECT_EQ(result.error_message, "--help e --version não podem ser usados com um arquivo executável");
+}
+
+TEST(CommandRunTest, VersionUsesBeerBrand) {
+    CommandLine command_line;
+    command_line.show_version = true;
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+
+    EXPECT_EQ(run_command(command_line, stdout_stream, stderr_stream), ExitCode::Success);
+    EXPECT_TRUE(stdout_stream.str().starts_with("Beer "));
+    EXPECT_TRUE(stderr_stream.str().empty());
+}
+
+TEST(CommandRunTest, HelpUsesBeerCommandAndBrand) {
+    std::ostringstream help;
+
+    print_help(help);
+
+    EXPECT_NE(help.str().find("beer app list"), std::string::npos);
+    EXPECT_NE(help.str().find("mostra a versão do Beer"), std::string::npos);
 }
 
 TEST(CommandRunTest, ReturnsUsageWhenExecutableIsMissing) {
@@ -337,7 +359,7 @@ TEST(CommandRunTest, RejectsReportForInstall) {
 TEST(CommandRunTest, ReturnsInputUnavailableForMissingPath) {
     CommandLine command_line;
     command_line.executable_path =
-        std::filesystem::temp_directory_path() / "tradutorlinux-fixture-that-does-not-exist.exe";
+        std::filesystem::temp_directory_path() / "beer-fixture-that-does-not-exist.exe";
     std::ostringstream stdout_stream;
     std::ostringstream stderr_stream;
 
@@ -351,7 +373,7 @@ TEST(CommandRunTest, ReturnsInputUnavailableForMissingPath) {
 TEST(CommandRunTest, AppRemoveSynchronizesCatalogAndDesktopAndPreservesApplicationFiles) {
     const std::filesystem::path root =
         std::filesystem::temp_directory_path() /
-        ("tradutorlinux-app-remove-" + std::to_string(static_cast<long long>(::getpid())));
+        ("beer-app-remove-" + std::to_string(static_cast<long long>(::getpid())));
     std::error_code error;
     std::filesystem::remove_all(root, error);
     const std::filesystem::path home = root / "home";
@@ -389,7 +411,7 @@ TEST(CommandRunTest, AppRemoveSynchronizesCatalogAndDesktopAndPreservesApplicati
     ASSERT_TRUE(app_catalog.save_to_file());
     ASSERT_TRUE(catalog::AppCatalog::create_desktop_entry(removable));
     const std::filesystem::path desktop_entry =
-        catalog::AppCatalog::default_desktop_entries_dir() / "tradutorlinux-remove_ok.desktop";
+        catalog::AppCatalog::default_desktop_entries_dir() / "beer-remove_ok.desktop";
     EXPECT_EQ(catalog::AppCatalog::default_desktop_entries_dir(), data_home / "applications");
     ASSERT_TRUE(std::filesystem::is_regular_file(desktop_entry));
     ASSERT_EQ(::unsetenv("XDG_DATA_HOME"), 0);
@@ -437,7 +459,7 @@ TEST(CommandRunTest, AppRemoveSynchronizesCatalogAndDesktopAndPreservesApplicati
     ASSERT_TRUE(reloaded.save_to_file());
     const std::filesystem::path blocked_shortcut =
         catalog::AppCatalog::default_desktop_entries_dir() /
-        "tradutorlinux-blocked_shortcut.desktop";
+        "beer-blocked_shortcut.desktop";
     std::filesystem::create_directories(blocked_shortcut / "child", error);
     ASSERT_FALSE(error);
 
@@ -457,7 +479,7 @@ TEST(CommandRunTest, AppRemoveSynchronizesCatalogAndDesktopAndPreservesApplicati
         ASSERT_TRUE(catalog::AppCatalog::create_desktop_entry(save_failure));
         ASSERT_TRUE(catalog::AppCatalog::set_desktop_entry_mime_types(
             save_failure, {"text/plain"}));
-        const std::filesystem::path catalog_directory = config_home / "tradutorlinux";
+        const std::filesystem::path catalog_directory = config_home / "beer";
         ASSERT_EQ(::chmod(catalog_directory.c_str(), S_IRUSR | S_IXUSR), 0);
 
         command_line.app_id = save_failure.id;
@@ -472,7 +494,7 @@ TEST(CommandRunTest, AppRemoveSynchronizesCatalogAndDesktopAndPreservesApplicati
         EXPECT_TRUE(reloaded.find_app(save_failure.id).has_value());
         EXPECT_TRUE(std::filesystem::is_regular_file(
             catalog::AppCatalog::default_desktop_entries_dir() /
-            "tradutorlinux-save_failure.desktop"));
+            "beer-save_failure.desktop"));
         EXPECT_EQ(catalog::AppCatalog::desktop_entry_mime_types(save_failure.id),
                   (std::vector<std::string>{"text/plain"}));
     }
@@ -482,7 +504,7 @@ TEST(CommandRunTest, AppRemoveSynchronizesCatalogAndDesktopAndPreservesApplicati
 
 TEST(AppCatalogTest, DesktopEntryStoresMimeTypesAndFileFieldCodeOnce) {
     const std::filesystem::path root = std::filesystem::temp_directory_path() /
-        ("tradutorlinux-desktop-mime-" + std::to_string(static_cast<long long>(::getpid())));
+        ("beer-desktop-mime-" + std::to_string(static_cast<long long>(::getpid())));
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
     const ScopedEnvironment environment{{"HOME", (root / "home").string()},
@@ -498,22 +520,96 @@ TEST(AppCatalogTest, DesktopEntryStoresMimeTypesAndFileFieldCodeOnce) {
     ASSERT_EQ(catalog::AppCatalog::desktop_entry_mime_types(entry.id), types);
     ASSERT_TRUE(catalog::AppCatalog::create_desktop_entry(entry));
     std::ifstream input(catalog::AppCatalog::default_desktop_entries_dir() /
-                        "tradutorlinux-notepadpp.desktop");
+                        "beer-notepadpp.desktop");
     const std::string contents{std::istreambuf_iterator<char>{input},
                                 std::istreambuf_iterator<char>{}};
     EXPECT_NE(contents.find("MimeType=text/plain;application/json;"), std::string::npos);
     const auto first_field = contents.find("%F");
     ASSERT_NE(first_field, std::string::npos);
     EXPECT_EQ(contents.find("%F", first_field + 2), std::string::npos);
-    EXPECT_NE(contents.find("Exec=/usr/bin/tradutorlinux app run notepadpp -- %F"),
+    EXPECT_NE(contents.find("Exec=/usr/bin/beer app run notepadpp -- %F"),
               std::string::npos);
     EXPECT_TRUE(catalog::AppCatalog::refresh_desktop_database({}, &error)) << error;
     std::filesystem::remove_all(root, ec);
 }
 
+TEST(AppCatalogTest, DefaultPathsUseBeerAndLeaveLegacyDataUntouched) {
+    const std::filesystem::path root = std::filesystem::temp_directory_path() /
+        ("beer-default-paths-" + std::to_string(static_cast<long long>(::getpid())));
+    const std::filesystem::path home = root / "home";
+    const std::filesystem::path legacy_catalog = home / ".config" / "tradutorlinux" / "library.json";
+    const std::filesystem::path legacy_prefix = home / ".tradutorlinux";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(legacy_catalog.parent_path(), error);
+    ASSERT_FALSE(error);
+    std::filesystem::create_directories(legacy_prefix, error);
+    ASSERT_FALSE(error);
+    {
+        std::ofstream output(legacy_catalog);
+        output << "legacy catalog sentinel\n";
+        std::ofstream marker(legacy_prefix / "keep.dat");
+        marker << "legacy prefix sentinel\n";
+        ASSERT_TRUE(output.good());
+        ASSERT_TRUE(marker.good());
+    }
+
+    {
+        const ScopedEnvironment environment{{"HOME", home.string()},
+                                            {"XDG_CONFIG_HOME", ""},
+                                            {"XDG_DATA_HOME", ""},
+                                            {"APPDATA", ""},
+                                            {"USERPROFILE", ""},
+                                            {"BEER_PREFIX", ""},
+                                            {"TL_PREFIX", legacy_prefix.string()},
+                                            {"TL_PROTON_ROOT", (root / "legacy-proton").string()},
+                                            {"BEER_PROTON_ROOT", ""}};
+        EXPECT_EQ(catalog::AppCatalog::default_catalog_path(),
+                  home / ".config" / "beer" / "library.json");
+        EXPECT_EQ(catalog::AppCatalog::default_desktop_entries_dir(),
+                  home / ".local" / "share" / "applications");
+        EXPECT_EQ(backend::default_config_path(),
+                  home / ".config" / "beer" / "backends.json");
+        EXPECT_EQ(backend::load_config().status, backend::ConfigStatus::Missing);
+        EXPECT_EQ(prefix::default_prefix_root(), home / ".beer");
+        EXPECT_EQ(prefix::default_app_prefix("sample"), home / ".beer" / "prefixes" / "sample");
+
+        catalog::AppCatalog catalog;
+        EXPECT_FALSE(catalog.load_from_file());
+        EXPECT_TRUE(catalog.list_apps().empty());
+        EXPECT_TRUE(std::filesystem::is_regular_file(legacy_catalog));
+        EXPECT_TRUE(std::filesystem::is_regular_file(legacy_prefix / "keep.dat"));
+    }
+
+    {
+        const std::filesystem::path xdg_config = root / "xdg-config";
+        const std::filesystem::path xdg_data = root / "xdg-data";
+        const std::filesystem::path custom_prefix = root / "custom-prefix";
+        const std::filesystem::path custom_proton = root / "custom-proton";
+        const ScopedEnvironment environment{{"HOME", home.string()},
+                                            {"XDG_CONFIG_HOME", xdg_config.string()},
+                                            {"XDG_DATA_HOME", xdg_data.string()},
+                                            {"BEER_PREFIX", custom_prefix.string()},
+                                            {"BEER_PROTON_ROOT", custom_proton.string()}};
+        EXPECT_EQ(catalog::AppCatalog::default_catalog_path(),
+                  xdg_config / "beer" / "library.json");
+        EXPECT_EQ(catalog::AppCatalog::default_desktop_entries_dir(),
+                  xdg_data / "applications");
+        EXPECT_EQ(backend::default_config_path(),
+                  xdg_config / "beer" / "backends.json");
+        const auto proton_config = backend::load_config();
+        ASSERT_EQ(proton_config.status, backend::ConfigStatus::Loaded);
+        ASSERT_TRUE(proton_config.config.has_value());
+        EXPECT_EQ(proton_config.config->root, custom_proton);
+        EXPECT_EQ(prefix::default_prefix_root(), custom_prefix);
+    }
+
+    std::filesystem::remove_all(root, error);
+}
+
 TEST(CommandRunTest, AppAssociateAddsAndRemovesMimeWithoutChangingDefaults) {
     const std::filesystem::path root = std::filesystem::temp_directory_path() /
-        ("tradutorlinux-app-associate-" + std::to_string(static_cast<long long>(::getpid())));
+        ("beer-app-associate-" + std::to_string(static_cast<long long>(::getpid())));
     std::error_code error;
     std::filesystem::remove_all(root, error);
     const ScopedEnvironment environment{{"HOME", (root / "home").string()},
@@ -566,7 +662,7 @@ TEST(CommandRunTest, AppAssociateAddsAndRemovesMimeWithoutChangingDefaults) {
 
 TEST(CommandRunTest, AppRunRejectsMissingFileArgumentsBeforeLaunchingGuest) {
     const std::filesystem::path root = std::filesystem::temp_directory_path() /
-        ("tradutorlinux-app-run-file-" + std::to_string(static_cast<long long>(::getpid())));
+        ("beer-app-run-file-" + std::to_string(static_cast<long long>(::getpid())));
     std::error_code error;
     std::filesystem::remove_all(root, error);
     const ScopedEnvironment environment{{"HOME", (root / "home").string()},
@@ -630,20 +726,20 @@ TEST(CommandRunTest, DirectRustReportPreservesStructuredParseFailure) {
 TEST(CommandRunTest, AppRunReportRemainsOnCppParserPath) {
     const std::filesystem::path root =
         std::filesystem::temp_directory_path() /
-        ("tradutorlinux-r21-3-app-run-report-" + std::to_string(static_cast<long long>(getpid())));
+        ("beer-r21-3-app-run-report-" + std::to_string(static_cast<long long>(getpid())));
     const std::filesystem::path config_home = root / "config";
     const std::filesystem::path prefix_root = root / "prefix";
     std::error_code cleanup_error;
     std::filesystem::remove_all(root, cleanup_error);
     std::filesystem::create_directories(config_home, cleanup_error);
 
-    const char* old_prefix_value = std::getenv("TL_PREFIX");
+    const char* old_prefix_value = std::getenv("BEER_PREFIX");
     const char* old_config_value = std::getenv("XDG_CONFIG_HOME");
     const std::string old_prefix = old_prefix_value == nullptr ? "" : old_prefix_value;
     const std::string old_config = old_config_value == nullptr ? "" : old_config_value;
     const bool had_prefix = old_prefix_value != nullptr;
     const bool had_config = old_config_value != nullptr;
-    setenv("TL_PREFIX", prefix_root.c_str(), 1);
+    setenv("BEER_PREFIX", prefix_root.c_str(), 1);
     setenv("XDG_CONFIG_HOME", config_home.c_str(), 1);
 
     catalog::AppCatalog app_catalog;
@@ -667,9 +763,9 @@ TEST(CommandRunTest, AppRunReportRemainsOnCppParserPath) {
     const ExitCode exit_code = run_command(command_line, stdout_stream, stderr_stream);
 
     if (had_prefix) {
-        setenv("TL_PREFIX", old_prefix.c_str(), 1);
+        setenv("BEER_PREFIX", old_prefix.c_str(), 1);
     } else {
-        unsetenv("TL_PREFIX");
+        unsetenv("BEER_PREFIX");
     }
     if (had_config) {
         setenv("XDG_CONFIG_HOME", old_config.c_str(), 1);
@@ -893,18 +989,18 @@ TEST(CommandRunTest, ReportDisplaysPeSecurityMitigations) {
 }
 
 TEST(CommandLineTest, ParsesReportJsonOptions) {
-    const std::vector<const char*> valid_args{"tradutorlinux", "--report", "--json", "app.exe"};
+    const std::vector<const char*> valid_args{"beer", "--report", "--json", "app.exe"};
     const ParseResult valid_res = parse_command_line(static_cast<int>(valid_args.size()), valid_args.data());
     ASSERT_TRUE(valid_res.command_line.has_value());
     EXPECT_TRUE(valid_res.command_line->report_only);
     EXPECT_TRUE(valid_res.command_line->report_json);
 
-    const std::vector<const char*> json_only{"tradutorlinux", "--json", "app.exe"};
+    const std::vector<const char*> json_only{"beer", "--json", "app.exe"};
     const ParseResult err_res = parse_command_line(static_cast<int>(json_only.size()), json_only.data());
     EXPECT_FALSE(err_res.command_line.has_value());
     EXPECT_NE(err_res.error_message.find("a opção --json requer --report"), std::string::npos);
 
-    const std::vector<const char*> repeated{"tradutorlinux", "--report", "--json", "--json", "app.exe"};
+    const std::vector<const char*> repeated{"beer", "--report", "--json", "--json", "app.exe"};
     const ParseResult rep_res = parse_command_line(static_cast<int>(repeated.size()), repeated.data());
     EXPECT_FALSE(rep_res.command_line.has_value());
     EXPECT_NE(rep_res.error_message.find("a opção --json foi repetida"), std::string::npos);
@@ -974,19 +1070,19 @@ TEST(CommandRunTest, ReportJsonContainsUnresolvedModulesWhenUnsupported) {
 }
 
 TEST(CommandLineTest, ParsesDoctorCommand) {
-    const std::vector<const char*> doctor_args{"tradutorlinux", "doctor"};
+    const std::vector<const char*> doctor_args{"beer", "doctor"};
     const ParseResult doc_res = parse_command_line(static_cast<int>(doctor_args.size()), doctor_args.data());
     ASSERT_TRUE(doc_res.command_line.has_value());
     EXPECT_EQ(doc_res.command_line->mode, CommandMode::Doctor);
     EXPECT_FALSE(doc_res.command_line->report_json);
 
-    const std::vector<const char*> doctor_json_args{"tradutorlinux", "doctor", "--json"};
+    const std::vector<const char*> doctor_json_args{"beer", "doctor", "--json"};
     const ParseResult json_res = parse_command_line(static_cast<int>(doctor_json_args.size()), doctor_json_args.data());
     ASSERT_TRUE(json_res.command_line.has_value());
     EXPECT_EQ(json_res.command_line->mode, CommandMode::Doctor);
     EXPECT_TRUE(json_res.command_line->report_json);
 
-    const std::vector<const char*> doctor_err_args{"tradutorlinux", "doctor", "--invalid-flag"};
+    const std::vector<const char*> doctor_err_args{"beer", "doctor", "--invalid-flag"};
     const ParseResult err_res = parse_command_line(static_cast<int>(doctor_err_args.size()), doctor_err_args.data());
     EXPECT_FALSE(err_res.command_line.has_value());
 }
@@ -1001,7 +1097,7 @@ TEST(CommandRunTest, DoctorProducesHumanReadableDiagnostics) {
     EXPECT_EQ(exit_code, ExitCode::Success);
 
     const std::string output = stdout_stream.str();
-    EXPECT_NE(output.find("TradutorLinux Doctor - Diagnostico do Ambiente Hospedeiro"), std::string::npos);
+    EXPECT_NE(output.find("Beer Doctor - Diagnostico do Ambiente Hospedeiro"), std::string::npos);
     EXPECT_NE(output.find("[OK] Arquitetura:"), std::string::npos);
     EXPECT_NE(output.find("Status: ambiente pronto"), std::string::npos);
 }
@@ -1025,7 +1121,7 @@ TEST(CommandRunTest, DoctorEmitsStructuredJson) {
 }
 
 TEST(CommandLineTest, ParsesNoNetworkOption) {
-    const std::array<const char*, 3> argv{"tradutorlinux", "--no-network", "app.exe"};
+    const std::array<const char*, 3> argv{"beer", "--no-network", "app.exe"};
     const ParseResult result = parse_command_line(static_cast<int>(argv.size()), argv.data());
     ASSERT_TRUE(result.command_line.has_value());
     EXPECT_EQ(result.command_line->network_mode, process::NetworkMode::None);
@@ -1034,19 +1130,19 @@ TEST(CommandLineTest, ParsesNoNetworkOption) {
 
 TEST(CommandLineTest, ParsesNetworkModes) {
     {
-        const std::array<const char*, 3> argv{"tradutorlinux", "--network=none", "app.exe"};
+        const std::array<const char*, 3> argv{"beer", "--network=none", "app.exe"};
         const ParseResult result = parse_command_line(static_cast<int>(argv.size()), argv.data());
         ASSERT_TRUE(result.command_line.has_value());
         EXPECT_EQ(result.command_line->network_mode, process::NetworkMode::None);
     }
     {
-        const std::array<const char*, 4> argv{"tradutorlinux", "--network", "loopback", "app.exe"};
+        const std::array<const char*, 4> argv{"beer", "--network", "loopback", "app.exe"};
         const ParseResult result = parse_command_line(static_cast<int>(argv.size()), argv.data());
         ASSERT_TRUE(result.command_line.has_value());
         EXPECT_EQ(result.command_line->network_mode, process::NetworkMode::Loopback);
     }
     {
-        const std::array<const char*, 3> argv{"tradutorlinux", "--network=full", "app.exe"};
+        const std::array<const char*, 3> argv{"beer", "--network=full", "app.exe"};
         const ParseResult result = parse_command_line(static_cast<int>(argv.size()), argv.data());
         ASSERT_TRUE(result.command_line.has_value());
         EXPECT_EQ(result.command_line->network_mode, process::NetworkMode::Full);
@@ -1054,14 +1150,14 @@ TEST(CommandLineTest, ParsesNetworkModes) {
 }
 
 TEST(CommandLineTest, RejectsInvalidNetworkOption) {
-    const std::array<const char*, 3> argv{"tradutorlinux", "--network=wifi", "app.exe"};
+    const std::array<const char*, 3> argv{"beer", "--network=wifi", "app.exe"};
     const ParseResult result = parse_command_line(static_cast<int>(argv.size()), argv.data());
     EXPECT_FALSE(result.command_line.has_value());
     EXPECT_NE(result.error_message.find("modo inválido para --network"), std::string::npos);
 }
 
 TEST(CommandLineTest, RejectsDuplicateNetworkOption) {
-    const std::array<const char*, 4> argv{"tradutorlinux", "--no-network", "--network=none", "app.exe"};
+    const std::array<const char*, 4> argv{"beer", "--no-network", "--network=none", "app.exe"};
     const ParseResult result = parse_command_line(static_cast<int>(argv.size()), argv.data());
     EXPECT_FALSE(result.command_line.has_value());
     EXPECT_NE(result.error_message.find("a opção --network foi repetida"), std::string::npos);

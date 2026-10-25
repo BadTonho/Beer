@@ -1,6 +1,6 @@
 # Arquitetura: Instaladores e Biblioteca de Aplicativos
 
-Este documento detalha os contratos técnicos do subsistema de **Prefixos de Ambiente** e da **Biblioteca de Aplicativos (Catalog/Launcher)** do TradutorLinux.
+Este documento detalha os contratos técnicos do subsistema de **Prefixos de Ambiente** e da **Biblioteca de Aplicativos (Catalog/Launcher)** do Beer.
 
 ---
 
@@ -11,11 +11,11 @@ Localização:
 - Implementação: [src/prefix/prefix.cpp](file:///c:/Users/Admin/Desktop/ProjetosCode/Linux/TradutorLinux/src/prefix/prefix.cpp)
 
 ### Estrutura de Diretórios
-Execuções diretas legadas usam `~/.tradutorlinux/`. Cada nova instalação e cada
+Execuções diretas legadas usam `~/.beer/`. Cada nova instalação e cada
 novo cadastro persistente usam, por padrão, um prefixo exclusivo em
-`~/.tradutorlinux/prefixes/<id>/`:
+`~/.beer/prefixes/<id>/`:
 ```text
-~/.tradutorlinux/prefixes/<id>/
+~/.beer/prefixes/<id>/
 └── drive_c/
     ├── Program Files/
     ├── Program Files (x86)/
@@ -66,7 +66,7 @@ Localização:
 - Implementação: [src/catalog/app_catalog.cpp](file:///c:/Users/Admin/Desktop/ProjetosCode/Linux/TradutorLinux/src/catalog/app_catalog.cpp)
 
 ### Armazenamento
-O catálogo é persistido em formato JSON em `~/.config/tradutorlinux/library.json`.
+O catálogo é persistido em formato JSON em `~/.config/beer/library.json`.
 
 ```json
 {
@@ -75,10 +75,10 @@ O catálogo é persistido em formato JSON em `~/.config/tradutorlinux/library.js
     {
       "id": "notepad_plus_plus",
       "name": "Notepad++",
-      "executable_path": "/home/user/.tradutorlinux/drive_c/Program Files/Notepad++/notepad++.exe",
-      "prefix_path": "/home/user/.tradutorlinux",
+      "executable_path": "/home/user/.beer/drive_c/Program Files/Notepad++/notepad++.exe",
+      "prefix_path": "/home/user/.beer",
       "icon_path": "",
-      "working_directory": "/home/user/.tradutorlinux/drive_c/Program Files/Notepad++",
+      "working_directory": "/home/user/.beer/drive_c/Program Files/Notepad++",
       "created_at": "2026-08-19T12:00:00Z",
       "args": []
     }
@@ -92,13 +92,13 @@ O catálogo é persistido em formato JSON em `~/.config/tradutorlinux/library.js
 
 | Comando | Descrição |
 |---|---|
-| `tradutorlinux <app.exe>` | Execução direta de um executável PE32+. |
-| `tradutorlinux install <setup.exe|package.msix> [--name <Nome>] [--prefix <dir>] [--app-exe <caminho>]` | Executa um setup PE32+ ou instala um pacote MSIX/AppX nativo no prefixo exclusivo. Só cadastra após o exit `0` do setup; pacotes selecionam o PE declarado no manifesto. |
-| `tradutorlinux app list` | Lista todos os aplicativos cadastrados na biblioteca. |
-| `tradutorlinux app run <id_ou_nome> [opções] [argumentos...] [-- <arquivo>...]` | Executa um aplicativo cadastrado; arquivos após `--` são encaminhados como caminhos de arquivo. |
-| `tradutorlinux app add <app.exe> [--name <Nome>] [--prefix <dir>] [--id <id>]` | Cadastra manualmente um executável na biblioteca. Sem `--prefix`, cria prefixo exclusivo. |
-| `tradutorlinux app remove <id>` | Remove o cadastro e o atalho individual do menu. O executável instalado e o prefixo são preservados. |
-| `tradutorlinux app associate <id> <add|remove> <mime-type>` | Adiciona ou remove um MIME type anunciado pelo atalho do aplicativo. |
+| `beer <app.exe>` | Execução direta de um executável PE32+. |
+| `beer install <setup.exe|package.msix> [--name <Nome>] [--prefix <dir>] [--app-exe <caminho>]` | Executa um setup PE32+ ou instala um pacote MSIX/AppX nativo no prefixo exclusivo. Só cadastra após o exit `0` do setup; pacotes selecionam o PE declarado no manifesto. |
+| `beer app list` | Lista todos os aplicativos cadastrados na biblioteca. |
+| `beer app run <id_ou_nome> [opções] [argumentos...] [-- <arquivo>...]` | Executa um aplicativo cadastrado; arquivos após `--` são encaminhados como caminhos de arquivo. |
+| `beer app add <app.exe> [--name <Nome>] [--prefix <dir>] [--id <id>]` | Cadastra manualmente um executável na biblioteca. Sem `--prefix`, cria prefixo exclusivo. |
+| `beer app remove <id>` | Remove o cadastro e o atalho individual do menu. O executável instalado e o prefixo são preservados. |
+| `beer app associate <id> <add|remove> <mime-type>` | Adiciona ou remove um MIME type anunciado pelo atalho do aplicativo. |
 
 Em `app run`, argumentos comuns antes de `--` permanecem separados e na ordem
 fornecida. Cada caminho após `--` é resolvido a partir do diretório atual de
@@ -164,12 +164,12 @@ não fazem parte desse contrato. A fixture `native-fixture.msix` e o CTest
 
 ---
 
-## 4. Interface Gráfica do Launcher (`tradutorlinux_gui`)
+## 4. Interface Gráfica do Launcher (`beer-gui`)
 
 A interface usa Qt6 e está implementada em
 [`src/gui/main_window.cpp`](../../src/gui/main_window.cpp), com entrada em
-[`src/gui/qt_main.cpp`](../../src/gui/qt_main.cpp). O alvo continua sendo
-`tradutorlinux_gui`.
+[`src/gui/qt_main.cpp`](../../src/gui/qt_main.cpp). O alvo CMake continua sendo
+`tradutorlinux_gui`; o executável gerado chama-se `beer-gui`.
 
 O launcher exibe a biblioteca, filtra aplicativos, permite selecionar um
 executável pelo `QFileDialog` ou pelo campo de caminho e disponibiliza ações
@@ -187,16 +187,17 @@ assíncronas:
   persistido e apresenta erro;
 - **Limpar**: restaura o formulário sem apagar a biblioteca.
 
-A execução usa `QProcess`, procura o binário `tradutorlinux` no mesmo diretório
+A execução usa `QProcess`, procura o binário `beer` no mesmo diretório
 do launcher e separa stdout de stderr no console visual. O contrato completo,
 os limites e os testes estão em
 [`guia-ui-qt6.md`](guia-ui-qt6.md).
 
 ## 5. Pacotes Linux
 
-O CMake instala `tradutorlinux` e `tradutorlinux_gui` em `/usr/bin`, o launcher
-`tradutorlinux.desktop` em `/usr/share/applications` e o ícone SVG no tema
-Hicolor. O CPack gera DEB por padrão e também pode gerar RPM com
+O CMake instala `beer` e `beer-gui` em `/usr/bin`, o launcher
+`beer.desktop` em `/usr/share/applications` e o ícone `beer.png` em
+`/usr/share/pixmaps`. Os nomes dos alvos CMake permanecem
+`tradutorlinux` e `tradutorlinux_gui`. O CPack gera DEB por padrão e também pode gerar RPM com
 `cpack -G RPM`; as dependências ELF do RPM são detectadas automaticamente pelo
 gerador. Ambos declaram `desktop-file-utils`, usado para atualizar o cache do
 menu quando um cadastro muda, e usam o prefixo `/usr`.

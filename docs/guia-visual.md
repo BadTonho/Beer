@@ -17,7 +17,7 @@ As aplicações ficam em `build/debug/tests/samples/generated/`.
 ## Abrir a GUI principal
 
 ```bash
-./build/debug/src/tradutorlinux_gui
+./build/debug/src/beer-gui
 ```
 
 A tela principal é o launcher Qt6. Ela aceita o caminho do executável pelo
@@ -35,7 +35,7 @@ O contrato da interface, o fluxo assíncrono e os limites do launcher estão em
 ## Abrir a caixa de diálogo
 
 ```bash
-./build/debug/src/tradutorlinux --trace \
+./build/debug/src/beer --trace \
   build/debug/tests/samples/generated/tl_gui.exe
 ```
 
@@ -46,7 +46,7 @@ botão encerra a fixture.
 
 ```bash
 DISPLAY=:0.0 XDG_SESSION_TYPE=x11 \
-./build/debug/src/tradutorlinux \
+./build/debug/src/beer \
   "/caminho/para/Aplicativos_Windows_Populares/7-Zip/7zFM.exe"
 ```
 
@@ -68,7 +68,7 @@ amostra exata registrada no inventário:
 
 ```bash
 ./build/debug/tests/seven_zip_smoke \
-  ./build/debug/src/tradutorlinux \
+  ./build/debug/src/beer \
   "/caminho/para/Aplicativos_Windows_Populares/7-Zip/7zFM.exe"
 ```
 
@@ -81,7 +81,7 @@ operação não sobrescreve arquivos.
 
 ```bash
 TL_GUI_AUTOCLOSE_MS=0 \
-./build/debug/src/tradutorlinux --trace \
+./build/debug/src/beer --trace \
   build/debug/tests/samples/generated/tl_win.exe
 ```
 
@@ -92,11 +92,11 @@ ativa o fechamento automático usado nos testes.
 ## Outras demonstrações
 
 ```bash
-./build/debug/src/tradutorlinux --trace build/debug/tests/samples/generated/tl_win2.exe
-./build/debug/src/tradutorlinux --trace build/debug/tests/samples/generated/tl_key.exe
-./build/debug/src/tradutorlinux --trace build/debug/tests/samples/generated/tl_timer.exe
-./build/debug/src/tradutorlinux --trace build/debug/tests/samples/generated/tl_gdi.exe
-./build/debug/src/tradutorlinux --trace build/debug/tests/samples/generated/tl_paint.exe
+./build/debug/src/beer --trace build/debug/tests/samples/generated/tl_win2.exe
+./build/debug/src/beer --trace build/debug/tests/samples/generated/tl_key.exe
+./build/debug/src/beer --trace build/debug/tests/samples/generated/tl_timer.exe
+./build/debug/src/beer --trace build/debug/tests/samples/generated/tl_gdi.exe
+./build/debug/src/beer --trace build/debug/tests/samples/generated/tl_paint.exe
 ```
 
 Essas fixtures demonstram múltiplas janelas, teclado, timers, pintura/texto e

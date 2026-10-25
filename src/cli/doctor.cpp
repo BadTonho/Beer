@@ -180,7 +180,7 @@ ExitCode run_doctor(std::ostream& stdout_stream, std::ostream& /*stderr_stream*/
         return environment_ready ? ExitCode::Success : ExitCode::Unsupported;
     }
 
-    stdout_stream << "TradutorLinux Doctor - Diagnostico do Ambiente Hospedeiro\n";
+    stdout_stream << "Beer Doctor - Diagnostico do Ambiente Hospedeiro\n";
     stdout_stream << "=========================================================\n";
 
     if (arch_supported) {

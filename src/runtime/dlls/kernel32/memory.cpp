@@ -794,7 +794,7 @@ TL_MSABI int tl_VirtualProtect(void* address, std::uintptr_t size,
     const ntdll::NtStatus st = ntdll::NtProtectVirtualMemory(address, &region, new_protection, &old);
     if (st != ntdll::NtStatus::Success) {
         const std::uint32_t err = ntdll::NtStatusToDosError(st);
-        // Wine mapeia InvalidParameter/AccessDenied para ERROR_INVALID_ADDRESS quando fora da VAD.
+        // A API converte esses status para ERROR_INVALID_ADDRESS nesta fronteira.
         if (st == ntdll::NtStatus::InvalidParameter || st == ntdll::NtStatus::AccessDenied) {
             // Tenta distinguir: se não achou região, retorna InvalidAddress como antes.
             set_last_error(abi::kErrorInvalidAddress);

@@ -1,7 +1,7 @@
 # Catálogo das APIs Win32 implementadas
 
 Este documento é o índice técnico das funções Win32 que foram introduzidas ou
-explicitamente justificadas pelos roadmaps do TradutorLinux. O roadmap registra
+explicitamente justificadas pelos roadmaps do Beer. O roadmap registra
 sequência e decisão; este catálogo registra o contrato atual. Ele não é uma
 promessa de compatibilidade geral com Windows nem substitui as declarações
 compatíveis em `include/tradutorlinux/`.

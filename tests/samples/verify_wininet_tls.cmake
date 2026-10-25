@@ -109,7 +109,7 @@ start_tls_server("${certificate}" "${private_key}" server_port)
 
 execute_process(
     COMMAND "${CMAKE_COMMAND}" -E env
-        "TL_PREFIX=${WORK}/prefix"
+        "BEER_PREFIX=${WORK}/prefix"
         "TL_WININET_CA_FILE=${certificate}"
         "TL_WININET_PORT=${server_port}"
         "${RUNTIME}" --trace "${INPUT}"
@@ -138,7 +138,7 @@ endforeach()
 start_tls_server("${certificate}" "${private_key}" wrong_ca_port)
 execute_process(
     COMMAND "${CMAKE_COMMAND}" -E env
-        "TL_PREFIX=${WORK}/wrong-ca-prefix"
+        "BEER_PREFIX=${WORK}/wrong-ca-prefix"
         "TL_WININET_CA_FILE=${wrong_certificate}"
         "TL_WININET_PORT=${wrong_ca_port}"
         "${RUNTIME}" --trace "${INPUT}"

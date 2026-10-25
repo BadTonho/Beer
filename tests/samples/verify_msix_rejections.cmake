@@ -29,7 +29,7 @@ endfunction()
 
 file(WRITE "${source}/AppxManifest.xml" [=[<?xml version="1.0"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10">
-  <Identity Name="TradutorLinux.RejectionFixture" Publisher="CN=TradutorLinux" Version="1.0.0.0" />
+  <Identity Name="Beer.RejectionFixture" Publisher="CN=Beer" Version="1.0.0.0" />
   <Applications><Application Id="App" Executable="bin/tl_hello.exe" /></Applications>
 </Package>
 ]=])
@@ -102,6 +102,6 @@ endif()
 if(RUST_ENABLED AND NOT install_trace MATCHES "package-parse.*backend=\\\"rust\\\".*status=\\\"malformed\\\"")
     message(FATAL_ERROR "malformed install did not expose Rust package parsing:\n${install_trace}")
 endif()
-if(EXISTS "${WORK}/config/tradutorlinux/library.json")
+if(EXISTS "${WORK}/config/beer/library.json")
     message(FATAL_ERROR "malformed package created a catalog entry")
 endif()

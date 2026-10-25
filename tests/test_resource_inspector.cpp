@@ -567,19 +567,19 @@ TEST(ResourceInspectorTest, ParseVersionInfoFull) {
         write_u16(data, start, static_cast<std::uint16_t>(data.size() - start));
     };
 
-    push_string_struct("ProductName", "TradutorLinux App");
+    push_string_struct("ProductName", "Beer App");
     push_string_struct("ProductVersion", "7.10.2");
-    push_string_struct("CompanyName", "TradutorLinux Team");
+    push_string_struct("CompanyName", "Beer Team");
     push_string_struct("FileDescription", "Compatibility App");
 
     write_u16(data, 0, static_cast<std::uint16_t>(data.size()));
 
     const ProductVersionInfo vinfo = parse_version_info(data);
     EXPECT_TRUE(vinfo.has_version_info);
-    EXPECT_EQ(vinfo.product_name, "TradutorLinux App");
+    EXPECT_EQ(vinfo.product_name, "Beer App");
     EXPECT_EQ(vinfo.product_version, "7.10.2");
     EXPECT_EQ(vinfo.file_version, "7.1.2.3");
-    EXPECT_EQ(vinfo.company_name, "TradutorLinux Team");
+    EXPECT_EQ(vinfo.company_name, "Beer Team");
     EXPECT_EQ(vinfo.file_description, "Compatibility App");
 }
 

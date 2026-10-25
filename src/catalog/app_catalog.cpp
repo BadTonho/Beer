@@ -277,15 +277,15 @@ void write_rust_catalog_trace(const std::filesystem::path& path,
 std::filesystem::path AppCatalog::default_catalog_path() {
     const char* xdg = std::getenv("XDG_CONFIG_HOME");
     if (xdg != nullptr && *xdg != '\0') {
-        return std::filesystem::path(xdg) / "tradutorlinux" / "library.json";
+        return std::filesystem::path(xdg) / "beer" / "library.json";
     }
     const char* home = std::getenv("HOME");
     if (home != nullptr && *home != '\0') {
-        return std::filesystem::path(home) / ".config" / "tradutorlinux" / "library.json";
+        return std::filesystem::path(home) / ".config" / "beer" / "library.json";
     }
     const char* appdata = std::getenv("APPDATA");
     if (appdata != nullptr && *appdata != '\0') {
-        return std::filesystem::path(appdata) / "tradutorlinux" / "library.json";
+        return std::filesystem::path(appdata) / "beer" / "library.json";
     }
     return std::filesystem::current_path() / "library.json";
 }
@@ -646,7 +646,7 @@ bool AppCatalog::create_desktop_entry(const AppEntry& app, const std::filesystem
     std::filesystem::create_directories(dir, ec);
     if (ec) return false;
 
-    const std::filesystem::path file_path = dir / ("tradutorlinux-" + app.id + ".desktop");
+    const std::filesystem::path file_path = dir / ("beer-" + app.id + ".desktop");
     const std::vector<std::string> mime_types = desktop_entry_mime_types(app.id, dir);
     const std::filesystem::path temporary = file_path.string() + ".tmp-" +
         std::to_string(static_cast<long long>(::getpid())) + "-" +
@@ -668,9 +668,9 @@ bool AppCatalog::create_desktop_entry(const AppEntry& app, const std::filesystem
         return escaped;
     };
     out << "Name=" << desktop_escape(app.name) << "\n";
-    out << "Comment=Executado via TradutorLinux\n";
-    out << "TryExec=/usr/bin/tradutorlinux\n";
-    out << "Exec=/usr/bin/tradutorlinux app run " << desktop_escape(app.id) << " -- %F\n";
+    out << "Comment=Executado via Beer\n";
+    out << "TryExec=/usr/bin/beer\n";
+    out << "Exec=/usr/bin/beer app run " << desktop_escape(app.id) << " -- %F\n";
     if (!mime_types.empty()) {
         out << "MimeType=";
         for (const std::string& mime : mime_types) out << mime << ';';
@@ -706,7 +706,7 @@ std::vector<std::string> AppCatalog::desktop_entry_mime_types(
     std::vector<std::string> result;
     if (!is_safe_app_id(id)) return result;
     const auto dir = destination_dir.empty() ? default_desktop_entries_dir() : destination_dir;
-    std::ifstream input(dir / ("tradutorlinux-" + std::string{id} + ".desktop"));
+    std::ifstream input(dir / ("beer-" + std::string{id} + ".desktop"));
     std::string line;
     while (std::getline(input, line)) {
         if (!line.starts_with("MimeType=")) continue;
@@ -754,7 +754,7 @@ bool AppCatalog::set_desktop_entry_mime_types(
         if (error) *error = "não foi possível criar diretório de atalhos: " + ec.message();
         return false;
     }
-    const auto file = dir / ("tradutorlinux-" + app.id + ".desktop");
+    const auto file = dir / ("beer-" + app.id + ".desktop");
     const auto temporary = file.string() + ".tmp-" +
         std::to_string(static_cast<long long>(::getpid())) + "-" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
@@ -774,8 +774,8 @@ bool AppCatalog::set_desktop_entry_mime_types(
         return escaped;
     };
     out << "[Desktop Entry]\nType=Application\nName=" << desktop_escape(app.name)
-        << "\nComment=Executado via TradutorLinux\nTryExec=/usr/bin/tradutorlinux\n"
-        << "Exec=/usr/bin/tradutorlinux app run " << desktop_escape(app.id) << " -- %F\n";
+        << "\nComment=Executado via Beer\nTryExec=/usr/bin/beer\n"
+        << "Exec=/usr/bin/beer app run " << desktop_escape(app.id) << " -- %F\n";
     if (!app.icon_path.empty()) out << "Icon=" << app.icon_path << "\n";
     if (!mime_types.empty()) {
         out << "MimeType=";
@@ -840,7 +840,7 @@ bool AppCatalog::remove_desktop_entry(const std::string_view id,
     }
 
     const std::filesystem::path file_path =
-        dir / ("tradutorlinux-" + std::string(id) + ".desktop");
+        dir / ("beer-" + std::string(id) + ".desktop");
     std::error_code error;
     const std::filesystem::file_status status = std::filesystem::symlink_status(file_path, error);
     if (error == std::errc::no_such_file_or_directory) {

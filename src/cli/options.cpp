@@ -581,7 +581,7 @@ ParseResult parse_command_line(const int argc, const char* const argv[]) {
                             return {.command_line = std::nullopt,
                                     .error_message = "valor inválido para --trace: " + std::string(list)};
                         }
-                        // Valida canal imediatamente (case-insensitive, como Wine)
+                        // Valida imediatamente o nome do canal, sem diferenciar caixa.
                         diagnostics::TraceComponent dummy;
                         if (!diagnostics::trace_component_from_name(token, dummy)) {
                             return {.command_line = std::nullopt,
@@ -729,7 +729,7 @@ void print_help(std::ostream& stream) {
     stream << "Opções Gerais de Execução:\n";
     stream << "  --trace[=canais]  escreve diagnóstico estruturado em stderr\n";
     stream << "                    canais: cli,pe,loader,imports,runtime,process,gui,crt,install (ex: --trace=pe,loader)\n";
-    stream << "                    sem lista = todos os canais (compatível com WINEDEBUG)\n";
+    stream << "                    sem lista = todos os canais de trace\n";
     stream << "  --trace-json <dir> grava um arquivo JSON por evento, durante a execução\n";
     stream << "  --report   relata imports suportados sem executar o arquivo\n";
     stream << "  --json     emite o relatório em formato JSON estruturado (com --report)\n";
@@ -744,7 +744,7 @@ void print_help(std::ostream& stream) {
     stream << "  --network <modo>\n";
     stream << "             define o isolamento de rede do sandbox: none, loopback, full (padrão)\n";
     stream << "  --help     mostra esta ajuda\n";
-    stream << "  --version  mostra a versão do TradutorLinux\n";
+    stream << "  --version  mostra a versão do Beer\n";
 }
 
 }  // namespace tradutorlinux

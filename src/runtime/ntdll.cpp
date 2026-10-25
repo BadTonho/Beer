@@ -386,7 +386,7 @@ NtStatus NtFreeVirtualMemory(void* BaseAddress,
         it->regions.push_back(AllocationRegion{0, freed_size, kMemFree, 0});
     }
     runtime::invalidate_memory_map_cache();
-    // Wine zera *BaseAddress no sucesso; mantemos gesto para caller.
+    // A liberação bem-sucedida zera *RegionSize para o caller.
     *RegionSize = 0;
     (void)freed_size;
     return NtStatus::Success;
@@ -458,7 +458,7 @@ NtStatus NtProtectVirtualMemory(void* BaseAddress,
     }
 
     // Para regiões externas, tenta descobrir a proteção antiga via
-    // /proc/self/maps (como Wine faz ao manter sua árvore VAD).
+    // /proc/self/maps para consultar regiões fora da tabela privada de alocações.
     std::ifstream maps{"/proc/self/maps"};
     std::string line;
     while (maps && std::getline(maps, line)) {
@@ -495,7 +495,7 @@ NtStatus NtQueryVirtualMemory(const void* Address, NtMemoryInformation* Info) no
     if (Address == nullptr || Info == nullptr) {
         return NtStatus::InvalidParameter;
     }
-    // Primeiro verifica tabela privada de NtAllocateVirtualMemory (Wine: VAD)
+    // Primeiro verifica a tabela privada mantida por NtAllocateVirtualMemory.
     {
         std::lock_guard<std::mutex> lock(g_allocations_mutex);
         for (const auto& slot : g_allocations) {
@@ -526,7 +526,7 @@ NtStatus NtQueryVirtualMemory(const void* Address, NtMemoryInformation* Info) no
             }
         }
     }
-    // Fallback: parse /proc/self/maps como Wine faz após esgotar VAD.
+    // Fallback: consulta /proc/self/maps quando o endereço não está na tabela privada.
     std::ifstream maps{"/proc/self/maps"};
     if (!maps) return NtStatus::InvalidParameter;
     std::string line;
@@ -551,7 +551,7 @@ NtStatus NtQueryVirtualMemory(const void* Address, NtMemoryInformation* Info) no
             Info->RegionSize = e - target;
             Info->State = kMemCommit;
             Info->Protect = prot;
-            // Heurística Wine: se mapeado de arquivo vs anon → MEM_IMAGE vs MEM_PRIVATE
+            // Mapeamentos de arquivo são classificados como MEM_IMAGE; anônimos como MEM_PRIVATE.
             Info->Type = line.find('/') != std::string::npos ? 0x1000000U : 0x20000U;
             return NtStatus::Success;
         }

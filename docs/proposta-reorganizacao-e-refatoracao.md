@@ -3,7 +3,7 @@
 ## Finalidade
 
 Este documento descreve somente a reorganização que ainda faz sentido no
-estado atual do TradutorLinux. A migração estrutural principal já foi
+estado atual do Beer. A migração estrutural principal já foi
 concluída e permanece registrada no histórico ao final; ela não deve ser
 reexecutada nem usada como uma lista paralela ao roadmap.
 

@@ -21,12 +21,12 @@ struct WindowHandle {
 };
 
 [[nodiscard]] bool wants_wayland() noexcept {
-    const char* value = std::getenv("TL_GUI_BACKEND");
+    const char* value = std::getenv("BEER_GUI_BACKEND");
     return value != nullptr && std::strcmp(value, "wayland") == 0;
 }
 
 [[nodiscard]] bool wants_x11() noexcept {
-    const char* value = std::getenv("TL_GUI_BACKEND");
+    const char* value = std::getenv("BEER_GUI_BACKEND");
     return value != nullptr && std::strcmp(value, "x11") == 0;
 }
 

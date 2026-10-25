@@ -22,7 +22,7 @@ set(prefix "${TL_STAGING_ROOT}/prefix")
 set(appdata "${TL_STAGING_ROOT}/appdata")
 file(REMOVE_RECURSE "${TL_STAGING_ROOT}")
 file(MAKE_DIRECTORY "${prefix}" "${appdata}")
-set(ENV{TL_PREFIX} "${prefix}")
+set(ENV{BEER_PREFIX} "${prefix}")
 set(ENV{APPDATA} "${appdata}")
 
 execute_process(

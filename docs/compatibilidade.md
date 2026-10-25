@@ -32,7 +32,7 @@ funcional.
 
 ### Análise aprofundada de requisitos com `--report`
 
-O comando `tradutorlinux --report <app.exe>` realiza inspeção estática aprofundada sem executar a aplicação, antecipando requisitos de infraestrutura e limitações conhecidas:
+O comando `beer --report <app.exe>` realiza inspeção estática aprofundada sem executar a aplicação, antecipando requisitos de infraestrutura e limitações conhecidas:
 - **Aceleração 3D (DirectX/Vulkan):** detecta dependências de `d3d11.dll`, `d3d12.dll`, `dxgi.dll`, `d3d9.dll`, `vulkan-1.dll` e `xinput1_4.dll`, recomendando `backend.kind: proton` quando gráficos 3D forem essenciais.
 - **Ambiente gerenciado (.NET/CLR):** identifica binários dependentes de runtime .NET (`mscoree.dll` ou diretório COM descriptor), orientando a execução via `dotnet` ou Proton na ausência de compilação nativa AOT.
 - **Drivers de kernel e anticheat:** detecta módulos de anticheat (EasyAntiCheat, BattlEye, Riot Vanguard, PunkBuster, Denuvo) e chamadas de gerenciamento de serviços/drivers (`CreateServiceW`, `OpenSCManagerW` em `advapi32.dll`), sinalizando a impossibilidade de execução nativa de módulos ring-0.
@@ -108,24 +108,42 @@ cadastro. Os executáveis 7-Zip PE32+ existentes no corpus são cobertos por
 smokes CLI e GUI separados. O corpus atual não inclui um executável standalone
 do Everything para repetir seu fluxo `.efu`.
 
-### Evidência U5 — Fedora 44 (24/10/2026)
+### Evidência de pacote Beer — Fedora 44 (24/10/2026)
 
-O RPM foi instalado por DNF em container Fedora descartável. O DNF resolveu as
-dependências ELF e `desktop-file-utils`; foram verificados os binários CLI e
-Qt, o ícone SVG, a entrada `tradutorlinux.desktop` e
-`tradutorlinux --version`. O pacote DEB continua sendo o gerador CPack padrão.
+O CPack gerou o RPM `beer-0.0.0-Linux.rpm`, instalado por DNF em um container
+Fedora 44 descartável. O DNF resolveu as dependências ELF e
+`desktop-file-utils`. Foram conferidos `rpm -q beer`, `beer --version`
+(`Beer 0.0.0-dev`), `/usr/bin/beer-gui`, `beer.desktop`, `beer.png` e a
+validação da entrada com `desktop-file-validate`. O CPack também gerou o DEB
+com nome `beer`, arquitetura `amd64` e os mesmos binários, entrada de menu e
+ícone. DEB continua sendo o gerador padrão.
+
+Os testes focados de identidade passaram nos presets Debug e Sanitizers. No
+Sanitizers passaram sete testes CLI (ajuda e versão, caminhos sem migração,
+atalho/remoção, MIME e backend incompleto) e os smokes Qt de seleção, remoção
+e associação, em modo offscreen. A execução Sanitizers usou
+`ASAN_OPTIONS=detect_leaks=0`, pois
+o LeakSanitizer falha ao enumerar testes neste ambiente. O CTest Qt completo
+não pôde executar: as fixtures `tl_hello.exe` e de instalação não estão
+geradas no preset atual. A checagem completa do smoke Qt depende dessas
+fixtures.
+
+Esta evidência de identidade não encerra U5. A validação Sanitizers do driver
+C++ PuTTY e a validação Ubuntu permanecem pendentes.
+
+### Evidência U5 — Fedora 44 (24/10/2026)
 
 Em Debug, as matrizes `popular_apps_report_matrix`,
 `popular_apps_recursive_report_matrix`, `popular_apps_native_matrix`,
 `popular_apps_install_matrix` e `popular_apps_x86_installer_rejection_matrix`
 passaram em série; a matriz confirma como resultado esperado a rejeição dos
 quatro containers PE32 e que nenhum deles deixa payload ou cadastro. Os
-smokes de cópia 7-Zip, extração real WinRAR, edição de
-arquivo Notepad++ em X11 e Wayland, e GUI Rockstar passaram duas vezes no
-container Fedora com Xvfb/Weston. Os smokes PuTTY de GUI e probe SSH local
-também passaram duas vezes; o probe encerra com `GuestTimeout 72` após chegar
-a `SSH_MSG_KEXDH_INIT`, que continua sendo uma limitação publicada. O smoke
-MSIX Affinity passou duas vezes e não executa o app .NET.
+smokes de cópia 7-Zip, extração real WinRAR, edição de arquivo Notepad++ em
+X11 e Wayland, e GUI Rockstar passaram duas vezes no container Fedora com
+Xvfb/Weston. Os smokes PuTTY de GUI e probe SSH local também passaram duas
+vezes; o probe encerra com `GuestTimeout 72` após chegar a
+`SSH_MSG_KEXDH_INIT`, que continua sendo uma limitação publicada. O smoke MSIX
+Affinity passou duas vezes e não executa o app .NET.
 
 O `--report` deixou de preparar prefixos, corrigindo a falha das matrizes em
 `HOME` somente leitura. O orçamento do G HUB foi ampliado após a repetição

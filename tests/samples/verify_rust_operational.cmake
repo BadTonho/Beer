@@ -289,7 +289,7 @@ execute_process(
     COMMAND "${CMAKE_COMMAND}" -E env
         "HOME=${WORK}/home"
         "XDG_CONFIG_HOME=${WORK}/config"
-        "TL_PROTON_ROOT=${proton_root}"
+        "BEER_PROTON_ROOT=${proton_root}"
         "TL_PROTON_MOCK_OUTPUT=${proton_mock_output}"
         "${RUNTIME}" app run rust-proton --trace=pe,runtime,proton,process
     RESULT_VARIABLE proton_result

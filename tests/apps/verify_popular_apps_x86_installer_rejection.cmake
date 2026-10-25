@@ -42,7 +42,7 @@ foreach(case IN LISTS CASES)
     execute_process(
         COMMAND "${CMAKE_COMMAND}" -E env
             "HOME=${home}" "XDG_CONFIG_HOME=${config}" "XDG_DATA_HOME=${data}"
-            "TL_PREFIX=${case_root}/report-prefix"
+            "BEER_PREFIX=${case_root}/report-prefix"
             "${TL_RUNTIME}" --report "${input_path}"
         TIMEOUT 30
         RESULT_VARIABLE report_exit

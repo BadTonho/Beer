@@ -111,7 +111,7 @@ namespace {
 
 bool trace_component_from_name(const std::string_view name,
                                  TraceComponent& out) noexcept {
-    // case-insensitive como Wine WINEDEBUG
+    // Nomes de canal são comparados sem distinção entre maiúsculas e minúsculas.
     auto iequals = [](std::string_view a, std::string_view b) {
         if (a.size() != b.size()) return false;
         for (std::size_t i = 0; i < a.size(); ++i) {

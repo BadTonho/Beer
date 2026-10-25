@@ -63,7 +63,7 @@ foreach(case IN LISTS CASES)
     set(ENV{HOME} "${home}")
     set(ENV{XDG_CONFIG_HOME} "${config}")
     set(ENV{XDG_DATA_HOME} "${data}")
-    set(ENV{TL_PREFIX} "${prefix}")
+    set(ENV{BEER_PREFIX} "${prefix}")
     set(ENV{APPDATA} "${appdata}")
 
     set(guest_timeout 3)

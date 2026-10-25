@@ -608,7 +608,7 @@ void dump_root_windows(Display* const display, const Window root) {
     const std::filesystem::path data_home = staging / "data";
     const std::filesystem::path prefix_root = staging / "prefix";
     const std::filesystem::path file_path = staging / "arquivo de teste ação.txt";
-    std::filesystem::create_directories(config_home / "tradutorlinux", error);
+    std::filesystem::create_directories(config_home / "beer", error);
     if (error) return SmokeResult::Failed;
     std::filesystem::create_directories(data_home, error);
     if (error) return SmokeResult::Failed;
@@ -618,7 +618,7 @@ void dump_root_windows(Display* const display, const Window root) {
         if (!input.good()) return SmokeResult::Failed;
     }
     {
-        std::ofstream catalog(config_home / "tradutorlinux" / "library.json");
+        std::ofstream catalog(config_home / "beer" / "library.json");
         catalog << "{\"version\":1,\"apps\":[{\"id\":\"notepadpp\","
                 << "\"name\":\"Notepad++\",\"executable_path\":\"" << staged_target.string()
                 << "\",\"prefix_path\":\"" << prefix_root.string()
@@ -661,7 +661,7 @@ void dump_root_windows(Display* const display, const Window root) {
     if (runtime_pid == 0) {
         (void)::setpgid(0, 0);
         (void)::setenv("DISPLAY", xvfb.display.c_str(), 1);
-        (void)::setenv("TL_GUI_BACKEND", backend == GuiBackend::Wayland ? "wayland" : "x11", 1);
+        (void)::setenv("BEER_GUI_BACKEND", backend == GuiBackend::Wayland ? "wayland" : "x11", 1);
         if (backend == GuiBackend::Wayland) {
             (void)::setenv("WAYLAND_DISPLAY", weston.socket.c_str(), 1);
             (void)::setenv("XDG_RUNTIME_DIR", runtime_dir.c_str(), 1);

@@ -8,7 +8,7 @@ set(prefix_b "${WORK}/prefix-b")
 
 function(tl_run_security prefix expected)
     execute_process(
-        COMMAND "${CMAKE_COMMAND}" -E env "TL_PREFIX=${prefix}" "${RUNTIME}" --trace "${INPUT}"
+        COMMAND "${CMAKE_COMMAND}" -E env "BEER_PREFIX=${prefix}" "${RUNTIME}" --trace "${INPUT}"
         RESULT_VARIABLE result
         OUTPUT_VARIABLE stdout
         ERROR_VARIABLE trace

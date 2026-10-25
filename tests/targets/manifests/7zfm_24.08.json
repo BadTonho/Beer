@@ -10,7 +10,7 @@
     "name": "7z.dll",
     "sha256": "e79ddfb6319dbf9bac6382035d23597dad979db5e71a605d81a61ee817c1e812"
   },
-  "runtime": "TradutorLinux 0.0.0-dev",
+  "runtime": "Beer 0.0.0-dev",
   "imports": {
     "resolved": 298,
     "total": 298

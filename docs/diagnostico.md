@@ -15,7 +15,7 @@ documental não altera o formato do trace nem o comportamento do runtime.
 
 ## Saída de trace
 
-O trace é habilitado por `--trace` (todos os canais) ou `--trace=canal1,canal2` (filtrado, inspirado em `WINEDEBUG`), vai exclusivamente para `stderr` e ocupa uma linha por evento:
+O trace é habilitado por `--trace` (todos os canais) ou `--trace=canal1,canal2` (filtrado por canal), vai exclusivamente para `stderr` e ocupa uma linha por evento:
 
 ```text
 [tl][<componente>][<nível>] <evento> chave="valor"

@@ -2,14 +2,14 @@
 
 ## 1. Visão Geral e Motivação
 
-O TradutorLinux executa binários PE32+ diretamente sobre o kernel Linux sem máquina virtual e sem emulação de CPU. Tradicionalmente em camadas de compatibilidade (como o Wine clássico), o processo convidado herda acesso amplo ao sistema de arquivos do hospedeiro — mapeando a raiz `/` como `Z:\` e mantendo acesso direto à pasta pessoal do usuário (`$HOME`), suas chaves SSH (`~/.ssh`), credenciais, navegadores e outros processos.
+O Beer executa binários PE32+ diretamente sobre o kernel Linux sem máquina virtual e sem emulação de CPU. O processo convidado herda acesso amplo ao sistema de arquivos do hospedeiro — mapeando a raiz `/` como `Z:\` e mantendo acesso direto à pasta pessoal do usuário (`$HOME`), suas chaves SSH (`~/.ssh`), credenciais, navegadores e outros processos.
 
 Executáveis Windows do mundo real (instaladores, utilitários freeware, ferramentas legadas ou binários obtidos na internet) apresentam riscos inerentes:
 - Tentativas de escrita ou varredura de diretórios fora do seu escopo pretendido.
 - Coleta de telemetria ou comunicação de rede não autorizada em softwares que deveriam ser puramente locais (como compactadores e conversores).
 - Criação de arquivos persistentes em pastas do sistema hospedeiro.
 
-Este documento especifica a arquitetura técnica do **Sistema de Sandbox e Confinamento** do TradutorLinux, projetado para isolar de forma estrita a execução de programas Windows, estabelecendo uma fronteira de segurança sem depender de privilégios de superusuário (`root`).
+Este documento especifica a arquitetura técnica do **Sistema de Sandbox e Confinamento** do Beer, projetado para isolar de forma estrita a execução de programas Windows, estabelecendo uma fronteira de segurança sem depender de privilégios de superusuário (`root`).
 
 ---
 
@@ -33,7 +33,7 @@ Este documento especifica a arquitetura técnica do **Sistema de Sandbox e Confi
 O convidado deve ser executado em um ambiente onde o seu prefixo virtual (`drive_c`) represente a sua única visão de armazenamento persistente.
 
 1. **Raiz e Prefixo Virtual:**
-   - O `drive_c` do aplicativo (`~/.tradutorlinux/prefixes/<app_id>/drive_c`) é mapeado como a raiz do namespace através de `pivot_root` ou bind mount isolado.
+   - O `drive_c` do aplicativo (`~/.beer/prefixes/<app_id>/drive_c`) é mapeado como a raiz do namespace através de `pivot_root` ou bind mount isolado.
    - O diretório `$HOME` do hospedeiro, `/etc`, `/root`, `/boot` e outras áreas sensíveis **não são montadas**.
 2. **Dependências Estritamente Necessárias do Host (Somente Leitura):**
    - `/usr/lib`, `/lib64`, `/lib`: montados exclusivamente como `MS_RDONLY` para permitir que as bibliotecas do runtime (`libc`, drivers gráficos, X11) sejam carregadas.
@@ -76,7 +76,7 @@ Para garantir máxima robustez sem introduzir vulnerabilidades no core do projet
 1. **Camada Primária (Recomendada): Orquestração via Bubblewrap (`bwrap`)**
    - O `bwrap` é o padrão da indústria no Linux (utilizado pelo Flatpak, Steam Container Runtime / pressure-vessel e Bottles).
    - Ele já é auditado formalmente por equipes de segurança globais, lida de forma segura com unprivileged user namespaces em diversas distribuições e trata casos de borda de montagens de `/dev` e `/proc`.
-   - O TradutorLinux gera os argumentos do `bwrap` de forma transparente baseado no perfil da aplicação.
+   - O Beer gera os argumentos do `bwrap` de forma transparente baseado no perfil da aplicação.
 
 2. **Camada Secundária: Mecanismo Embutido em C++ (`unshare`/`clone3`)**
    - Disponível como fallback autônomo quando `bwrap` não estiver instalado no sistema.
@@ -129,7 +129,7 @@ Flags de controle na CLI para execuções ad-hoc:
 Exemplo de uso:
 ```bash
 # Executa 7-Zip totalmente desconectado da rede e acessando apenas a pasta Downloads
-tradutorlinux run --sandbox --network=none --share-dir ~/Downloads:D: 7zFM.exe
+beer run --sandbox --network=none --share-dir ~/Downloads:D: 7zFM.exe
 ```
 
 ---

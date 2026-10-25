@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Cada aplicativo cadastrado pode ter arquivos auxiliares do TradutorLinux no
+Cada aplicativo cadastrado pode ter arquivos auxiliares do Beer no
 próprio prefixo, sem misturá-los aos arquivos reais do convidado e sem alterar
 o comportamento de outro aplicativo.
 
@@ -131,7 +131,7 @@ para `native`.
 
 A v4 mantém os campos de arquivos, DLLs e backend da v3 e acrescenta o campo
 opcional `extension`. Ele identifica uma extensão host-side previamente
-registrada pelo executável do TradutorLinux; não é um caminho, uma DLL, um
+registrada pelo executável do Beer; não é um caminho, uma DLL, um
 script nem uma regra de execução:
 
 ```json
@@ -152,8 +152,8 @@ nenhuma extensão correspondente estiver disponível; não há seleção automá
 por nome de janela ou por classe Win32.
 
 O caminho da instalação fica fora do perfil, em
-`$XDG_CONFIG_HOME/tradutorlinux/backends.json` ou
-`~/.config/tradutorlinux/backends.json`:
+`$XDG_CONFIG_HOME/beer/backends.json` ou
+`~/.config/beer/backends.json`:
 
 ```json
 {
@@ -165,7 +165,7 @@ O caminho da instalação fica fora do perfil, em
 }
 ```
 
-`TL_PROTON_ROOT` é uma substituição temporária para testes e diagnóstico. Não
+`BEER_PROTON_ROOT` é uma substituição temporária para testes e diagnóstico. Não
 há download automático, descoberta do Steam ou caminho implícito. A validação
 exige o launcher `proton`, o arquivo `version`, Wine ELF x86-64 em
 `files/bin/wine` e `files/bin/wineserver`, `files/share/wine/wine.inf` e o

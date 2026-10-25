@@ -219,7 +219,7 @@ Quando o snapshot final está fora da imagem PE e `dladdr` consegue resolvê-lo,
 o evento também informa o módulo pelo nome curto, o símbolo e seu deslocamento:
 
 ```text
-[tl][process][error] terminated category="guest-timeout" timeout-ms="8000" timeout-samples="33" timeout-pe-samples="0" timeout-host-samples="33" timeout-rip="0x7f0012345da1" host-module="tradutorlinux" host-module-offset="0x3d58ee" host-symbol="__cyg_profile_func_enter" host-offset="0x21"
+[tl][process][error] terminated category="guest-timeout" timeout-ms="8000" timeout-samples="33" timeout-pe-samples="0" timeout-host-samples="33" timeout-rip="0x7f0012345da1" host-module="beer" host-module-offset="0x3d58ee" host-symbol="__cyg_profile_func_enter" host-offset="0x21"
 ```
 
 Quando a leitura best-effort do topo de `RSP` também resolve para código nativo,

@@ -5,7 +5,7 @@
 #include <dxgi1_3.h>
 
 static const char kClassName[] = "TlD3D12ProbeWindow";
-static const char kWindowTitle[] = "TradutorLinux D3D12 Probe";
+static const char kWindowTitle[] = "Beer D3D12 Probe";
 static const char kSuccessMessage[] = "D3D12 command path ready\n";
 
 static void write_message(const char* const message, const DWORD length) {

@@ -69,7 +69,7 @@ MainWindow::MainWindow(const QString& runtime_path, QWidget* const parent)
 }
 
 void MainWindow::setup_ui() {
-    setWindowTitle(QStringLiteral("TradutorLinux — Launcher"));
+    setWindowTitle(QStringLiteral("Beer — Launcher"));
     resize(kDefaultWidth, kDefaultHeight);
     setMinimumSize(820, 560);
 
@@ -78,7 +78,7 @@ void MainWindow::setup_ui() {
     root_layout->setContentsMargins(24, 20, 24, 20);
     root_layout->setSpacing(12);
 
-    auto* const title = new QLabel(QStringLiteral("TradutorLinux"), central);
+    auto* const title = new QLabel(QStringLiteral("Beer"), central);
     title->setObjectName(QStringLiteral("title_label"));
     title->setStyleSheet(QStringLiteral("font-size: 24px; font-weight: 700;"));
     root_layout->addWidget(title);
@@ -842,7 +842,7 @@ QString MainWindow::runtime_executable() const {
     if (!runtime_path_.isEmpty()) {
         return runtime_path_;
     }
-    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("tradutorlinux"));
+    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("beer"));
 }
 
 QString MainWindow::selected_or_direct_path() const {

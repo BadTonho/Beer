@@ -15,7 +15,7 @@ file(MAKE_DIRECTORY "${home}" "${config}" "${data}")
 execute_process(
     COMMAND "${CMAKE_COMMAND}" -E env
         "HOME=${home}" "XDG_CONFIG_HOME=${config}" "XDG_DATA_HOME=${data}"
-        "TL_PREFIX=${TL_STAGING_ROOT}/report-prefix"
+        "BEER_PREFIX=${TL_STAGING_ROOT}/report-prefix"
         "${TL_RUNTIME}" --report "${TL_PACKAGE}"
     TIMEOUT 60
     RESULT_VARIABLE report_exit
@@ -78,7 +78,7 @@ endif()
 execute_process(
     COMMAND "${CMAKE_COMMAND}" -E env
         "HOME=${home}" "XDG_CONFIG_HOME=${config}" "XDG_DATA_HOME=${data}"
-        "TL_PREFIX=${prefix}" "${TL_RUNTIME}" --report "${executable}"
+        "BEER_PREFIX=${prefix}" "${TL_RUNTIME}" --report "${executable}"
     TIMEOUT 60
     RESULT_VARIABLE executable_report_exit
     OUTPUT_VARIABLE executable_report

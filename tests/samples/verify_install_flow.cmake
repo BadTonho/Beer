@@ -28,7 +28,7 @@ if(registered_position EQUAL -1)
     message(FATAL_ERROR "installation was not registered:\n${install_stderr}")
 endif()
 
-set(catalog "${config}/tradutorlinux/library.json")
+set(catalog "${config}/beer/library.json")
 if(NOT EXISTS "${catalog}")
     message(FATAL_ERROR "catalog was not created")
 endif()
@@ -217,8 +217,8 @@ endif()
 set(legacy_config "${WORK}/legacy-config")
 set(legacy_prefix "${WORK}/legacy-prefix")
 set(legacy_working_directory "${WORK}/legacy-working-directory")
-file(MAKE_DIRECTORY "${legacy_config}/tradutorlinux" "${legacy_working_directory}")
-file(WRITE "${legacy_config}/tradutorlinux/library.json"
+file(MAKE_DIRECTORY "${legacy_config}/beer" "${legacy_working_directory}")
+file(WRITE "${legacy_config}/beer/library.json"
     "{\n  \"version\": 1,\n  \"apps\": [{\n"
     "    \"id\": \"legacy-file\",\n"
     "    \"name\": \"Legacy File\",\n"
@@ -229,7 +229,7 @@ file(WRITE "${legacy_config}/tradutorlinux/library.json"
     "    \"created_at\": \"2026-08-23T00:00:00Z\",\n"
     "    \"args\": []\n  }]\n}\n")
 execute_process(
-    COMMAND "${CMAKE_COMMAND}" -E env "XDG_CONFIG_HOME=${legacy_config}" "TL_PREFIX=${legacy_prefix}"
+    COMMAND "${CMAKE_COMMAND}" -E env "XDG_CONFIG_HOME=${legacy_config}" "BEER_PREFIX=${legacy_prefix}"
         "${RUNTIME}" app run legacy-file --trace
     RESULT_VARIABLE legacy_result
     OUTPUT_VARIABLE legacy_stdout

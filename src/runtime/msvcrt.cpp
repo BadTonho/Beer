@@ -101,7 +101,7 @@ void set_error(int error) {
 
 // Tradução de caminhos usados pelo CRT do convidado. O Win32 aceita barra
 // invertida como separador; o host usa barra normal. Drives virtuais C:\ e caminhos
-// absolutos são resolvidos dentro do prefixo do TradutorLinux.
+// absolutos são resolvidos dentro do prefixo do Beer.
 [[nodiscard]] bool translate_guest_path(const char* guest_path, char* host_path,
                                         const std::size_t host_path_size) noexcept {
     std::string guest_path_copy;

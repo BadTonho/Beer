@@ -294,7 +294,7 @@ void erase_text(const std::string& display_name, const Window window, const int 
 }
 
 Window wait_for_popup(const std::string& display_name) {
-    return wait_for_window(display_name, "TradutorLinuxPopup");
+    return wait_for_window(display_name, "BeerPopup");
 }
 
 void choose_menu(const std::string& display_name, const std::size_t row) {
@@ -323,7 +323,7 @@ pid_t start_guest(const std::string& runtime, const std::string& executable,
         ::setenv("DISPLAY", display.c_str(), 1);
         ::setenv("APPDATA", "appdata", 1);
         const std::filesystem::path prefix = work / "prefix";
-        ::setenv("TL_PREFIX", prefix.c_str(), 1);
+        ::setenv("BEER_PREFIX", prefix.c_str(), 1);
         ::execl(runtime.c_str(), runtime.c_str(), "--trace", executable.c_str(),
                 static_cast<char*>(nullptr));
         ::_exit(127);

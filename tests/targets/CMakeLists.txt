@@ -82,7 +82,7 @@ if(NOT EXISTS "${TL_TARGETS_SOURCE_DIR}/dos2unix-7.5.6/README.txt")
 endif()
 
 # Simple Todo C no commit bcdf3d5fcebb8c0b445edb791d54511194c1b6ca. O alvo
-# recebe um overlay pequeno mantido pelo TradutorLinux: remove a opção de
+# recebe um overlay pequeno mantido pelo Beer: remove a opção de
 # autorun exclusiva do Windows e reorganiza a tela para o fluxo Linux. A fonte
 # upstream continua pinada; o app.rc é gerado no diretório de build porque o
 # script original o cria durante a compilação.

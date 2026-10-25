@@ -73,7 +73,7 @@ execute_process(
     COMMAND "${CMAKE_COMMAND}" -E env
         "HOME=${WORK}/home"
         "XDG_CONFIG_HOME=${WORK}/config"
-        "TL_PROTON_ROOT=${proton_root}"
+        "BEER_PROTON_ROOT=${proton_root}"
         "TL_PROTON_MOCK_OUTPUT=${mock_output}"
         "${RUNTIME}" app run protonprobe --trace=proton,process
     RESULT_VARIABLE run_result
@@ -138,7 +138,7 @@ execute_process(
     COMMAND "${CMAKE_COMMAND}" -E env
         "HOME=${WORK}/home"
         "XDG_CONFIG_HOME=${WORK}/config"
-        "TL_PROTON_ROOT=${WORK}/missing-proton"
+        "BEER_PROTON_ROOT=${WORK}/missing-proton"
         "TL_PROTON_MOCK_OUTPUT=${mock_output}"
         "${RUNTIME}" app run protonprobe
     RESULT_VARIABLE unavailable_result

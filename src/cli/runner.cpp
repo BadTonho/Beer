@@ -613,7 +613,7 @@ void write_install_trace(const bool enabled, std::ostream& stream,
 ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_stream,
                      std::ostream& stderr_stream) {
     diagnostics::set_trace_requested(command_line.trace_enabled);
-    // Configura filtro de trace (inspirado em WINEDEBUG): --trace sozinho = tudo,
+    // Configura o filtro de trace: --trace sozinho seleciona todos os canais,
     // --trace=pe,loader filtra apenas esses componentes.
     if (command_line.trace_enabled) {
         if (!command_line.trace_channels_raw.empty()) {
@@ -646,7 +646,7 @@ ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_strea
     }
 
     if (command_line.show_version) {
-        stdout_stream << "TradutorLinux " << TRADUTORLINUX_VERSION << '\n';
+        stdout_stream << "Beer " << TRADUTORLINUX_VERSION << '\n';
         return ExitCode::Success;
     }
 
@@ -662,7 +662,7 @@ ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_strea
         const auto& apps = app_catalog.list_apps();
         if (apps.empty()) {
             stdout_stream << "Nenhum aplicativo cadastrado na biblioteca.\n";
-            stdout_stream << "Dica: use 'tradutorlinux app add <arquivo.exe> --name \"Nome\"' ou 'tradutorlinux install <setup.exe>'.\n";
+            stdout_stream << "Dica: use 'beer app add <arquivo.exe> --name \"Nome\"' ou 'beer install <setup.exe>'.\n";
             return ExitCode::Success;
         }
         stdout_stream << "Aplicativos cadastrados na biblioteca (" << apps.size() << "):\n\n";
@@ -759,7 +759,7 @@ ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_strea
             return ExitCode::InternalError;
         }
         const std::filesystem::path desktop_path = desktop_directory /
-            ("tradutorlinux-" + command_line.app_id + ".desktop");
+            ("beer-" + command_line.app_id + ".desktop");
         const auto shortcut_snapshot = snapshot_shortcut(desktop_path);
         if (!shortcut_snapshot) {
             stderr_stream << "erro: não foi possível remover o atalho; não foi possível preservar seu estado\n";
@@ -834,7 +834,7 @@ ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_strea
             return ExitCode::InternalError;
         }
         const std::filesystem::path desktop_path = desktop_directory /
-            ("tradutorlinux-" + app->id + ".desktop");
+            ("beer-" + app->id + ".desktop");
         const auto shortcut_snapshot = snapshot_shortcut(desktop_path);
         if (!shortcut_snapshot) {
             stderr_stream << "erro: não foi possível preservar o atalho antes da associação\n";
@@ -1201,7 +1201,7 @@ ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_strea
             return ExitCode::MalformedPe;
         }
         if (effective_cmd.report_only) {
-            stdout_stream << "TradutorLinux package report\n";
+            stdout_stream << "Beer package report\n";
             stdout_stream << "format: MSIX / AppX package\n";
             stdout_stream << "package-name: "
                           << (package_info->package_name.empty()

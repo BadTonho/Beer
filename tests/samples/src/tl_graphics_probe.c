@@ -4,7 +4,7 @@
 #include <d3d11.h>
 
 static const char kClassName[] = "TlGraphicsProbeWindow";
-static const char kWindowTitle[] = "TradutorLinux D3D11 Probe";
+static const char kWindowTitle[] = "Beer D3D11 Probe";
 static const char kSuccessMessage[] = "D3D11 frame presented\n";
 
 static void write_message(const char* const message, const DWORD length) {

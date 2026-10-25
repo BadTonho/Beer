@@ -1,6 +1,6 @@
 # Fronteira de ABI x86-64
 
-O TradutorLinux hospedará código PE32+ compilado para a ABI Microsoft x64 dentro de um processo Linux que usa a ABI System V AMD64. Essas ABIs não podem ser misturadas sem um adaptador explícito.
+O Beer hospedará código PE32+ compilado para a ABI Microsoft x64 dentro de um processo Linux que usa a ABI System V AMD64. Essas ABIs não podem ser misturadas sem um adaptador explícito.
 
 ## Convenção Microsoft x64
 

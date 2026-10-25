@@ -380,7 +380,7 @@ TL_MSABI int tl_ReadConsoleA(void* const console_input, void* const buffer,
 }
 
 TL_MSABI void tl_DebugBreak() noexcept {
-    // No-op in TradutorLinux runtime
+    // No-op in Beer runtime
 }
 
 TL_MSABI int tl_Beep(const std::uint32_t freq, const std::uint32_t duration) noexcept {

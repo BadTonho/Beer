@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Beer
+Comment=Executa aplicativos Win32 no Linux
+Exec=/usr/bin/beer-gui
+TryExec=/usr/bin/beer-gui
+Icon=beer
+Terminal=false
+Categories=Utility;
+StartupNotify=true

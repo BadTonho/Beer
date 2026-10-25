@@ -13,7 +13,7 @@ struct AppEntry {
     std::string id;                  // Slug único (ex: "notepad_plus_plus")
     std::string name;                // Nome de exibição (ex: "Notepad++")
     std::string executable_path;     // Caminho do executável (Windows ou Linux)
-    std::string prefix_path;         // Caminho do prefixo (ex: ~/.tradutorlinux)
+    std::string prefix_path;         // Caminho do prefixo (ex: ~/.beer)
     std::string icon_path;           // Caminho para ícone PNG/SVG
     std::string working_directory;   // Diretório de trabalho
     std::string app_sha256;          // SHA-256 do executável no momento do cadastro

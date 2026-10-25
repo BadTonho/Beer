@@ -265,7 +265,7 @@ bool initialize() noexcept {
 }
 
 int create_shm_file(std::size_t bytes) noexcept {
-    const int fd = static_cast<int>(syscall(SYS_memfd_create, "tradutorlinux-wayland", MFD_CLOEXEC));
+    const int fd = static_cast<int>(syscall(SYS_memfd_create, "beer-wayland", MFD_CLOEXEC));
     if (fd < 0) return -1;
     if (ftruncate(fd, static_cast<off_t>(bytes)) != 0) { close(fd); return -1; }
     return fd;
@@ -418,7 +418,7 @@ NativeWindow create_window(const char* caption, const int width, const int heigh
     window.used = true;
     window.width = width > 0 ? width : 800;
     window.height = height > 0 ? height : 600;
-    window.caption = caption != nullptr ? caption : "TradutorLinux";
+    window.caption = caption != nullptr ? caption : "Beer";
     window.surface = wl_compositor_create_surface(g_context.compositor);
     if (window.surface == nullptr) {
         std::fprintf(stderr, "[tl][gui][error] backend=wayland status=create-surface-failed\n");

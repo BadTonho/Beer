@@ -1,7 +1,7 @@
 #include <windows.h>
 
 static const char kClassName[] = "TlProtonInputProbeWindow";
-static const char kWindowTitle[] = "TradutorLinux Proton Input Probe";
+static const char kWindowTitle[] = "Beer Proton Input Probe";
 static const char kSuccessMessage[] = "Proton input ready\n";
 
 enum {

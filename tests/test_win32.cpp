@@ -849,7 +849,7 @@ TEST(Win32RegistryTest, WideQueryConvertsDefaultProgramFilesValueToUtf16) {
 
 TEST(Win32RegistryTest, WideSetAndAnsiQueryUseTheSameStringValue) {
     const void* current_user = reinterpret_cast<const void*>(0x80000001U);
-    const std::u16string subkey_text = u"Software\\TradutorLinux\\RegistryTest";
+    const std::u16string subkey_text = u"Software\\Beer\\RegistryTest";
     const std::u16string value_name_text = u"WideValue";
     const std::u16string value_text = u"C:\\Program Files\\WinRAR";
     void* key = nullptr;
@@ -879,7 +879,7 @@ TEST(Win32RegistryTest, WideSetAndAnsiQueryUseTheSameStringValue) {
 TEST(Win32RegistryTest, ProtectedRegistryInputsAndOutputsRejectUnmappedPointers) {
     const void* current_user = reinterpret_cast<const void*>(0x80000001U);
     auto* const invalid = reinterpret_cast<void*>(static_cast<std::uintptr_t>(0x1000U));
-    const char subkey[] = "Software\\TradutorLinux\\ProtectedRegistry";
+    const char subkey[] = "Software\\Beer\\ProtectedRegistry";
     const char value_name[] = "Payload";
     void* key = nullptr;
 
@@ -3300,9 +3300,9 @@ TEST(Win32StringResourceTest, LoadStringWSupportsReadOnlyPointerModeAndBufferCop
 
     // Dados do bloco de strings:
     // String ID 0: len 0
-    // String ID 1: "TradutorLinux" (13 chars)
+    // String ID 1: "BeerRuntime" (11 chars)
     write_u16(kDataOffset, 0);
-    const std::u16string test_str = u"TradutorLinux";
+    const std::u16string test_str = u"BeerRuntime";
     write_u16(kDataOffset + 2, static_cast<std::uint16_t>(test_str.size()));
     for (std::size_t i = 0; i < test_str.size(); ++i) {
         write_u16(kDataOffset + 4 + i * 2, static_cast<std::uint16_t>(test_str[i]));
@@ -3315,16 +3315,16 @@ TEST(Win32StringResourceTest, LoadStringWSupportsReadOnlyPointerModeAndBufferCop
     // 1. Cópia normal em buffer
     std::array<std::uint16_t, 32> buffer{};
     int len = tl_LoadStringW(nullptr, 1, buffer.data(), static_cast<int>(buffer.size()));
-    EXPECT_EQ(len, 13);
-    EXPECT_EQ(buffer[13], 0);
-    EXPECT_EQ(std::u16string_view(reinterpret_cast<char16_t*>(buffer.data())), u"TradutorLinux");
+    EXPECT_EQ(len, static_cast<int>(test_str.size()));
+    EXPECT_EQ(buffer[test_str.size()], 0);
+    EXPECT_EQ(std::u16string_view(reinterpret_cast<char16_t*>(buffer.data())), u"BeerRuntime");
 
     // 2. Modo ponteiro somente-leitura (buffer_max == 0)
     const std::uint16_t* ro_ptr = nullptr;
     len = tl_LoadStringW(nullptr, 1, reinterpret_cast<std::uint16_t*>(&ro_ptr), 0);
-    EXPECT_EQ(len, 13);
+    EXPECT_EQ(len, static_cast<int>(test_str.size()));
     ASSERT_NE(ro_ptr, nullptr);
-    EXPECT_EQ(std::u16string_view(reinterpret_cast<const char16_t*>(ro_ptr), 13), u"TradutorLinux");
+    EXPECT_EQ(std::u16string_view(reinterpret_cast<const char16_t*>(ro_ptr), test_str.size()), u"BeerRuntime");
 
     // 3. String inexistente com buffer_max == 0 zera o ponteiro e retorna 0
     ro_ptr = reinterpret_cast<const std::uint16_t*>(0x12345678ULL);

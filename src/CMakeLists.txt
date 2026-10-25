@@ -216,6 +216,7 @@ tl_enable_warnings(tradutorlinux_core)
 tl_enable_sanitizers(tradutorlinux_core)
 
 add_executable(tradutorlinux main.cpp)
+set_target_properties(tradutorlinux PROPERTIES OUTPUT_NAME beer)
 target_link_libraries(tradutorlinux PRIVATE tradutorlinux_7zip tradutorlinux_core)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(tradutorlinux PRIVATE -finstrument-functions)
@@ -233,6 +234,7 @@ if(TL_ENABLE_GUI)
         gui/qt_main.cpp
     )
     set_target_properties(tradutorlinux_gui PROPERTIES
+        OUTPUT_NAME beer-gui
         AUTOMOC ON
         AUTOUIC ON
         AUTORCC ON

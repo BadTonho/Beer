@@ -259,7 +259,7 @@ void stop_runtime_process(const pid_t pid) {
         (void)::setenv("XDG_DATA_HOME", config_home.c_str(), 1);
         (void)::setenv("HOME", config_home.c_str(), 1);
         (void)::setenv("APPDATA", config_home.c_str(), 1);
-        (void)::setenv("TL_GUI_BACKEND", "x11", 1);
+        (void)::setenv("BEER_GUI_BACKEND", "x11", 1);
         (void)::unsetenv("WAYLAND_DISPLAY");
         (void)::unsetenv("TL_7ZFM_COPY_DESTINATION");
         (void)::dup2(trace_fd, STDERR_FILENO);
@@ -375,7 +375,7 @@ void stop_runtime_process(const pid_t pid) {
         (void)::setenv("XDG_DATA_HOME", config_home.c_str(), 1);
         (void)::setenv("HOME", config_home.c_str(), 1);
         (void)::setenv("APPDATA", config_home.c_str(), 1);
-        (void)::setenv("TL_GUI_BACKEND", "x11", 1);
+        (void)::setenv("BEER_GUI_BACKEND", "x11", 1);
         (void)::unsetenv("WAYLAND_DISPLAY");
         (void)::setenv("TL_7ZFM_COPY_DESTINATION", (staging / "output").c_str(), 1);
         (void)::dup2(trace_fd, STDERR_FILENO);

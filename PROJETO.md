@@ -1,10 +1,10 @@
-# TradutorLinux — Runtime de Compatibilidade Win32 para Linux
+# Beer — Runtime de Compatibilidade Win32 para Linux
 
 ## 1. Visão geral
 
-O TradutorLinux é um runtime de compatibilidade **sério e de produção**: um runtime capaz de executar, de forma progressiva e confiável, **classes cada vez mais amplas de aplicativos Win32 reais** no Linux, sem máquina virtual e sem emular a CPU — com foco em uso diário, não apenas educacional.
+O Beer é um runtime de compatibilidade **sério e de produção**: um runtime capaz de executar, de forma progressiva e confiável, **classes cada vez mais amplas de aplicativos Win32 reais** no Linux, sem máquina virtual e sem emular a CPU — com foco em uso diário, não apenas educacional.
 
-O objetivo estratégico é tornar útil no desktop Linux um conjunto crescente de aplicativos reais do corpus `Aplicativos_Windows_Populares/`, completando fluxos verificáveis de instalação, abertura, interação e gravação. `--report`, `--trace`, `exit code` e resultados observáveis sustentam cada declaração de compatibilidade. Isso não é uma alegação de paridade geral com Wine: cada capacidade precisa ser implementada, testada e publicada antes de ser considerada suportada.
+O objetivo estratégico é tornar útil no desktop Linux um conjunto crescente de aplicativos reais do corpus `Aplicativos_Windows_Populares/`, completando fluxos verificáveis de instalação, abertura, interação e gravação. `--report`, `--trace`, `exit code` e resultados observáveis sustentam cada declaração de compatibilidade. Cada capacidade precisa ser implementada, testada e publicada antes de ser considerada suportada.
 
 O alvo inicial é deliberadamente restrito:
 
@@ -16,7 +16,7 @@ O alvo inicial é deliberadamente restrito:
 | Dependências | Conjunto documentado de APIs `KERNEL32`, `USER32` e `GDI32` |
 | Fora do escopo inicial | PE32 x86, ARM, .NET, COM amplo/ActiveX, drivers, GUI Win32 ampla, GDI completo, DirectX e anticheat |
 
-Com CPU igual nos dois lados, as instruções x86-64 do programa podem ser executadas nativamente. O trabalho do TradutorLinux é carregar a imagem PE, preparar o contexto de processo esperado por ela e fornecer as APIs Windows que o programa importa.
+Com CPU igual nos dois lados, as instruções x86-64 do programa podem ser executadas nativamente. O trabalho do Beer é carregar a imagem PE, preparar o contexto de processo esperado por ela e fornecer as APIs Windows que o programa importa.
 
 ### Linguagem principal
 
@@ -66,7 +66,7 @@ Linux / POSIX
 
 ### 3.2. Objetivos de produto sério
 
-- Entregar valor para fluxos representativos do portfólio real, medindo separadamente resolução de imports, execução, resultado observável e limitações via `--trace` em `docs/diagnostico.md`; comparar os mesmos fluxos com versões identificadas do Wine.
+- Entregar valor para fluxos representativos do portfólio real, medindo separadamente resolução de imports, execução, resultado observável e limitações via `--trace` em `docs/diagnostico.md`.
 - Garantir estabilidade: loader, ABI, memória, imports, TLS, unwind/SEH e diagnósticos com `exit code` `71/72` e `fault-address` antes de ampliar famílias de DLL.
 - Manter qualidade de produção: warnings rigorosos, `CTest` `sanitize`, `LSAN_OPTIONS`, `Xvfb` e matriz `docs/compatibilidade.md` atualizada a cada API.
 
@@ -212,14 +212,14 @@ registrados em `docs/compatibilidade-backends.md`.
 
 - **Marco 1 (concluído):** o leitor identifica corretamente um PE32+ válido e rejeita entradas inválidas com segurança.
 - **Marco 2 (concluído):** uma imagem mínima é mapeada, relocada e tem seus imports resolvidos sem executar código fora do escopo.
-- **MVP (concluído):** `./tradutorlinux tests/samples/tl_hello.exe` escreve a saída correta e encerra com o código esperado.
+- **MVP (concluído):** `./beer tests/samples/tl_hello.exe` escreve a saída correta e encerra com o código esperado.
 - **Qualidade do MVP (concluído):** todas as APIs usadas pelo exemplo possuem testes; imports ausentes são diagnosticados; o trace é reproduzível.
 - **Experiência desktop (vigente):** completar e comparar fluxos cotidianos de aplicativos PE32+ x86-64, integrar biblioteca e arquivos ao desktop Linux e publicar limitações por backend na matriz de compatibilidade.
 
 ## 11. Exemplo de uso futuro
 
 ```bash
-./tradutorlinux --trace tests/samples/tl_hello.exe
+./beer --trace tests/samples/tl_hello.exe
 ```
 
 Saída esperada:

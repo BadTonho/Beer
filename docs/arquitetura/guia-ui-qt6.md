@@ -1,11 +1,11 @@
 # Launcher desktop com Qt6
 
-Este documento descreve o launcher desktop do TradutorLinux. A interface é
+Este documento descreve o launcher desktop do Beer. A interface é
 uma aplicação host independente do runtime Win32 convidado: ela usa Qt6 para
-apresentação e `QProcess` para iniciar o executável `tradutorlinux`.
+apresentação e `QProcess` para iniciar o executável `beer`.
 
 O launcher Qt6 substitui o protótipo Xlib anterior e mantém o executável
-`tradutorlinux_gui`. A GUI não amplia o conjunto de APIs Win32 suportadas; a
+`beer-gui`. A GUI não amplia o conjunto de APIs Win32 suportadas; a
 compatibilidade continua definida por [`compatibilidade.md`](../compatibilidade.md)
 e pelos contratos do runtime.
 
@@ -13,7 +13,7 @@ e pelos contratos do runtime.
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
-│ tradutorlinux_gui                                            │
+│ beer-gui                                                       │
 │  MainWindow                                                   │
 │  ├─ busca e seleção da biblioteca                            │
 │  ├─ seletor de executável e ações                            │
@@ -23,7 +23,7 @@ e pelos contratos do runtime.
                                │ subprocesso
                                ▼
 ┌──────────────────────────────────────────────────────────────┐
-│ tradutorlinux                                                 │
+│ beer                                                           │
 │  CLI → AppCatalog/Prefix → PE parser/loader → convidado       │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -56,10 +56,10 @@ ctest --preset debug --output-on-failure
 O alvo continua sendo gerado no caminho conhecido:
 
 ```text
-build/debug/src/tradutorlinux_gui
+build/debug/src/beer-gui
 ```
 
-O launcher procura o runtime `tradutorlinux` no mesmo diretório do próprio
+O launcher procura o runtime `beer` no mesmo diretório do próprio
 executável. Essa regra vale para builds normais e evita dependência do diretório
 de trabalho ou de `PATH`.
 
@@ -80,8 +80,8 @@ Ao selecionar um item da biblioteca, o caminho do executável é preenchido e as
 ações usam o identificador cadastrado. Assim, a execução chama:
 
 ```text
-tradutorlinux app run <id> --trace
-tradutorlinux app run <id> --trace --report
+beer app run <id> --trace
+beer app run <id> --trace --report
 ```
 
 Quando o item possui `cpu_limit_seconds` ou `memory_limit_mib` em
@@ -92,8 +92,8 @@ limites, use `app add`/`install` ou `app run --cpu ... --memory ...` pelo CLI.
 Um caminho digitado ou escolhido fora da biblioteca usa a forma direta:
 
 ```text
-tradutorlinux --trace <arquivo.exe>
-tradutorlinux --trace --report <arquivo.exe>
+beer --trace <arquivo.exe>
+beer --trace --report <arquivo.exe>
 ```
 
 O catálogo continua sendo lido e salvo por `catalog::AppCatalog`. Um cadastro
@@ -108,7 +108,7 @@ O launcher informa o resultado do processo e mostra a lista persistida. Essa
 operação só disponibiliza o app em “Abrir com”; ela não define o aplicativo
 padrão.
 
-**Instalar** inicia `tradutorlinux install <setup> --trace`. O launcher lê
+**Instalar** inicia `beer install <setup> --trace`. O launcher lê
 somente os eventos estruturados do componente `install` em `stderr`: no evento
 `registered`, recarrega a biblioteca; se o comando retornar `6` com mais de um
 evento `candidate`, mostra uma escolha e chama `app add --id --prefix` para o
