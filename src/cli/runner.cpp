@@ -2123,7 +2123,26 @@ ExitCode run_command(const CommandLine& command_line, std::ostream& stdout_strea
             write_unmap_trace(stderr_stream, unmap_base);
         } else {
             stderr_stream << "erro: o programa convidado não terminou dentro de "
-                          << effective_cmd.timeout_ms << " ms\n";
+                          << effective_cmd.timeout_ms << " ms";
+            if (timeout_context.valid) {
+                stderr_stream << " (rva=" << util::format_hex(timeout_context.rva);
+                if (!timeout_context.nearest_import.empty()) {
+                    stderr_stream << ", próximo de " << timeout_context.nearest_import;
+                }
+                stderr_stream << ")";
+            } else if (timeout_host_context.valid && !timeout_host_context.symbol.empty()) {
+                stderr_stream << " (em " << timeout_host_context.module << "!"
+                              << timeout_host_context.symbol;
+                if (timeout_stack_top_context.valid &&
+                    !timeout_stack_top_context.symbol.empty()) {
+                    stderr_stream << ", topo=" << timeout_stack_top_context.symbol;
+                }
+                stderr_stream << ")";
+            } else if (timeout_stack_top_context.valid &&
+                       !timeout_stack_top_context.symbol.empty()) {
+                stderr_stream << " (topo=" << timeout_stack_top_context.symbol << ")";
+            }
+            stderr_stream << "\n";
         }
         if (effective_cmd.mode == CommandMode::Install) {
             write_install_trace(effective_cmd.trace_enabled, stderr_stream,

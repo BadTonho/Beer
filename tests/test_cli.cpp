@@ -877,6 +877,24 @@ TEST(CommandRunTest, ReturnsGuestTimeoutWhenGuestHangs) {
     EXPECT_EQ(stderr_stream.str().find("exit exit-code="), std::string::npos);
 }
 
+TEST(CommandRunTest, GuestTimeoutWithoutTraceIncludesLocationContext) {
+    CommandLine command_line;
+    command_line.trace_enabled = false;
+    command_line.timeout_ms = 500;
+    command_line.executable_path =
+        std::filesystem::path{TL_FIXTURE_OUTPUT_DIRECTORY} / "tl_hang.exe";
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+
+    const ExitCode exit_code = run_command(command_line, stdout_stream, stderr_stream);
+
+    EXPECT_EQ(exit_code, ExitCode::GuestTimeout);
+    EXPECT_TRUE(stdout_stream.str().empty());
+    EXPECT_NE(stderr_stream.str().find("erro: o programa convidado não terminou dentro de 500 ms"),
+              std::string::npos);
+    EXPECT_NE(stderr_stream.str().find("("), std::string::npos);
+}
+
 TEST(CommandRunTest, TraceJsonRecordsGuestExecutionBoundary) {
     const std::filesystem::path trace_directory =
         std::filesystem::temp_directory_path() / "tl-guest-execution-boundary-test";
