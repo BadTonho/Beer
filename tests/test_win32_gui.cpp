@@ -1,4 +1,5 @@
 #include "test_win32_common.hpp"
+#include "tradutorlinux/loader/module.hpp"
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -667,6 +668,19 @@ TEST(Win32GuiTest, WsaAsyncSelectPostsReadableSocketMessage) {
     ::close(listener);
     unregister_window_handle(&window);
     g_windows = {};
+}
+
+TEST(Win32GuiTest, Ws2OrdinalsMatchWindowsWs232Table) {
+    loader::register_builtin_modules();
+    const loader::ExportLookup ord_101 = loader::find_export_by_ordinal("WS2_32.dll", 101);
+    const loader::ExportLookup ord_115 = loader::find_export_by_ordinal("WS2_32.dll", 115);
+    const loader::ExportLookup ord_116 = loader::find_export_by_ordinal("WS2_32.dll", 116);
+    ASSERT_TRUE(ord_101.found);
+    ASSERT_TRUE(ord_115.found);
+    ASSERT_TRUE(ord_116.found);
+    EXPECT_EQ(ord_101.address, reinterpret_cast<std::uintptr_t>(&tl_WSAAsyncSelect));
+    EXPECT_EQ(ord_115.address, reinterpret_cast<std::uintptr_t>(&tl_WSAStartup));
+    EXPECT_EQ(ord_116.address, reinterpret_cast<std::uintptr_t>(&tl_WSACleanup));
 }
 
 TEST(Win32GuiTest, ProtectedMessageInputsAndOutputsRejectUnmappedPointers) {
