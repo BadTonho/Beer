@@ -228,6 +228,7 @@ struct GuestContext {
         int child_result_fd{-1};
         bool process_running{false};
         std::uint32_t process_exit_code{259U};
+        std::string name;
     };
     std::array<ContextSyncSlot, 256> syncs{};
     std::mutex sync_mutex;

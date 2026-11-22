@@ -2775,6 +2775,41 @@ TEST(Win32ConcurrencyTest, EventsSemaphoresMutexAndMultipleWaitsHaveWin32Semanti
     EXPECT_EQ(tl_CloseHandle(second), 1);
 }
 
+TEST(Win32ConcurrencyTest, OpenEventAndOpenSemaphoreFollowNamedObjectContract) {
+    const std::uint16_t missing_event[] = {'M', 'i', 's', 's', 'i', 'n', 'g', 'E', 'v', 0};
+    EXPECT_EQ(tl_OpenEventW(0x1F0003U, 0, missing_event), nullptr);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorFileNotFound);
+
+    const std::uint16_t event_name[] = {'B', 'e', 'e', 'r', 'E', 'v', 'e', 'n', 't', 0};
+    void* const ev = tl_CreateEventW(nullptr, 1, 0, event_name);
+    ASSERT_NE(ev, nullptr);
+    void* const ev_dup = tl_CreateEventW(nullptr, 1, 0, event_name);
+    EXPECT_EQ(ev_dup, ev);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorAlreadyExists);
+
+    void* const ev_open = tl_OpenEventW(0x1F0003U, 0, event_name);
+    EXPECT_EQ(ev_open, ev);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorSuccess);
+    EXPECT_EQ(tl_CloseHandle(ev_dup), 1);
+    EXPECT_EQ(tl_CloseHandle(ev), 1);
+    EXPECT_EQ(tl_SetEvent(ev_open), 1);
+    EXPECT_EQ(tl_CloseHandle(ev_open), 1);
+    EXPECT_EQ(tl_OpenEventW(0x1F0003U, 0, event_name), nullptr);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorFileNotFound);
+
+    const std::uint16_t sem_name[] = {'B', 'e', 'e', 'r', 'S', 'e', 'm', 0};
+    EXPECT_EQ(tl_OpenSemaphoreW(0x1F0003U, 0, reinterpret_cast<const wchar_t*>(sem_name)), nullptr);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorFileNotFound);
+
+    void* const sem = tl_CreateSemaphoreW(nullptr, 1, 2, sem_name);
+    ASSERT_NE(sem, nullptr);
+    void* const sem_open = tl_OpenSemaphoreW(0x1F0003U, 0, reinterpret_cast<const wchar_t*>(sem_name));
+    EXPECT_EQ(sem_open, sem);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorSuccess);
+    EXPECT_EQ(tl_CloseHandle(sem), 1);
+    EXPECT_EQ(tl_CloseHandle(sem_open), 1);
+}
+
 TEST(Win32ConcurrencyTest, ProtectedSynchronizationPointersRejectUnmappedMemory) {
     auto* const invalid = reinterpret_cast<void*>(static_cast<std::uintptr_t>(0x1000));
     EXPECT_EQ(tl_CreateMutexA(invalid, 0, nullptr), nullptr);

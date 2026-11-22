@@ -349,6 +349,40 @@ TL_MSABI void* tl_CreateMutexW(const void* security_attributes, const int initia
     return tl_CreateMutexA(security_attributes, initial_owner, nullptr);
 }
 
+namespace {
+
+SyncSlot* find_named_sync_slot_locked(const SyncKind kind, const std::string_view name) noexcept {
+    if (name.empty()) {
+        return nullptr;
+    }
+    for (SyncSlot& slot : g_syncs) {
+        if (slot.used && slot.kind == kind && slot.name == name) {
+            return &slot;
+        }
+    }
+    return nullptr;
+}
+
+void* open_named_sync_object(const SyncKind kind, const std::uint16_t* const name) noexcept {
+    std::u16string name_copy;
+    if (name == nullptr || !runtime::copy_guest_wstring(name, 65535U, name_copy) || name_copy.empty()) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return nullptr;
+    }
+    const std::string utf8_name = util::wide_to_utf8(name_copy.data(), name_copy.size());
+    std::lock_guard<std::mutex> lock(g_sync_mutex);
+    SyncSlot* const existing = find_named_sync_slot_locked(kind, utf8_name);
+    if (existing == nullptr) {
+        set_last_error(abi::kErrorFileNotFound);
+        return nullptr;
+    }
+    ++existing->header.ref_count;
+    set_last_error(abi::kErrorSuccess);
+    return sync_slot_handle(*existing);
+}
+
+}  // namespace
+
 TL_MSABI void* tl_CreateEventA(const void* security_attributes, const int manual_reset,
                                const int initial_state, const char* name) noexcept {
     std::string name_copy;
@@ -359,6 +393,11 @@ TL_MSABI void* tl_CreateEventA(const void* security_attributes, const int manual
         return nullptr;
     }
     std::lock_guard<std::mutex> lock(g_sync_mutex);
+    if (SyncSlot* const existing = find_named_sync_slot_locked(SyncKind::Event, name_copy)) {
+        ++existing->header.ref_count;
+        set_last_error(abi::kErrorAlreadyExists);
+        return sync_slot_handle(*existing);
+    }
     auto free_it = std::find_if(g_syncs.begin(), g_syncs.end(),
                                 [](const SyncSlot& slot) { return !slot.used; });
     if (free_it == g_syncs.end()) {
@@ -371,6 +410,7 @@ TL_MSABI void* tl_CreateEventA(const void* security_attributes, const int manual
     slot.kind = SyncKind::Event;
     slot.signaled = initial_state != 0;
     slot.manual_reset = manual_reset != 0;
+    slot.name = name_copy;
     set_last_error(abi::kErrorSuccess);
     void* const handle = sync_slot_handle(slot);
     trace_process_console(
@@ -390,7 +430,11 @@ TL_MSABI void* tl_CreateEventW(const void* security_attributes, const int manual
         set_last_error(abi::kErrorInvalidParameter);
         return nullptr;
     }
-    return tl_CreateEventA(security_attributes, manual_reset, initial_state, nullptr);
+    if (name == nullptr) {
+        return tl_CreateEventA(security_attributes, manual_reset, initial_state, nullptr);
+    }
+    const std::string utf8_name = util::wide_to_utf8(name_copy.data(), name_copy.size());
+    return tl_CreateEventA(security_attributes, manual_reset, initial_state, utf8_name.c_str());
 }
 
 TL_MSABI int tl_SetEvent(const void* event_handle) noexcept {
@@ -461,6 +505,11 @@ TL_MSABI void* tl_CreateSemaphoreA(const void* security_attributes,
         return nullptr;
     }
     std::lock_guard<std::mutex> lock(g_sync_mutex);
+    if (SyncSlot* const existing = find_named_sync_slot_locked(SyncKind::Semaphore, name_copy)) {
+        ++existing->header.ref_count;
+        set_last_error(abi::kErrorAlreadyExists);
+        return sync_slot_handle(*existing);
+    }
     auto free_it = std::find_if(g_syncs.begin(), g_syncs.end(),
                                 [](const SyncSlot& slot) { return !slot.used; });
     if (free_it == g_syncs.end()) {
@@ -473,6 +522,7 @@ TL_MSABI void* tl_CreateSemaphoreA(const void* security_attributes,
     slot.kind = SyncKind::Semaphore;
     slot.count = initial_count;
     slot.maximum = maximum_count;
+    slot.name = name_copy;
     set_last_error(abi::kErrorSuccess);
     return sync_slot_handle(slot);
 }
@@ -488,7 +538,11 @@ TL_MSABI void* tl_CreateSemaphoreW(const void* security_attributes,
         set_last_error(abi::kErrorInvalidParameter);
         return nullptr;
     }
-    return tl_CreateSemaphoreA(nullptr, initial_count, maximum_count, nullptr);
+    if (name == nullptr) {
+        return tl_CreateSemaphoreA(nullptr, initial_count, maximum_count, nullptr);
+    }
+    const std::string utf8_name = util::wide_to_utf8(name_copy.data(), name_copy.size());
+    return tl_CreateSemaphoreA(nullptr, initial_count, maximum_count, utf8_name.c_str());
 }
 
 TL_MSABI int tl_ReleaseSemaphore(const void* semaphore, const std::int32_t release_count,
@@ -795,9 +849,7 @@ TL_MSABI void* tl_OpenEventW(const std::uint32_t desired_access, const int inher
                              const std::uint16_t* const name) noexcept {
     (void)desired_access;
     (void)inherit_handle;
-    (void)name;
-    set_last_error(abi::kErrorSuccess);
-    return reinterpret_cast<void*>(0x1000);
+    return open_named_sync_object(SyncKind::Event, name);
 }
 
 TL_MSABI std::uint32_t tl_WaitForSingleObjectEx(void* const handle, const std::uint32_t milliseconds,
@@ -915,7 +967,7 @@ TL_MSABI void* tl_CreateSemaphoreExW(void* const semaphore_attributes, const std
 TL_MSABI void* tl_OpenSemaphoreW(const std::uint32_t desired_access, const int inherit_handle, const wchar_t* const name) noexcept {
     (void)desired_access;
     (void)inherit_handle;
-    return tl_CreateSemaphoreW(nullptr, 1, 1, reinterpret_cast<const std::uint16_t*>(name));
+    return open_named_sync_object(SyncKind::Semaphore, reinterpret_cast<const std::uint16_t*>(name));
 }
 
 TL_MSABI void* tl_CreateMutexExW(void* const mutex_attributes, const wchar_t* const name,

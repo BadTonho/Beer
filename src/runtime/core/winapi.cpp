@@ -572,6 +572,7 @@ void clear_sync_slot(SyncSlot& slot) noexcept {
     slot.child_result_fd = -1;
     slot.process_running = false;
     slot.process_exit_code = 259U;
+    slot.name.clear();
 }
 
 std::uint32_t wait_process_slot(SyncSlot& slot, const std::uint32_t milliseconds) noexcept {
