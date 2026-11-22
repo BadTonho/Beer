@@ -150,8 +150,11 @@ O `--report` deixou de preparar prefixos, corrigindo a falha das matrizes em
 mostrar que 3 s expiravam antes de `ExitProcess(0)`. O smoke PuTTY passou a
 aceitar a criação da janela registrada no trace quando a consulta X11 ocorre
 depois que ela já foi fechada. Os logs integrais estão em
-`/tmp/tl-u5-evidence/`. A verificação Sanitizers do driver C++ PuTTY e a
-validação Ubuntu permanecem pendentes.
+`/tmp/tl-u5-evidence/`. Em 22/11/2026, o driver C++ PuTTY (`putty_smoke` e
+`putty_ssh_smoke`) foi validado no preset `sanitize`
+(`ASAN_OPTIONS=detect_leaks=0`, ASan + UBSan ativos), após ajustar
+`wl_pointer_listener` em `src/gui/wayland.cpp` para compatibilidade com headers
+Wayland 1.22+. A validação das instruções no Ubuntu permanece pendente.
 
 ## Documentos temáticos
 

@@ -139,12 +139,16 @@ de análise, instalação e inicialização dos produtos identificáveis do corp
 - [x] Adotar a identidade Beer na CLI, launcher, pacotes, entrada de menu,
   ícone, configurações e prefixos, preservando os dados dos caminhos anteriores
   sem leitura ou migração.
-- [ ] Validar o driver C++ PuTTY no preset Sanitizers ou no CI.
+- [x] Validar o driver C++ PuTTY no preset Sanitizers ou no CI.
 - [ ] Validar as instruções no Ubuntu quando esse ambiente estiver disponível.
 
-**Evidência parcial (24/10/2026):** Debug, RPM Fedora e as matrizes/smokes
-selecionados passaram em ambiente descartável. A revisão Sanitizers e Ubuntu
-continuam pendentes; não declarar U5 concluída antes dessas validações.
+**Evidência parcial (24/10/2026; atualização 22/11/2026):** Debug, RPM Fedora e as
+matrizes/smokes selecionados passaram em ambiente descartável. Em 22/11/2026,
+`putty_smoke` e `putty_ssh_smoke` passaram no preset `sanitize`
+(`ASAN_OPTIONS=detect_leaks=0`, ASan + UBSan ativos) após ajustar a
+inicialização de `wl_pointer_listener` em `src/gui/wayland.cpp`. A validação
+das instruções no Ubuntu continua pendente; não declarar U5 concluída antes
+dessa validação.
 
 ## Regras para avançar os marcos
 

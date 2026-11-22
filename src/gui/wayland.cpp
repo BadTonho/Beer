@@ -201,9 +201,17 @@ void pointer_button(void*, wl_pointer*, std::uint32_t, std::uint32_t, std::uint3
 }
 void pointer_frame(void*, wl_pointer*) {}
 void pointer_axis(void*, wl_pointer*, std::uint32_t, std::uint32_t, wl_fixed_t) {}
-const wl_pointer_listener kPointerListener{pointer_enter, pointer_leave, pointer_motion, pointer_button,
-                                           pointer_axis, pointer_frame, nullptr, nullptr, nullptr,
-                                           nullptr, nullptr, nullptr};
+wl_pointer_listener make_pointer_listener() noexcept {
+    wl_pointer_listener listener{};
+    listener.enter = pointer_enter;
+    listener.leave = pointer_leave;
+    listener.motion = pointer_motion;
+    listener.button = pointer_button;
+    listener.axis = pointer_axis;
+    listener.frame = pointer_frame;
+    return listener;
+}
+const wl_pointer_listener kPointerListener = make_pointer_listener();
 
 void seat_capabilities(void*, wl_seat* seat, std::uint32_t capabilities) {
     if ((capabilities & WL_SEAT_CAPABILITY_KEYBOARD) != 0U && g_context.keyboard == nullptr) {
