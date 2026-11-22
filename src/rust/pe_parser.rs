@@ -1630,11 +1630,7 @@ impl<'a> Parser<'a> {
             ));
         }
         let directory =
-            match self.rva_to_file_offset(rva, size as usize, PHASE_UNWIND, ERROR_UNWIND_DIRECTORY)
-            {
-                Ok(value) => value,
-                Err(error) => return Err(error),
-            };
+            self.rva_to_file_offset(rva, size as usize, PHASE_UNWIND, ERROR_UNWIND_DIRECTORY)?;
         let count = size as usize / RUNTIME_FUNCTION_SIZE;
         if count > MAX_RUNTIME_FUNCTIONS {
             return Err(error(
