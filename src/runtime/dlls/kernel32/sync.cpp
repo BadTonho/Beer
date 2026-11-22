@@ -250,8 +250,7 @@ TL_MSABI std::uint32_t tl_WaitForMultipleObjects(const std::uint32_t count,
     if (count == 0 || count > guest_handles.size() ||
         runtime::read_guest_memory(handles, guest_handles.data(),
                                    static_cast<std::size_t>(count) * sizeof(*handles)).status !=
-            runtime::GuestMemoryAccessStatus::Success ||
-        (wait_all != 0 && wait_all != 1)) {
+            runtime::GuestMemoryAccessStatus::Success) {
         set_last_error(abi::kErrorInvalidParameter);
         return abi::kWaitFailed;
     }

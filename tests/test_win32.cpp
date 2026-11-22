@@ -2763,6 +2763,9 @@ TEST(Win32ConcurrencyTest, EventsSemaphoresMutexAndMultipleWaitsHaveWin32Semanti
     ASSERT_NE(second, nullptr);
     const void* handles[2] = {first, second};
     EXPECT_EQ(tl_WaitForMultipleObjects(2, handles, 1, 0), abi::kWaitObject0);
+    EXPECT_EQ(tl_WaitForMultipleObjects(2, handles, 2, 0), abi::kWaitObject0);
+    EXPECT_EQ(tl_WaitForMultipleObjects(65, handles, 0, 0), abi::kWaitFailed);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorInvalidParameter);
 
     EXPECT_EQ(tl_CloseHandle(auto_event), 1);
     EXPECT_EQ(tl_CloseHandle(manual_event), 1);
