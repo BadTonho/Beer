@@ -1,8 +1,29 @@
 #include "kernel32_process_internal.hpp"
+#include "tradutorlinux/diagnostics/trace.hpp"
+
+#include <iostream>
 
 namespace tradutorlinux {
 
 namespace {
+
+void trace_unresolved_dynamic_lookup(const std::string_view dll, const std::string_view symbol,
+                                     const std::string_view mechanism) noexcept {
+    if (!diagnostics::is_trace_enabled(diagnostics::TraceComponent::Imports)) {
+        return;
+    }
+    std::vector<diagnostics::TraceField> fields;
+    if (!dll.empty()) {
+        fields.emplace_back("dll", std::string{dll});
+    }
+    if (!symbol.empty()) {
+        fields.emplace_back("symbol", std::string{symbol});
+    }
+    fields.emplace_back("mechanism", std::string{mechanism});
+    fields.emplace_back("status", "missing");
+    diagnostics::write_trace(std::cerr, diagnostics::TraceComponent::Imports,
+                             diagnostics::TraceLevel::Warning, "unresolved", fields);
+}
 
 static std::string g_custom_dll_directory;
 
@@ -377,6 +398,7 @@ TL_MSABI void* tl_LoadLibraryA(const char* file_name) noexcept {
     }
     void* const handle = load_library_normalized(normalized);
     if (handle == nullptr) {
+        trace_unresolved_dynamic_lookup(normalized, {}, "load-library");
         set_last_error(abi::kErrorModNotFound);
         return nullptr;
     }
@@ -404,6 +426,7 @@ TL_MSABI void* tl_LoadLibraryW(const std::uint16_t* file_name) noexcept {
     }
     void* const handle = load_library_normalized(normalized);
     if (handle == nullptr) {
+        trace_unresolved_dynamic_lookup(normalized, {}, "load-library");
         set_last_error(abi::kErrorModNotFound);
         return nullptr;
     }
@@ -464,6 +487,8 @@ TL_MSABI void* tl_GetProcAddress(void* module, const char* proc_name) noexcept {
                 set_last_error(abi::kErrorSuccess);
                 return reinterpret_cast<void*>(found.lookup.address);
             }
+            trace_unresolved_dynamic_lookup({}, "ordinal(" + std::to_string(ordinal) + ")",
+                                            "get-proc-address");
             set_last_error(abi::kErrorProcNotFound);
             return nullptr;
         }
@@ -481,6 +506,8 @@ TL_MSABI void* tl_GetProcAddress(void* module, const char* proc_name) noexcept {
             set_last_error(abi::kErrorSuccess);
             return reinterpret_cast<void*>(found.address);
         }
+        trace_unresolved_dynamic_lookup({}, "ordinal(" + std::to_string(ordinal) + ")",
+                                        "get-proc-address");
         set_last_error(abi::kErrorProcNotFound);
         return nullptr;
     }
@@ -508,6 +535,7 @@ TL_MSABI void* tl_GetProcAddress(void* module, const char* proc_name) noexcept {
             set_last_error(abi::kErrorSuccess);
             return reinterpret_cast<void*>(found.lookup.address);
         }
+        trace_unresolved_dynamic_lookup({}, guest_proc_name, "get-proc-address");
         set_last_error(abi::kErrorProcNotFound);
         return nullptr;
     }
@@ -518,6 +546,7 @@ TL_MSABI void* tl_GetProcAddress(void* module, const char* proc_name) noexcept {
             set_last_error(abi::kErrorInvalidHandle);
             return nullptr;
         }
+        trace_unresolved_dynamic_lookup({}, guest_proc_name, "get-proc-address");
         set_last_error(abi::kErrorProcNotFound);
         return nullptr;
     }
@@ -527,6 +556,7 @@ TL_MSABI void* tl_GetProcAddress(void* module, const char* proc_name) noexcept {
         set_last_error(abi::kErrorSuccess);
         return reinterpret_cast<void*>(found.address);
     }
+    trace_unresolved_dynamic_lookup({}, guest_proc_name, "get-proc-address");
     set_last_error(abi::kErrorProcNotFound);
     return nullptr;
 }

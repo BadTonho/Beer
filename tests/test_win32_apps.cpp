@@ -1,4 +1,5 @@
 #include "test_win32_common.hpp"
+#include "tradutorlinux/diagnostics/trace.hpp"
 
 namespace tradutorlinux {
 namespace {
@@ -1003,6 +1004,25 @@ TEST(PresentMonCoverageTest, ConsoleMessageAndEtwTraceApis) {
 
     EXPECT_EQ(tl_ControlTraceW(trace_handle, nullptr, nullptr, 0), 0U);
     EXPECT_EQ(tl_EnableTraceEx2(trace_handle, nullptr, 0, 0, 0, 0, 0, nullptr), 0U);
+}
+
+TEST(Win32AppsTest, DynamicLookupTracesMissingDllAndProcAddress) {
+    const bool previous_requested = diagnostics::is_trace_requested();
+    diagnostics::configure_trace_all();
+    diagnostics::set_trace_requested(true);
+    testing::internal::CaptureStderr();
+
+    EXPECT_EQ(tl_LoadLibraryA("missing_dynamic_probe.dll"), nullptr);
+    void* const k32 = tl_LoadLibraryA("KERNEL32.dll");
+    ASSERT_NE(k32, nullptr);
+    EXPECT_EQ(tl_GetProcAddress(k32, "MissingDynamicProbeSymbol"), nullptr);
+    EXPECT_EQ(tl_FreeLibrary(k32), 1);
+
+    const std::string captured = testing::internal::GetCapturedStderr();
+    diagnostics::set_trace_requested(previous_requested);
+    EXPECT_NE(captured.find("dll=\"missing_dynamic_probe.dll\""), std::string::npos);
+    EXPECT_NE(captured.find("symbol=\"MissingDynamicProbeSymbol\""), std::string::npos);
+    EXPECT_NE(captured.find("status=\"missing\""), std::string::npos);
 }
 
 }  // namespace
