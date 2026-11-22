@@ -644,6 +644,11 @@ TEST(Win32GuiTest, WsaAsyncSelectPostsReadableSocketMessage) {
     ASSERT_EQ(tl_GetMessageA(&message, &window, 0, 0), 1);
     EXPECT_EQ(message.message, kAsyncMessage);
     EXPECT_EQ(static_cast<std::uint32_t>(message.lparam) & 0xFFFFU, 0x0001U);
+    EXPECT_EQ(tl_recv(client, buffer, 3, 0x2), 3);
+    EXPECT_EQ(std::string(buffer, 3), "two");
+    std::memset(buffer, 0, sizeof(buffer));
+    EXPECT_EQ(tl_recv(client, buffer, 3, 0x2 | 0x8), -1);
+    EXPECT_EQ(tl_WSAGetLastError(), 10045);
     EXPECT_EQ(tl_recv(client, buffer, 3, 0), 3);
     EXPECT_EQ(std::string(buffer, 3), "two");
 

@@ -83,6 +83,8 @@ constexpr long kFdAccept = 0x0008L;
 constexpr long kFdConnect = 0x0010L;
 constexpr long kFdClose = 0x0020L;
 constexpr long kSupportedNetworkEvents = kFdRead | kFdWrite | kFdOob | kFdAccept | kFdConnect | kFdClose;
+constexpr int kWinMsgPeek = 0x2;
+constexpr int kWinMsgWaitAll = 0x8;
 
 thread_local int g_wsa_last_error = 0;
 
@@ -797,11 +799,17 @@ TL_MSABI int tl_send(const std::uintptr_t socket, const char* buffer, const int 
 TL_MSABI int tl_recv(const std::uintptr_t socket, char* buffer, const int length,
                      const int flags) noexcept {
     trace_ws2_call("recv", "socket=" + std::to_string(socket) +
-                            ",length=" + std::to_string(length));
-    if (buffer == nullptr || length < 0 || flags != 0) {
+                            ",length=" + std::to_string(length) +
+                            ",flags=" + std::to_string(flags));
+    if (buffer == nullptr || length < 0 || (flags & ~(kWinMsgPeek | kWinMsgWaitAll)) != 0) {
         g_wsa_last_error = kWsaEInvalidArgument;
         return -1;
     }
+    if ((flags & kWinMsgWaitAll) != 0) {
+        g_wsa_last_error = kWsaEOpNotSupported;
+        return -1;
+    }
+    const int host_flags = (flags & kWinMsgPeek) != 0 ? MSG_PEEK : 0;
     int fd = -1;
     std::uint32_t generation = 0;
     // Auditoria 6.2: recv bloqueia fora do mutex, com fd copiado.
@@ -816,11 +824,11 @@ TL_MSABI int tl_recv(const std::uintptr_t socket, char* buffer, const int length
         g_wsa_last_error = kWsaENoBufs;
         return -1;
     }
-    const ssize_t result = ::recv(fd, host_buffer.data(), host_buffer.size(), 0);
+    const ssize_t result = ::recv(fd, host_buffer.data(), host_buffer.size(), host_flags);
     if (result < 0) {
         g_wsa_last_error = errno_to_wsa(errno);
     }
-    {
+    if ((flags & kWinMsgPeek) == 0) {
         std::lock_guard<std::mutex> lock(g_sockets_mutex);
         if (SocketSlot* slot = resolve_if_current_locked(socket, generation)) {
             clear_async_notification(*slot, kFdRead | kFdClose);
