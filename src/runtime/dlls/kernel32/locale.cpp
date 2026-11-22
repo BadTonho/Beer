@@ -857,7 +857,8 @@ TL_MSABI std::uint32_t tl_GetSystemDefaultLCID() noexcept {
 
 TL_MSABI int tl_GetComputerNameA(char* buffer, std::uint32_t* size) noexcept {
     std::uint32_t capacity = 0;
-    if (buffer == nullptr || size == nullptr || !read_guest_value(size, capacity) || capacity == 0) {
+    if (size == nullptr || !read_guest_value(size, capacity) ||
+        (buffer == nullptr && capacity != 0U)) {
         set_last_error(abi::kErrorInvalidParameter);
         return 0;
     }
@@ -867,12 +868,12 @@ TL_MSABI int tl_GetComputerNameA(char* buffer, std::uint32_t* size) noexcept {
         return 0;
     }
     const std::size_t len = std::strlen(host);
-    if (capacity <= len) {
+    if (buffer == nullptr || capacity <= len) {
         if (!write_guest_value(size, static_cast<std::uint32_t>(len + 1))) {
             set_last_error(abi::kErrorInvalidParameter);
             return 0;
         }
-        set_last_error(abi::kErrorInsufficientBuffer);
+        set_last_error(abi::kErrorBufferOverflow);
         return 0;
     }
     if (runtime::write_guest_memory(buffer, host, len + 1U).status !=
@@ -887,7 +888,8 @@ TL_MSABI int tl_GetComputerNameA(char* buffer, std::uint32_t* size) noexcept {
 
 TL_MSABI int tl_GetComputerNameW(std::uint16_t* buffer, std::uint32_t* size) noexcept {
     std::uint32_t capacity = 0;
-    if (buffer == nullptr || size == nullptr || !read_guest_value(size, capacity) || capacity == 0) {
+    if (size == nullptr || !read_guest_value(size, capacity) ||
+        (buffer == nullptr && capacity != 0U)) {
         set_last_error(abi::kErrorInvalidParameter);
         return 0;
     }
@@ -897,12 +899,12 @@ TL_MSABI int tl_GetComputerNameW(std::uint16_t* buffer, std::uint32_t* size) noe
         return 0;
     }
     const std::u16string u16 = util::utf8_to_wide(host);
-    if (capacity <= u16.size()) {
+    if (buffer == nullptr || capacity <= u16.size()) {
         if (!write_guest_value(size, static_cast<std::uint32_t>(u16.size() + 1U))) {
             set_last_error(abi::kErrorInvalidParameter);
             return 0;
         }
-        set_last_error(abi::kErrorInsufficientBuffer);
+        set_last_error(abi::kErrorBufferOverflow);
         return 0;
     }
     std::u16string output = u16;

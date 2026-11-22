@@ -2379,6 +2379,40 @@ TEST(Win32DirTest, GetModuleFileNameAReturnsNeededWhenBufferTooSmall) {
     set_guest_module_path(nullptr);
 }
 
+TEST(Win32DirTest, GetModuleFileNameWReportsUtf16LengthWhenBufferMissing) {
+    set_guest_module_path("caf\xC3\xA9/app.exe");
+    const std::uint32_t needed = tl_GetModuleFileNameW(nullptr, nullptr, 0);
+    std::uint16_t wide[4096]{};
+    const std::uint32_t actual = tl_GetModuleFileNameW(nullptr, wide, 4096);
+    ASSERT_GT(actual, 0U);
+    EXPECT_EQ(needed, actual + 1U);
+    set_guest_module_path(nullptr);
+}
+
+TEST(Win32LocaleTest, GetComputerNameReportsBufferOverflowWithRequiredSize) {
+    std::uint32_t needed_a = 0;
+    EXPECT_EQ(tl_GetComputerNameA(nullptr, &needed_a), 0);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorBufferOverflow);
+    EXPECT_GT(needed_a, 1U);
+
+    char small_a[1]{};
+    std::uint32_t cap_a = 1;
+    EXPECT_EQ(tl_GetComputerNameA(small_a, &cap_a), 0);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorBufferOverflow);
+    EXPECT_EQ(cap_a, needed_a);
+
+    std::uint32_t needed_w = 0;
+    EXPECT_EQ(tl_GetComputerNameW(nullptr, &needed_w), 0);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorBufferOverflow);
+    EXPECT_GT(needed_w, 1U);
+
+    std::uint16_t small_w[1]{};
+    std::uint32_t cap_w = 1;
+    EXPECT_EQ(tl_GetComputerNameW(small_w, &cap_w), 0);
+    EXPECT_EQ(tl_GetLastError(), abi::kErrorBufferOverflow);
+    EXPECT_EQ(cap_w, needed_w);
+}
+
 TEST(Win32DirTest, GetModuleFileNameReturnsErrorWithoutGuestModule) {
     set_guest_module_path(nullptr);
     char narrow[8]{};

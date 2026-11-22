@@ -163,14 +163,12 @@ TL_MSABI std::uint32_t tl_GetModuleFileNameW(const void* module, std::uint16_t* 
         set_last_error(abi::kErrorInvalidParameter);
         return 0;
     }
-    if (filename == nullptr || size == 0) {
-        set_last_error(abi::kErrorSuccess);
-        const std::string path =
-            prefix::to_windows_path(std::filesystem::path(g_module_file_name), guest_prefix_root());
-        return static_cast<std::uint32_t>(path.size() + 1);
-    }
     const std::u16string wide_path = util::utf8_to_wide(
         prefix::to_windows_path(std::filesystem::path(g_module_file_name), guest_prefix_root()));
+    if (filename == nullptr || size == 0) {
+        set_last_error(abi::kErrorSuccess);
+        return static_cast<std::uint32_t>(wide_path.size() + 1U);
+    }
     const std::size_t len = wide_path.size();
     if (len + 1 > size) {
         std::u16string truncated = wide_path.substr(0, size - 1U);

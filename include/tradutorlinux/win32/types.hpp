@@ -105,6 +105,7 @@ constexpr Dword kPageExecuteRead = 0x20U;
 constexpr Dword kPageExecuteReadWrite = 0x40U;
 constexpr Dword kPageExecuteWriteCopy = 0x80U;
 
+constexpr Dword kErrorBufferOverflow = 111;
 constexpr Dword kErrorInsufficientBuffer = 122;
 constexpr Dword kErrorInvalidAddress = 487;
 constexpr Dword kErrorModNotFound = 126;
