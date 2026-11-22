@@ -1025,6 +1025,56 @@ TEST(Win32AppsTest, DynamicLookupTracesMissingDllAndProcAddress) {
     EXPECT_NE(captured.find("status=\"missing\""), std::string::npos);
 }
 
+namespace {
+int TL_MSABI test_init_once_callback(void* /*init_once*/, void* parameter, void** context) {
+    if (context != nullptr) {
+        *context = parameter;
+    }
+    return 1;
+}
+}  // namespace
+
+TEST(Win32AppsTest, ModernDynamicKernel32ApisFollowDocumentedContracts) {
+    std::uint64_t ft = 0;
+    tl_GetSystemTimePreciseAsFileTime(&ft);
+    EXPECT_GT(ft, 0ULL);
+
+    std::uint16_t temp_buf[260]{};
+    EXPECT_GT(tl_GetTempPath2W(260, temp_buf), 0U);
+
+    const std::uint32_t fls_idx = tl_FlsAlloc(0);
+    ASSERT_NE(fls_idx, 0xFFFFFFFFU);
+    int marker = 42;
+    EXPECT_EQ(tl_FlsSetValue(fls_idx, &marker), 1);
+    EXPECT_EQ(tl_FlsGetValue2(fls_idx), &marker);
+    EXPECT_EQ(tl_FlsFree(fls_idx), 1);
+
+    std::uint32_t pkg_len = 0;
+    EXPECT_EQ(tl_GetCurrentPackageId(&pkg_len, nullptr), 15700U);
+    EXPECT_EQ(tl_GetCurrentPackageId(nullptr, nullptr), 87U);
+
+    std::uint16_t proc_machine = 0xFFFFU;
+    std::uint16_t native_machine = 0U;
+    EXPECT_EQ(tl_IsWow64Process2(tl_GetCurrentProcess(), &proc_machine, &native_machine), 1);
+    EXPECT_EQ(proc_machine, 0U);
+    EXPECT_EQ(native_machine, 0x8664U);
+
+    tl_FlushProcessWriteBuffers();
+
+    void* const ev = tl_CreateEventExW(nullptr, nullptr, 0x3U, 0x1F0003U);
+    ASSERT_NE(ev, nullptr);
+    EXPECT_EQ(tl_WaitForSingleObject(ev, 0), abi::kWaitObject0);
+    EXPECT_EQ(tl_CloseHandle(ev), 1);
+
+    std::uintptr_t init_once = 0;
+    void* out_ctx = nullptr;
+    int init_arg = 7;
+    EXPECT_EQ(tl_InitOnceExecuteOnce(&init_once, reinterpret_cast<void*>(&test_init_once_callback),
+                                     &init_arg, &out_ctx),
+              1);
+    EXPECT_EQ(out_ctx, &init_arg);
+}
+
 }  // namespace
 }  // namespace tradutorlinux
 

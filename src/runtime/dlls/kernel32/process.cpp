@@ -376,6 +376,35 @@ TL_MSABI int tl_IsWow64Process(const void* const process, int* const wow64_proce
     return 1;
 }
 
+TL_MSABI int tl_IsWow64Process2(const void* const process, std::uint16_t* const process_machine,
+                                std::uint16_t* const native_machine) noexcept {
+    (void)process;
+    if (process_machine == nullptr || !write_guest_value(process_machine, std::uint16_t{0})) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    if (native_machine != nullptr && !write_guest_value(native_machine, std::uint16_t{0x8664U})) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    set_last_error(abi::kErrorSuccess);
+    return 1;
+}
+
+TL_MSABI std::uint32_t tl_GetCurrentPackageId(std::uint32_t* const buffer_length,
+                                              void* const buffer) noexcept {
+    (void)buffer;
+    if (buffer_length == nullptr ||
+        !runtime::validate_mapped_range(buffer_length, sizeof(*buffer_length), false)) {
+        return abi::kErrorInvalidParameter;
+    }
+    return 15700U;  // APPMODEL_ERROR_NO_PACKAGE
+}
+
+TL_MSABI void tl_FlushProcessWriteBuffers() noexcept {
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+}
+
 TL_MSABI void* tl_OpenProcess(std::uint32_t desired_access, int inherit_handle, std::uint32_t process_id) noexcept {
     (void)desired_access;
     (void)inherit_handle;

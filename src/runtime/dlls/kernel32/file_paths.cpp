@@ -724,6 +724,12 @@ TL_MSABI std::uint32_t tl_GetTempPathW(std::uint32_t buffer_length, std::uint16_
     set_last_error(abi::kErrorSuccess);
     return static_cast<std::uint32_t>(value.size());
 }
+TL_MSABI std::uint32_t tl_GetTempPath2A(const std::uint32_t buffer_length, char* const buffer) noexcept {
+    return tl_GetTempPathA(buffer_length, buffer);
+}
+TL_MSABI std::uint32_t tl_GetTempPath2W(const std::uint32_t buffer_length, std::uint16_t* const buffer) noexcept {
+    return tl_GetTempPathW(buffer_length, buffer);
+}
 TL_MSABI std::uint32_t tl_GetFullPathNameW(const std::uint16_t* path, std::uint32_t buffer_length,
                                            std::uint16_t* buffer, std::uint16_t** file_part) noexcept {
     std::u16string guest_path;

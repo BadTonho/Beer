@@ -43,6 +43,10 @@ TL_MSABI void tl_GetSystemTimeAsFileTime(void* file_time) noexcept {
     }
 }
 
+TL_MSABI void tl_GetSystemTimePreciseAsFileTime(void* file_time) noexcept {
+    tl_GetSystemTimeAsFileTime(file_time);
+}
+
 TL_MSABI int tl_QueryPerformanceCounter(std::int64_t* performance_count) noexcept {
     if (performance_count == nullptr) {
         set_last_error(abi::kErrorInvalidParameter);

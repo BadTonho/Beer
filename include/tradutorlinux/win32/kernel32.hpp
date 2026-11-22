@@ -667,6 +667,16 @@ TL_MSABI int tl_FillConsoleOutputCharacterW(void* console_output, std::uint16_t 
 TL_MSABI int tl_WriteConsoleOutputCharacterW(void* console_output, const std::uint16_t* character, std::uint32_t length, std::uint32_t write_coord, std::uint32_t* written) noexcept;
 TL_MSABI int tl_ScrollConsoleScreenBufferW(void* console_output, const void* scroll_rect, const void* clip_rect, std::uint32_t dest_origin, const void* fill) noexcept;
 TL_MSABI int tl_ReadConsoleOutputW(void* console_output, void* buffer, std::uint32_t buffer_size, std::uint32_t buffer_coord, void* read_region) noexcept;
+TL_MSABI void tl_GetSystemTimePreciseAsFileTime(void* file_time) noexcept;
+TL_MSABI std::uint32_t tl_GetTempPath2A(std::uint32_t buffer_length, char* buffer) noexcept;
+TL_MSABI std::uint32_t tl_GetTempPath2W(std::uint32_t buffer_length, std::uint16_t* buffer) noexcept;
+TL_MSABI void* tl_FlsGetValue2(std::uint32_t fls_index) noexcept;
+TL_MSABI std::uint32_t tl_GetCurrentPackageId(std::uint32_t* buffer_length, void* buffer) noexcept;
+TL_MSABI int tl_IsWow64Process2(const void* process, std::uint16_t* process_machine, std::uint16_t* native_machine) noexcept;
+TL_MSABI void tl_FlushProcessWriteBuffers() noexcept;
+TL_MSABI void* tl_CreateEventExA(const void* security_attributes, const char* name, std::uint32_t flags, std::uint32_t desired_access) noexcept;
+TL_MSABI void* tl_CreateEventExW(const void* security_attributes, const std::uint16_t* name, std::uint32_t flags, std::uint32_t desired_access) noexcept;
+TL_MSABI int tl_InitOnceExecuteOnce(void* init_once, void* init_fn, void* parameter, void** context) noexcept;
 
 }  // extern "C"
 }  // namespace tradutorlinux

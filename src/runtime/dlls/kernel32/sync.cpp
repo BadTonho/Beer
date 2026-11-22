@@ -1030,6 +1030,48 @@ TL_MSABI int tl_InitOnceComplete(void* const init_once, const std::uint32_t flag
     return 1;
 }
 
+TL_MSABI void* tl_CreateEventExA(const void* const security_attributes, const char* const name,
+                                 const std::uint32_t flags, const std::uint32_t desired_access) noexcept {
+    (void)desired_access;
+    const int manual_reset = (flags & 0x1U) != 0U ? 1 : 0;
+    const int initial_state = (flags & 0x2U) != 0U ? 1 : 0;
+    return tl_CreateEventA(security_attributes, manual_reset, initial_state, name);
+}
+
+TL_MSABI void* tl_CreateEventExW(const void* const security_attributes,
+                                 const std::uint16_t* const name, const std::uint32_t flags,
+                                 const std::uint32_t desired_access) noexcept {
+    (void)desired_access;
+    const int manual_reset = (flags & 0x1U) != 0U ? 1 : 0;
+    const int initial_state = (flags & 0x2U) != 0U ? 1 : 0;
+    return tl_CreateEventW(security_attributes, manual_reset, initial_state, name);
+}
+
+TL_MSABI int tl_InitOnceExecuteOnce(void* const init_once, void* const init_fn,
+                                    void* const parameter, void** const context) noexcept {
+    int pending = 0;
+    if (tl_InitOnceBeginInitialize(init_once, 0U, &pending, context) == 0) {
+        return 0;
+    }
+    if (pending == 0) {
+        return 1;
+    }
+    if (init_fn == nullptr) {
+        set_last_error(abi::kErrorInvalidParameter);
+        return 0;
+    }
+    using InitOnceCallback = int(TL_MSABI*)(void*, void*, void**);
+    const int callback_ok = reinterpret_cast<InitOnceCallback>(init_fn)(init_once, parameter, context);
+    if (callback_ok == 0) {
+        return 0;
+    }
+    void* completed_context = nullptr;
+    if (context != nullptr) {
+        static_cast<void>(read_guest_value(context, completed_context));
+    }
+    return tl_InitOnceComplete(init_once, 0U, completed_context);
+}
+
 TL_MSABI void* tl_CreateIoCompletionPort(const void* const file_handle, void* const existing_completion_port,
                                          const std::uintptr_t completion_key,
                                          const std::uint32_t number_of_concurrent_threads) noexcept {

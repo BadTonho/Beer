@@ -500,6 +500,16 @@ void register_kernel32_module() {
         {"ScrollConsoleScreenBufferW", 490, reinterpret_cast<std::uintptr_t>(&tl_ScrollConsoleScreenBufferW), ExportSupport::Full},
         {"ReadConsoleOutputW", 491, reinterpret_cast<std::uintptr_t>(&tl_ReadConsoleOutputW), ExportSupport::Full},
         {"HeapQueryInformation", 492, reinterpret_cast<std::uintptr_t>(&tl_HeapQueryInformation), ExportSupport::Full},
+        {"GetSystemTimePreciseAsFileTime", 493, reinterpret_cast<std::uintptr_t>(&tl_GetSystemTimePreciseAsFileTime), ExportSupport::Full},
+        {"GetTempPath2A", 494, reinterpret_cast<std::uintptr_t>(&tl_GetTempPath2A), ExportSupport::Full},
+        {"GetTempPath2W", 495, reinterpret_cast<std::uintptr_t>(&tl_GetTempPath2W), ExportSupport::Full},
+        {"FlsGetValue2", 496, reinterpret_cast<std::uintptr_t>(&tl_FlsGetValue2), ExportSupport::Full},
+        {"GetCurrentPackageId", 497, reinterpret_cast<std::uintptr_t>(&tl_GetCurrentPackageId), ExportSupport::Full},
+        {"IsWow64Process2", 498, reinterpret_cast<std::uintptr_t>(&tl_IsWow64Process2), ExportSupport::Full},
+        {"FlushProcessWriteBuffers", 499, reinterpret_cast<std::uintptr_t>(&tl_FlushProcessWriteBuffers), ExportSupport::Full},
+        {"CreateEventExA", 500, reinterpret_cast<std::uintptr_t>(&tl_CreateEventExA), ExportSupport::Full},
+        {"CreateEventExW", 501, reinterpret_cast<std::uintptr_t>(&tl_CreateEventExW), ExportSupport::Full},
+        {"InitOnceExecuteOnce", 502, reinterpret_cast<std::uintptr_t>(&tl_InitOnceExecuteOnce), ExportSupport::Full},
     };
     static const InternalModule kKernel32Module{"KERNEL32.dll", kKernel32Exports};
     register_module(kKernel32Module);

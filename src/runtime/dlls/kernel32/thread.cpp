@@ -456,6 +456,10 @@ TL_MSABI void* tl_FlsGetValue(const std::uint32_t fls_index) noexcept {
     return g_current_fls_values->values[fls_index];
 }
 
+TL_MSABI void* tl_FlsGetValue2(const std::uint32_t fls_index) noexcept {
+    return tl_FlsGetValue(fls_index);
+}
+
 TL_MSABI int tl_FlsSetValue(const std::uint32_t fls_index, void* const value) noexcept {
     std::lock_guard lock(g_fls_mutex);
     if (fls_index >= kMaxFlsSlots || !g_fls_slots[fls_index].used) {
