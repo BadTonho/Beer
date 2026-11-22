@@ -2,6 +2,7 @@
 #include "kernel32_thread_internal.hpp"
 #include "../../core/runtime_handle_state.hpp"
 #include "../../core/runtime_thread_state.hpp"
+#include "tradutorlinux/util/unicode.hpp"
 
 #include <chrono>
 #include <cstring>
@@ -363,13 +364,17 @@ SyncSlot* find_named_sync_slot_locked(const SyncKind kind, const std::string_vie
     return nullptr;
 }
 
+std::string u16_to_utf8(const std::u16string& text) noexcept {
+    return util::wide_to_utf8(reinterpret_cast<const std::uint16_t*>(text.data()), text.size());
+}
+
 void* open_named_sync_object(const SyncKind kind, const std::uint16_t* const name) noexcept {
     std::u16string name_copy;
     if (name == nullptr || !runtime::copy_guest_wstring(name, 65535U, name_copy) || name_copy.empty()) {
         set_last_error(abi::kErrorInvalidParameter);
         return nullptr;
     }
-    const std::string utf8_name = util::wide_to_utf8(name_copy.data(), name_copy.size());
+    const std::string utf8_name = u16_to_utf8(name_copy);
     std::lock_guard<std::mutex> lock(g_sync_mutex);
     SyncSlot* const existing = find_named_sync_slot_locked(kind, utf8_name);
     if (existing == nullptr) {
@@ -433,7 +438,7 @@ TL_MSABI void* tl_CreateEventW(const void* security_attributes, const int manual
     if (name == nullptr) {
         return tl_CreateEventA(security_attributes, manual_reset, initial_state, nullptr);
     }
-    const std::string utf8_name = util::wide_to_utf8(name_copy.data(), name_copy.size());
+    const std::string utf8_name = u16_to_utf8(name_copy);
     return tl_CreateEventA(security_attributes, manual_reset, initial_state, utf8_name.c_str());
 }
 
@@ -541,7 +546,7 @@ TL_MSABI void* tl_CreateSemaphoreW(const void* security_attributes,
     if (name == nullptr) {
         return tl_CreateSemaphoreA(nullptr, initial_count, maximum_count, nullptr);
     }
-    const std::string utf8_name = util::wide_to_utf8(name_copy.data(), name_copy.size());
+    const std::string utf8_name = u16_to_utf8(name_copy);
     return tl_CreateSemaphoreA(nullptr, initial_count, maximum_count, utf8_name.c_str());
 }
 
